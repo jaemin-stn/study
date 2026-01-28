@@ -1,15 +1,16 @@
 import { create } from 'zustand';
 import type { Rack, Device } from '../types';
+import { GRID_SPACING } from '../components/constants';
 
 interface AppState {
     racks: Rack[];
     selectedRackId: string | null;
+    selectedDeviceId: string | null;
     focusedRackId: string | null;
     isDragging: boolean;
     draggingRackId: string | null;
     dragPosition: [number, number] | null;
     dragOffset: [number, number] | null;
-    gridSize: number;
     isEditMode: boolean;
 
     // Actions
@@ -17,6 +18,7 @@ interface AppState {
     moveRack: (id: string, newPosition: [number, number]) => boolean; // returns success
     deleteRack: (id: string) => void;
     selectRack: (id: string | null) => void;
+    selectDevice: (id: string | null) => void;
     focusRack: (id: string | null) => void;
     setDragging: (isDragging: boolean, rackId?: string | null, offset?: [number, number] | null) => void;
     updateDragPosition: (pos: [number, number] | null) => void;
@@ -38,12 +40,12 @@ const checkCollision = (racks: Rack[], idToExclude: string | null, pos: [number,
 export const useStore = create<AppState>((set, get) => ({
     racks: [],
     selectedRackId: null,
+    selectedDeviceId: null,
     focusedRackId: null,
     isDragging: false,
     draggingRackId: null,
     dragPosition: null,
     dragOffset: null,
-    gridSize: 1.5,
     isEditMode: false,
 
     addRack: (uHeight, position) => {
@@ -83,7 +85,8 @@ export const useStore = create<AppState>((set, get) => ({
         }));
     },
 
-    selectRack: (id) => set({ selectedRackId: id }),
+    selectRack: (id) => set({ selectedRackId: id, selectedDeviceId: null }),
+    selectDevice: (id) => set({ selectedDeviceId: id }),
     focusRack: (id) => set({ focusedRackId: id }),
     setDragging: (isDragging, rackId = null, offset = null) =>
         set({ isDragging, draggingRackId: isDragging ? rackId : null, dragOffset: offset }),
@@ -91,13 +94,19 @@ export const useStore = create<AppState>((set, get) => ({
 
     endDrag: (id, newPosition) => {
         const { racks } = get();
-        if (checkCollision(racks, id, newPosition)) {
+        const colliding = checkCollision(racks, id, newPosition);
+
+        if (colliding) {
+            console.warn(`Collision at [${newPosition[0]}, ${newPosition[1]}], reverting.`);
             set({ isDragging: false, draggingRackId: null, dragPosition: null, dragOffset: null });
             return false;
         }
 
+        const newRacks = racks.map(r => r.id === id ? { ...r, position: newPosition } : r);
+        console.log(`State updated. Rack ${id} position is now [${newPosition[0]}, ${newPosition[1]}]`);
+
         set({
-            racks: racks.map(r => r.id === id ? { ...r, position: newPosition } : r),
+            racks: newRacks,
             isDragging: false,
             draggingRackId: null,
             dragPosition: null,
@@ -106,7 +115,19 @@ export const useStore = create<AppState>((set, get) => ({
         return true;
     },
 
-    setEditMode: (enabled) => set({ isEditMode: enabled }),
+    setEditMode: (enabled) => {
+        const { isDragging, draggingRackId, dragPosition, endDrag } = get();
+
+        // If disabling edit mode while dragging, finalize the position
+        if (!enabled && isDragging && draggingRackId && dragPosition) {
+            const gridX = Math.round(dragPosition[0] / GRID_SPACING);
+            const gridZ = Math.round(dragPosition[1] / GRID_SPACING);
+            console.log(`Mode toggled OFF while dragging. Finalizing to [${gridX}, ${gridZ}]`);
+            endDrag(draggingRackId, [gridX, gridZ]);
+        }
+
+        set({ isEditMode: enabled });
+    },
 
     addDevice: (rackId, deviceData) => {
         const { racks } = get();

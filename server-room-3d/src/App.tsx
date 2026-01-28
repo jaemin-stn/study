@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { Scene } from './components/Scene';
 import { DevicePanel } from './components/DevicePanel';
+import { DeviceModal } from './components/DeviceModal';
 import { useStore } from './store/useStore';
 import { saveToJSON, loadFromJSON, sampleRacks } from './utils/storage';
 
@@ -101,6 +102,9 @@ function App() {
           <DevicePanel />
         </div>
       )}
+
+      {/* Global Device Modal */}
+      <DeviceModal />
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { Suspense, useMemo } from 'react';
+import { Suspense, useMemo, useEffect } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Environment, Grid } from '@react-three/drei';
 import { useStore } from '../store/useStore';
@@ -24,8 +24,10 @@ const DragHandler = () => {
                 const offsetX = dragOffset ? dragOffset[0] : 0;
                 const offsetZ = dragOffset ? dragOffset[1] : 0;
 
-                // New center = MousePoint - Offset
-                updateDragPosition([tempPoint.x - offsetX, tempPoint.z - offsetZ]);
+                // Snap to grid immediately for "fixed" feel during movement
+                const snappedX = Math.round((tempPoint.x - offsetX) / GRID_SPACING) * GRID_SPACING;
+                const snappedZ = Math.round((tempPoint.z - offsetZ) / GRID_SPACING) * GRID_SPACING;
+                updateDragPosition([snappedX, snappedZ]);
             }
         }
     });
@@ -36,36 +38,41 @@ const DragHandler = () => {
 export const Scene = () => {
     const racks = useStore((state) => state.racks);
     const isDragging = useStore((state) => state.isDragging);
+    const draggingRackId = useStore((state) => state.draggingRackId);
+    const dragPosition = useStore((state) => state.dragPosition);
 
-    // Global release handler for safety
-    const handleGlobalUp = () => {
-        const state = useStore.getState();
-        if (state.isDragging) {
-            const dragPos = state.dragPosition;
-            const rackId = state.draggingRackId;
+    // Global release handler using native window listener for 100% reliability
+    useEffect(() => {
+        const handleGlobalUp = () => {
+            const state = useStore.getState();
+            if (state.isDragging) {
+                const dragPos = state.dragPosition;
+                const rackId = state.draggingRackId;
 
-            if (rackId && dragPos) {
-                const gridX = Math.round(dragPos[0] / GRID_SPACING);
-                const gridZ = Math.round(dragPos[1] / GRID_SPACING);
+                if (rackId && dragPos) {
+                    // Force strict math to avoid float inaccuracies
+                    const gridX = Math.round(dragPos[0] / GRID_SPACING);
+                    const gridZ = Math.round(dragPos[1] / GRID_SPACING);
 
-                console.log(`Finalizing move for ${rackId} to [${gridX}, ${gridZ}]`);
-                state.endDrag(rackId, [gridX, gridZ]);
-            } else {
-                state.setDragging(false, null);
-                state.updateDragPosition(null);
+                    console.log(`[Drop] Rack: ${rackId} -> Grid: [${gridX}, ${gridZ}]`);
+                    state.endDrag(rackId, [gridX, gridZ]);
+                } else {
+                    state.setDragging(false, null);
+                    state.updateDragPosition(null);
+                }
+                document.body.style.cursor = 'auto';
             }
+        };
 
-            document.body.style.cursor = 'auto';
-        }
-    };
+        window.addEventListener('pointerup', handleGlobalUp);
+        return () => window.removeEventListener('pointerup', handleGlobalUp);
+    }, []);
 
     return (
         <Canvas
             shadows
             camera={{ position: [10, 10, 10], fov: 50 }}
             style={{ width: '100%', height: '100vh', background: '#f0f0f0' }}
-            onPointerUp={handleGlobalUp}
-            onPointerLeave={handleGlobalUp}
         >
             <ambientLight intensity={0.5} />
             <directionalLight
@@ -91,7 +98,12 @@ export const Scene = () => {
 
                 {/* Racks */}
                 {racks.map((rack) => (
-                    <Rack key={rack.id} {...rack} />
+                    <Rack
+                        key={rack.id}
+                        {...rack}
+                        draggingRackId={draggingRackId}
+                        dragPosition={dragPosition}
+                    />
                 ))}
 
                 {/* The Hidden Drag Engine */}

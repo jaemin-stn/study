@@ -5,7 +5,7 @@ import { DEVICE_TEMPLATES } from '../utils/deviceTemplates';
 import type { DeviceTemplate } from '../utils/deviceTemplates';
 
 export const DevicePanel = () => {
-    const { racks, selectedRackId, selectRack, addDevice, removeDevice } = useStore();
+    const { racks, selectedRackId, selectRack, addDevice, removeDevice, selectDevice } = useStore();
     const rack = racks.find(r => r.id === selectedRackId);
 
     const [newName, setNewName] = useState('');
@@ -178,8 +178,11 @@ export const DevicePanel = () => {
                         padding: '0 10px',
                         color: '#fff', fontWeight: 500, fontSize: '12px',
                         boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                        position: 'relative'
-                    }}>
+                        position: 'relative',
+                        cursor: 'pointer'
+                    }}
+                        onClick={() => selectDevice(device.id)}
+                    >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <span>{device.name}</span>
                             <span style={{ opacity: 0.8, fontSize: '10px' }}>({device.uSize}U)</span>

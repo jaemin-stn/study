@@ -1,69 +1,67 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Text, RoundedBox, useTexture } from '@react-three/drei';
 import { animated, useSpring } from '@react-spring/three';
+import { useThree } from '@react-three/fiber';
+import * as THREE from 'three';
 import { useStore } from '../store/useStore';
 import type { Rack as RackType } from '../types';
 import { ErrorMarker } from './ErrorMarker';
 import { U_HEIGHT, GRID_SPACING } from './constants';
 
-export const Rack = ({ id, uHeight, position, devices }: RackType) => {
-    const selectedRackId = useStore(state => state.selectedRackId);
-    const draggingRackId = useStore(state => state.draggingRackId);
-    const dragPosition = useStore(state => state.dragPosition);
+interface RackProps extends RackType {
+    draggingRackId: string | null;
+    dragPosition: [number, number] | null;
+}
+
+export const Rack = ({ id, uHeight, position, devices, draggingRackId, dragPosition }: RackProps) => {
+    const selectedRackId = useStore((state: any) => state.selectedRackId);
 
     const isSelected = selectedRackId === id;
     const isInternalDragging = draggingRackId === id;
+
+    const { raycaster, mouse, camera } = useThree();
+    const floorPlane = useMemo(() => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), []);
+    const tempPoint = useMemo(() => new THREE.Vector3(), []);
 
     const height = uHeight * U_HEIGHT + 0.1;
     const width = 0.6;
     const depth = 1.0;
     const frameColor = isSelected ? '#1a73e8' : '#333333';
 
-    // Visual animation - follow real-time drag coordinates if active
-    const [{ pos, scale, doorOpacity }, api] = useSpring(() => ({
-        pos: [position[0] * GRID_SPACING, height / 2, position[1] * GRID_SPACING],
-        scale: 1,
-        doorOpacity: 0.2,
-        config: { mass: 1, tension: 350, friction: 35 }
-    }));
+    // Declarative animation - Purely reactive to props/state
+    const currentTargetPos = isInternalDragging && dragPosition
+        ? [dragPosition[0], height / 2 + 0.1, dragPosition[1]]
+        : [position[0] * GRID_SPACING, height / 2, position[1] * GRID_SPACING];
 
-    useEffect(() => {
-        if (isInternalDragging && dragPosition) {
-            api.start({
-                pos: [dragPosition[0], height / 2 + 0.1, dragPosition[1]],
-                scale: 1.05,
-                doorOpacity: 0.1,
-                immediate: true
-            });
-        } else {
-            api.start({
-                pos: [position[0] * GRID_SPACING, height / 2, position[1] * GRID_SPACING],
-                scale: 1,
-                doorOpacity: 0.2,
-                immediate: false
-            });
-        }
-    }, [isInternalDragging, dragPosition, position, height, api]);
+    const { pos, scale, doorOpacity } = useSpring({
+        pos: currentTargetPos,
+        scale: isInternalDragging ? 1.05 : 1,
+        doorOpacity: isInternalDragging ? 0.1 : 0.2,
+        config: { mass: 1, tension: 350, friction: 35 },
+        immediate: isInternalDragging // Use immediate only during active dragging
+    });
 
     const handlePointerDown = (e: any) => {
         e.stopPropagation();
         const { selectRack, setDragging, updateDragPosition, isEditMode } = useStore.getState();
 
-        console.log(`Grabbed rack: ${id}`);
         selectRack(id);
 
-        if (!isEditMode) {
-            console.log('Not in Edit Mode, ignoring drag');
-            return;
+        if (!isEditMode) return;
+
+        // Use the camera we already have from the top-level useThree() hook
+        raycaster.setFromCamera(mouse, camera);
+        if (raycaster.ray.intersectPlane(floorPlane, tempPoint)) {
+            const rackWorldX = position[0] * GRID_SPACING;
+            const rackWorldZ = position[1] * GRID_SPACING;
+
+            // Offset = ClickedFloorPoint - RackCenter
+            const offset: [number, number] = [tempPoint.x - rackWorldX, tempPoint.z - rackWorldZ];
+
+            setDragging(true, id, offset);
+            updateDragPosition([rackWorldX, rackWorldZ]);
+            document.body.style.cursor = 'grabbing';
         }
-
-        const rackWorldX = position[0] * GRID_SPACING;
-        const rackWorldZ = position[1] * GRID_SPACING;
-        const offset: [number, number] = [e.point.x - rackWorldX, e.point.z - rackWorldZ];
-
-        setDragging(true, id, offset);
-        updateDragPosition([rackWorldX, rackWorldZ]);
-        document.body.style.cursor = 'grabbing';
     };
 
     const [isHovered, setHovered] = useState(false);
@@ -164,7 +162,12 @@ export const Rack = ({ id, uHeight, position, devices }: RackType) => {
 
             <group position={[0, 0, depth / 2 - 0.02]}>
                 {devices.map((device) => (
-                    <DeviceMesh key={device.id} device={device} rackHeight={height} />
+                    <DeviceMesh
+                        key={device.id}
+                        device={device}
+                        rackHeight={height}
+                        onSelect={() => useStore.getState().selectDevice(device.id)}
+                    />
                 ))}
             </group>
 
@@ -173,14 +176,20 @@ export const Rack = ({ id, uHeight, position, devices }: RackType) => {
     );
 };
 
-const DeviceMesh = ({ device, rackHeight }: { device: any, rackHeight: number }) => {
+const DeviceMesh = ({ device, rackHeight, onSelect }: { device: any, rackHeight: number, onSelect: () => void }) => {
     const deviceH = device.uSize * U_HEIGHT;
     const bottomY = -rackHeight / 2;
     const yOffset = (device.uPosition - 1) * U_HEIGHT;
     const centerY = bottomY + yOffset + deviceH / 2 + 0.05;
 
     return (
-        <group position={[0, centerY, 0.01]}>
+        <group
+            position={[0, centerY, 0.01]}
+            onClick={(e) => {
+                e.stopPropagation();
+                onSelect();
+            }}
+        >
             <RoundedBox args={[0.54, deviceH - 0.005, 0.1]} radius={0.005} smoothness={2}>
                 <meshStandardMaterial color="#222222" roughness={0.4} metalness={0.7} />
             </RoundedBox>

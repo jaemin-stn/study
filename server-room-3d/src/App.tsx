@@ -73,9 +73,9 @@ function App() {
 
         <div style={{ display: 'flex', gap: '5px', borderRight: '1px solid #ddd', paddingRight: '10px', marginLeft: '10px' }}>
           <strong>Add Rack:</strong>
-          <button onClick={() => addRack(24, [Math.round(Math.random() * 5), Math.round(Math.random() * 5)])}>24U</button>
-          <button onClick={() => addRack(32, [Math.round(Math.random() * 5), Math.round(Math.random() * 5)])}>32U</button>
-          <button onClick={() => addRack(48, [Math.round(Math.random() * 5), Math.round(Math.random() * 5)])}>48U</button>
+          <button onClick={() => addRack(24, [Math.round(Math.random() * 5 * 2) / 2, Math.round(Math.random() * 5 * 2) / 2])}>24U</button>
+          <button onClick={() => addRack(32, [Math.round(Math.random() * 5 * 2) / 2, Math.round(Math.random() * 5 * 2) / 2])}>32U</button>
+          <button onClick={() => addRack(48, [Math.round(Math.random() * 5 * 2) / 2, Math.round(Math.random() * 5 * 2) / 2])}>48U</button>
         </div>
 
         <div style={{ display: 'flex', gap: '5px' }}>

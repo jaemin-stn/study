@@ -24,9 +24,9 @@ const DragHandler = () => {
                 const offsetX = dragOffset ? dragOffset[0] : 0;
                 const offsetZ = dragOffset ? dragOffset[1] : 0;
 
-                // Snap to grid immediately for "fixed" feel during movement
-                const snappedX = Math.round((tempPoint.x - offsetX) / GRID_SPACING) * GRID_SPACING;
-                const snappedZ = Math.round((tempPoint.z - offsetZ) / GRID_SPACING) * GRID_SPACING;
+                // Snap to grid immediately for "fixed" feel during movement, supporting 0.5 increments
+                const snappedX = Math.round(((tempPoint.x - offsetX) / GRID_SPACING) * 2) / 2 * GRID_SPACING;
+                const snappedZ = Math.round(((tempPoint.z - offsetZ) / GRID_SPACING) * 2) / 2 * GRID_SPACING;
                 updateDragPosition([snappedX, snappedZ]);
             }
         }
@@ -50,9 +50,9 @@ export const Scene = () => {
                 const rackId = state.draggingRackId;
 
                 if (rackId && dragPos) {
-                    // Force strict math to avoid float inaccuracies
-                    const gridX = Math.round(dragPos[0] / GRID_SPACING);
-                    const gridZ = Math.round(dragPos[1] / GRID_SPACING);
+                    // Snap to 0.5 grid increments
+                    const gridX = Math.round((dragPos[0] / GRID_SPACING) * 2) / 2;
+                    const gridZ = Math.round((dragPos[1] / GRID_SPACING) * 2) / 2;
 
                     console.log(`[Drop] Rack: ${rackId} -> Grid: [${gridX}, ${gridZ}]`);
                     state.endDrag(rackId, [gridX, gridZ]);

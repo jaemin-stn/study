@@ -15,8 +15,9 @@ interface CameraState {
 export const CameraController = () => {
     const { camera, controls } = useThree();
     const selectedRackId = useStore((state) => state.selectedRackId);
-    const focusedRackId = useStore((state) => state.focusedRackId); // Still support fly-to from error markers
+    const focusedRackId = useStore((state) => state.focusedRackId);
     const racks = useStore((state) => state.racks);
+    const isEditMode = useStore((state) => state.isEditMode);
 
     const savedState = useRef<CameraState | null>(null);
     const targetPos = useRef<THREE.Vector3 | null>(null);
@@ -75,7 +76,7 @@ export const CameraController = () => {
     // Handle initial selection/focus
     useEffect(() => {
         const rackId = selectedRackId || focusedRackId;
-        if (rackId) {
+        if (rackId && !isEditMode) {
             setupFocus(rackId);
         } else if (savedState.current) {
             // Deselect: animate back to saved state
@@ -84,7 +85,7 @@ export const CameraController = () => {
             targetZoom.current = savedState.current.zoom;
             setIsAnimating(true);
         }
-    }, [selectedRackId, focusedRackId, racks]);
+    }, [selectedRackId, focusedRackId, racks, isEditMode]);
 
     useFrame((_, delta) => {
         if (!isAnimating || !targetPos.current || !targetLookAt.current || !controls) return;

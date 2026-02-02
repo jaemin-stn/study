@@ -4,6 +4,19 @@ import type { DeviceType, ErrorLevel } from '../types';
 import { DEVICE_TEMPLATES } from '../utils/deviceTemplates';
 import type { DeviceTemplate } from '../utils/deviceTemplates';
 
+const ERROR_PULSE_STYLE = `
+@keyframes error-pulse {
+    0% { border-color: #ef4444; box-shadow: 0 0 2px #ef4444; }
+    50% { border-color: #ff0000; box-shadow: 0 0 12px #ef4444; }
+    100% { border-color: #ef4444; box-shadow: 0 0 2px #ef4444; }
+}
+.device-error-pulse {
+    animation: error-pulse 1.5s infinite ease-in-out;
+    border: 2px solid red !important;
+}
+`;
+
+
 export const DevicePanel = () => {
     const { racks, selectedRackId, selectRack, addDevice, removeDevice, selectDevice, deleteRack } = useStore();
     const rack = racks.find(r => r.id === selectedRackId);
@@ -181,6 +194,7 @@ export const DevicePanel = () => {
                         position: 'relative',
                         cursor: 'pointer'
                     }}
+                        className={hasError ? 'device-error-pulse' : ''}
                         onClick={() => selectDevice(device.id)}
                     >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -286,6 +300,7 @@ export const DevicePanel = () => {
 
     return (
         <div style={panelStyle}>
+            <style>{ERROR_PULSE_STYLE}</style>
             <div style={headerStyle}>
                 <div>
                     <h2 style={{ margin: 0, fontSize: '18px', color: '#111' }}>Rack {rack.id.substring(0, 4)}</h2>

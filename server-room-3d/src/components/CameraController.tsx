@@ -1,55 +1,126 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useThree, useFrame } from '@react-three/fiber';
 import { useStore } from '../store/useStore';
 import * as THREE from 'three';
 import { OrbitControls } from 'three-stdlib';
+import { U_HEIGHT, GRID_SPACING } from './constants';
 
-const GRID_SPACING = 1.5;
+interface CameraState {
+    position: THREE.Vector3;
+    quaternion: THREE.Quaternion;
+    target: THREE.Vector3;
+    zoom: number;
+}
 
 export const CameraController = () => {
     const { camera, controls } = useThree();
-    const focusedRackId = useStore((state) => state.focusedRackId);
+    const selectedRackId = useStore((state) => state.selectedRackId);
+    const focusedRackId = useStore((state) => state.focusedRackId); // Still support fly-to from error markers
     const racks = useStore((state) => state.racks);
 
-    // Target position and lookAt vectors
+    const savedState = useRef<CameraState | null>(null);
     const targetPos = useRef<THREE.Vector3 | null>(null);
     const targetLookAt = useRef<THREE.Vector3 | null>(null);
-    const isAnimating = useRef(false);
+    const targetZoom = useRef<number>(1);
+    const [isAnimating, setIsAnimating] = useState(false);
 
-    useEffect(() => {
-        if (focusedRackId) {
-            const rack = racks.find(r => r.id === focusedRackId);
-            if (rack) {
-                // Calculate target position (e.g., offset by [3, 3, 3] from rack)
-                const rackX = rack.position[0] * GRID_SPACING;
-                const rackZ = rack.position[1] * GRID_SPACING;
-                // Center of rack roughly
-                const center = new THREE.Vector3(rackX, 1, rackZ);
+    // Common function to set up animation to a rack
+    const setupFocus = (rackId: string) => {
+        const rack = racks.find(r => r.id === rackId);
+        if (!rack || !controls) return;
 
-                targetLookAt.current = center;
-                targetPos.current = new THREE.Vector3(rackX + 4, 4, rackZ + 4);
-                isAnimating.current = true;
-            }
+        const orbitControls = controls as unknown as OrbitControls;
+        const perspectiveCamera = camera as THREE.PerspectiveCamera;
+
+        // Save state ONLY if we are not already focused/animating toward a rack
+        if (!savedState.current) {
+            savedState.current = {
+                position: camera.position.clone(),
+                quaternion: camera.quaternion.clone(),
+                target: orbitControls.target.clone(),
+                zoom: camera.zoom
+            };
         }
-    }, [focusedRackId, racks]);
+
+        const rackX = rack.position[0] * GRID_SPACING;
+        const rackZ = rack.position[1] * GRID_SPACING;
+        const rackHeight = rack.uHeight * U_HEIGHT + 0.1;
+        const rackWidth = 0.6;
+
+        // Calculate distance to fit the whole rack (considering FOV and aspect ratio)
+        const fov = perspectiveCamera.fov;
+        const aspect = window.innerWidth / window.innerHeight;
+
+        const vFovRad = (fov * Math.PI) / 180;
+        const hFovRad = 2 * Math.atan(Math.tan(vFovRad / 2) * aspect);
+
+        // Distance needed to fit height and width
+        const distHeight = (rackHeight / 2) / Math.tan(vFovRad / 2);
+        const distWidth = (rackWidth / 2) / Math.tan(hFovRad / 2);
+
+        // Use the larger distance to ensure nothing is clipped, plus a 1.2x margin
+        const distance = Math.max(distHeight, distWidth) * 1.2;
+
+        // Target is the center of the rack
+        targetLookAt.current = new THREE.Vector3(rackX, rackHeight / 2, rackZ);
+
+        // Camera position: directly in front (+Z direction relative to rack)
+        // Depth is 1.0, so front face is at rackZ + 0.5.
+        targetPos.current = new THREE.Vector3(rackX, rackHeight / 2, rackZ + distance + 0.5);
+        targetZoom.current = 1;
+
+        setIsAnimating(true);
+    };
+
+    // Handle initial selection/focus
+    useEffect(() => {
+        const rackId = selectedRackId || focusedRackId;
+        if (rackId) {
+            setupFocus(rackId);
+        } else if (savedState.current) {
+            // Deselect: animate back to saved state
+            targetPos.current = savedState.current.position;
+            targetLookAt.current = savedState.current.target;
+            targetZoom.current = savedState.current.zoom;
+            setIsAnimating(true);
+        }
+    }, [selectedRackId, focusedRackId, racks]);
 
     useFrame((_, delta) => {
-        if (!isAnimating.current || !targetPos.current || !targetLookAt.current) return;
+        if (!isAnimating || !targetPos.current || !targetLookAt.current || !controls) return;
 
-        const step = 4 * delta; // speed
+        const orbitControls = controls as unknown as OrbitControls;
+        const step = 5 * delta; // Speed
 
+        // Lerp position
         camera.position.lerp(targetPos.current, step);
 
-        // Update controls target
-        if (controls) {
-            const orbitControls = controls as unknown as OrbitControls;
-            orbitControls.target.lerp(targetLookAt.current, step);
-            orbitControls.update();
+        // Lerp target
+        orbitControls.target.lerp(targetLookAt.current, step);
+
+        // Lerp zoom
+        if (Math.abs(camera.zoom - targetZoom.current) > 0.01) {
+            camera.zoom = THREE.MathUtils.lerp(camera.zoom, targetZoom.current, step);
+            camera.updateProjectionMatrix();
         }
 
-        // Check if close enough to stop "animation" (though lerp never truly finishes, just getting close)
-        if (camera.position.distanceTo(targetPos.current) < 0.1) {
-            isAnimating.current = false;
+        orbitControls.update();
+
+        // Check completion
+        const posDist = camera.position.distanceTo(targetPos.current);
+        const targetDist = orbitControls.target.distanceTo(targetLookAt.current);
+
+        if (posDist < 0.01 && targetDist < 0.01) {
+            setIsAnimating(false);
+
+            // If we just finished return-to-base, clear the saved state
+            if (!selectedRackId && !focusedRackId) {
+                if (savedState.current) {
+                    camera.quaternion.copy(savedState.current.quaternion);
+                    orbitControls.update();
+                }
+                savedState.current = null;
+            }
         }
     });
 

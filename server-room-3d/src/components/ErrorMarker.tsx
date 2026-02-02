@@ -76,7 +76,7 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
                 </mesh>
 
                 {/* Error Label UI */}
-                <Html position={[0, 0.6, 0]} center>
+                <Html position={[0, 0.6, 0]} center occlude>
                     <div style={{
                         background: 'black',
                         color: color,

@@ -73,6 +73,7 @@ export const Scene = () => {
             shadows
             camera={{ position: [10, 10, 10], fov: 50 }}
             style={{ width: '100%', height: '100vh', background: '#f0f0f0' }}
+            onPointerMissed={() => useStore.getState().selectRack(null)}
         >
             <ambientLight intensity={0.5} />
             <directionalLight

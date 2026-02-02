@@ -5,7 +5,7 @@ import { DEVICE_TEMPLATES } from '../utils/deviceTemplates';
 import type { DeviceTemplate } from '../utils/deviceTemplates';
 
 export const DevicePanel = () => {
-    const { racks, selectedRackId, selectRack, addDevice, removeDevice, selectDevice } = useStore();
+    const { racks, selectedRackId, selectRack, addDevice, removeDevice, selectDevice, deleteRack } = useStore();
     const rack = racks.find(r => r.id === selectedRackId);
 
     const [newName, setNewName] = useState('');
@@ -367,6 +367,22 @@ export const DevicePanel = () => {
                         Click a slot number below to set position.
                     </div>
                     {renderSlots()}
+                </div>
+
+                {/* Delete Rack Section */}
+                <div style={{ ...sectionStyle, marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #ef444433' }}>
+                    <button
+                        onClick={() => {
+                            if (window.confirm('이 랙을 삭제하시겠습니까? 내부의 모든 장비도 함께 삭제됩니다.')) {
+                                deleteRack(rack.id);
+                            }
+                        }}
+                        style={{ ...buttonStyle, background: '#ef4444', transition: 'filter 0.2s' }}
+                        onMouseOver={(e) => e.currentTarget.style.filter = 'brightness(0.9)'}
+                        onMouseOut={(e) => e.currentTarget.style.filter = 'brightness(1)'}
+                    >
+                        Rack 삭제
+                    </button>
                 </div>
             </div>
         </div>

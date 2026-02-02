@@ -202,30 +202,70 @@ export const DevicePanel = () => {
                 );
             } else if (!occupied) {
                 const isSelected = newUPos === u;
+
+                // 가용성 체크: u 위치에서 newUSize 만큼의 공간이 있는지 확인
+                let canFit = true;
+                if (u + newUSize - 1 > rack.uHeight) {
+                    canFit = false; // 랙 높이 초과
+                } else {
+                    for (let i = 0; i < newUSize; i++) {
+                        if (usedSlots.has(u + i)) {
+                            canFit = false; // 다른 장비와 겹침
+                            break;
+                        }
+                    }
+                }
+
                 rendered.push(
                     <div
                         key={`empty-${u}`}
-                        onClick={() => setNewUPos(u)}
+                        onClick={() => canFit && setNewUPos(u)}
                         style={{
                             height: '28px',
                             borderBottom: '1px solid #eee',
                             display: 'flex', alignItems: 'center',
-                            cursor: 'pointer',
-                            backgroundColor: isSelected ? '#eff6ff' : 'transparent',
+                            cursor: canFit ? 'pointer' : 'not-allowed',
+                            backgroundColor: isSelected
+                                ? '#eff6ff'
+                                : !canFit
+                                    ? '#fee2e2' // 불가능 (연한 빨강)
+                                    : '#f0fdf4', // 가능 (연한 초록)
                             transition: 'background 0.1s',
-                            marginBottom: '2px'
+                            marginBottom: '2px',
+                            opacity: canFit ? 1 : 0.6
                         }}
+                        title={!canFit ? '이 위치에는 해당 높이의 장비를 설치할 수 없습니다.' : ''}
                     >
                         {/* Rail Number Left */}
-                        <div style={{ width: '30px', textAlign: 'center', fontSize: '10px', color: '#999', borderRight: '1px solid #eee' }}>
+                        <div style={{
+                            width: '30px',
+                            textAlign: 'center',
+                            fontSize: '10px',
+                            color: isSelected ? '#2563eb' : (canFit ? '#666' : '#ef4444'),
+                            borderRight: '1px solid #eee',
+                            fontWeight: isSelected ? 700 : 400
+                        }}>
                             {u}
                         </div>
                         {/* Slot Content */}
-                        <div style={{ flex: 1, paddingLeft: '10px', fontSize: '11px', color: '#ccc' }}>
-                            {isSelected ? 'Selected' : 'Empty'}
+                        <div style={{
+                            flex: 1,
+                            paddingLeft: '10px',
+                            fontSize: '11px',
+                            color: isSelected ? '#1e40af' : (canFit ? '#166534' : '#991b1b'),
+                            fontWeight: isSelected ? 600 : 400
+                        }}>
+                            {isSelected ? 'Selected' : canFit ? 'Available' : 'Unavailable'}
                         </div>
                         {/* Rail Number Right */}
-                        <div style={{ width: '30px', textAlign: 'center', fontSize: '10px', color: '#999', borderLeft: '1px solid #eee' }}>
+                        <div style={{
+                            width: '30px',
+                            textAlign: 'center',
+                            fontSize: '10px',
+                            color: isSelected ? '#2563eb' : (canFit ? '#666' : '#ef4444'),
+                            borderLeft: '1px solid #eee',
+                            fontWeight: isSelected ? 700 : 400
+                        }}>
                             {u}
                         </div>
                     </div>

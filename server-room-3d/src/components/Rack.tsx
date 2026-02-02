@@ -166,7 +166,14 @@ export const Rack = ({ id, uHeight, position, devices, draggingRackId, dragPosit
                         key={device.id}
                         device={device}
                         rackHeight={height}
-                        onSelect={() => useStore.getState().selectDevice(device.id)}
+                        onSelect={() => {
+                            const { selectedRackId, selectRack, selectDevice } = useStore.getState();
+                            if (selectedRackId !== id) {
+                                selectRack(id);
+                            } else {
+                                selectDevice(device.id);
+                            }
+                        }}
                     />
                 ))}
             </group>

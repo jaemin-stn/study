@@ -27,7 +27,7 @@ const ERROR_PRIORITY: Record<ErrorLevel, number> = {
 };
 
 export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
-    const focusRack = useStore((state) => state.focusRack);
+    const selectRack = useStore((state) => state.selectRack);
     const markerRef = useRef<THREE.Group>(null);
 
     // Calculate highest error
@@ -68,7 +68,7 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
 
     return (
         <group position={position}>
-            <group ref={markerRef} onClick={(e) => { e.stopPropagation(); focusRack(rack.id); }}>
+            <group ref={markerRef} onClick={(e) => { e.stopPropagation(); selectRack(rack.id); }}>
                 {/* Cone pointing down */}
                 <mesh position={[0, 0, 0]} rotation={[Math.PI, 0, 0]}>
                     <coneGeometry args={[0.2, 0.5, 32]} />

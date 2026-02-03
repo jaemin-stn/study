@@ -76,7 +76,8 @@ export const CameraController = () => {
     // Handle initial selection/focus
     useEffect(() => {
         const rackId = selectedRackId || focusedRackId;
-        if (rackId && !isEditMode) {
+        // Focus if a rack is identified AND (we are not in edit mode OR focus was explicitly requested via focusedRackId)
+        if (rackId && (!isEditMode || focusedRackId !== null)) {
             setupFocus(rackId);
         } else if (savedState.current) {
             // Deselect: animate back to saved state

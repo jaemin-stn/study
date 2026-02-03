@@ -98,7 +98,11 @@ export const useStore = create<AppState>((set, get) => ({
                 set({ isDragging: false, draggingRackId: null, dragPosition: null, dragOffset: null });
             }
         }
-        set({ selectedRackId: id, selectedDeviceId: null });
+        set({
+            selectedRackId: id,
+            focusedRackId: null,
+            selectedDeviceId: null
+        });
     },
     selectDevice: (id) => set({ selectedDeviceId: id }),
     focusRack: (id) => set({ focusedRackId: id }),

@@ -69,12 +69,27 @@ export const CameraController = () => {
     const targetCenterY = rackHeight * 0.45;
     targetLookAt.current = new THREE.Vector3(rackX, targetCenterY, rackZ);
 
-    // Camera position: higher up and looking down at the rack
-    // This steeper angle helps see past front racks when focusing on rear racks
-    const cameraHeight = rackHeight * 0.8 + distance * 0.4; // Higher camera position
-    const cameraZ = rackZ + distance + 0.5; // Front of rack + distance
+    // Camera position: higher up and looking down at the front face of the rack
+    // Calculate the front-facing direction based on rack orientation
+    const orientation = rack.orientation ?? 180;
+    // Sync with Rack.tsx mapping: (180 - orientation)
+    const orientationRad = ((180 - orientation) * Math.PI) / 180;
 
-    targetPos.current = new THREE.Vector3(rackX, cameraHeight, cameraZ);
+    // Offset from rack center to front door is ~0.5. Add distance for framing.
+    const effectiveDistance = distance + 0.5;
+
+    // Projected front-facing vector
+    const offsetX = Math.sin(orientationRad) * effectiveDistance;
+    const offsetZ = Math.cos(orientationRad) * effectiveDistance;
+
+    // Slightly lower camera angle for a more direct "front" view (0.6 instead of 0.8)
+    const cameraHeight = rackHeight * 0.6 + distance * 0.3;
+
+    targetPos.current = new THREE.Vector3(
+      rackX + offsetX,
+      cameraHeight,
+      rackZ + offsetZ,
+    );
     targetZoom.current = 1;
 
     setIsAnimating(true);
@@ -83,10 +98,13 @@ export const CameraController = () => {
   // Handle initial selection/focus
   useEffect(() => {
     const rackId = selectedRackId || focusedRackId;
-    // Focus if a rack is identified AND (we are not in edit mode OR focus was explicitly requested via focusedRackId)
-    if (rackId && (!isEditMode || focusedRackId !== null)) {
+    const { isDragging } = useStore.getState();
+
+    // Focus if a rack is identified AND we are NOT in edit mode AND we are NOT currently dragging
+    // This disables camera movement during selection/rotation in edit mode
+    if (rackId && !isEditMode && !isDragging) {
       setupFocus(rackId);
-    } else if (savedState.current) {
+    } else if (!rackId && savedState.current) {
       // Deselect: animate back to saved state
       targetPos.current = savedState.current.position;
       targetLookAt.current = savedState.current.target;

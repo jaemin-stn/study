@@ -25,6 +25,10 @@ export const Rack = ({
 
   const isSelected = selectedRackId === id;
   const isInternalDragging = draggingRackId === id;
+  const orientation = useStore(
+    (state: any) =>
+      state.racks.find((r: any) => r.id === id)?.orientation ?? 180,
+  );
 
   const { raycaster, mouse, camera } = useThree();
   const floorPlane = useMemo(
@@ -38,14 +42,23 @@ export const Rack = ({
   const depth = 1.0;
   const frameColor = isSelected ? "#1a73e8" : "#333333";
 
+  // Convert orientation to radians with proper mapping:
+  // North (0°) should face -Z world (180° rotation)
+  // East (90°) should face +X world (90° rotation)
+  // South (180°) should face +Z world (0° rotation)
+  // West (270°) should face -X world (270° rotation)
+  // Formula: (180 - orientation)
+  const rotationRad = ((180 - (orientation ?? 0)) * Math.PI) / 180;
+
   // Declarative animation - Purely reactive to props/state
   const currentTargetPos =
     isInternalDragging && dragPosition
       ? [dragPosition[0], height / 2 + 0.1, dragPosition[1]]
       : [position[0] * GRID_SPACING, height / 2, position[1] * GRID_SPACING];
 
-  const { pos, scale, doorOpacity } = useSpring({
+  const { pos, rot, scale, doorOpacity } = useSpring({
     pos: currentTargetPos,
+    rot: [0, rotationRad, 0],
     scale: isInternalDragging ? 1.05 : 1,
     doorOpacity: isInternalDragging ? 0.1 : 0.2,
     config: { mass: 1, tension: 350, friction: 35 },
@@ -91,7 +104,11 @@ export const Rack = ({
   }, [isHovered, draggingRackId]);
 
   return (
-    <animated.group position={pos as any} scale={scale as any}>
+    <animated.group
+      position={pos as any}
+      rotation={rot as any}
+      scale={scale as any}
+    >
       {/* 1. STRUCTURAL FRAME (Main Skeleton) */}
       <group>
         <RoundedBox args={[width, height, depth]} radius={0.01} smoothness={4}>

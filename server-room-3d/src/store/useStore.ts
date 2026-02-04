@@ -28,6 +28,7 @@ interface AppState {
   ) => void;
   updateDragPosition: (pos: [number, number] | null) => void;
   endDrag: (id: string, newPosition: [number, number]) => boolean;
+  updateRackOrientation: (id: string, orientation: 0 | 90 | 180 | 270) => void;
   setEditMode: (enabled: boolean) => void;
 
   addDevice: (rackId: string, device: Omit<Device, "id">) => boolean;
@@ -74,6 +75,7 @@ export const useStore = create<AppState>((set, get) => ({
       id: crypto.randomUUID(),
       uHeight,
       position,
+      orientation: 180,
       devices: [],
     };
 
@@ -167,6 +169,12 @@ export const useStore = create<AppState>((set, get) => ({
       dragOffset: null,
     });
     return true;
+  },
+
+  updateRackOrientation: (id, orientation) => {
+    set((state) => ({
+      racks: state.racks.map((r) => (r.id === id ? { ...r, orientation } : r)),
+    }));
   },
 
   setEditMode: (enabled) => {

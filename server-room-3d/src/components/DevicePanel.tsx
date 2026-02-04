@@ -25,6 +25,8 @@ export const DevicePanel = () => {
     removeDevice,
     selectDevice,
     deleteRack,
+    isEditMode,
+    updateRackOrientation,
   } = useStore();
   const rack = racks.find((r) => r.id === selectedRackId);
 
@@ -333,6 +335,38 @@ export const DevicePanel = () => {
       </div>
 
       <div className="grafana-side-panel-content">
+        {/* Orientation Control (Edit Mode Only) */}
+        {isEditMode && (
+          <div className="grafana-section" style={{ marginBottom: "16px" }}>
+            <h3 className="grafana-section-title">Rack Orientation</h3>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "8px",
+              }}
+            >
+              {[
+                { label: "North (0°)", value: 0 },
+                { label: "East (90°)", value: 90 },
+                { label: "South (180°)", value: 180 },
+                { label: "West (270°)", value: 270 },
+              ].map((dir) => (
+                <button
+                  key={dir.value}
+                  className={`grafana-btn ${rack.orientation === dir.value ? "grafana-btn-primary" : "grafana-btn-secondary"}`}
+                  onClick={() =>
+                    updateRackOrientation(rack.id, dir.value as any)
+                  }
+                  style={{ fontSize: "var(--font-size-xs)" }}
+                >
+                  {dir.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Form Section */}
         <div className="grafana-section">
           <h3 className="grafana-section-title">Add New Device</h3>

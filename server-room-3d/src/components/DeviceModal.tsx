@@ -237,9 +237,9 @@ export const DeviceModal = () => {
                     </strong>
                     <span>{err.errorMessage}</span>
                     <span
-                      className={`grafana-badge ${severityBadgeClass[err.errorLevel] || ""}`}
+                      className={`grafana-badge ${err.errorLevel ? severityBadgeClass[err.errorLevel] || "" : ""}`}
                     >
-                      {err.errorLevel}
+                      {err.errorLevel || "unknown"}
                     </span>
                   </div>
                 ))}

@@ -3,6 +3,7 @@ import { Scene } from "./components/Scene";
 import { DevicePanel } from "./components/DevicePanel";
 import { DeviceModal } from "./components/DeviceModal";
 import { DashboardWidgets } from "./components/DashboardWidgets";
+import { ThemeToggle } from "./components/ThemeToggle";
 import { useStore } from "./store/useStore";
 import { saveToJSON, loadFromJSON, sampleRacks } from "./utils/storage";
 
@@ -45,60 +46,47 @@ function App() {
 
       {/* UI Overlay Layer (Toolbar) */}
       <div
+        className="grafana-toolbar"
         style={{
           position: "absolute",
-          top: "10px",
-          left: "10px",
+          top: "12px",
+          left: "12px",
           zIndex: 10,
-          background: "rgba(255,255,255,0.9)",
-          padding: "10px",
-          borderRadius: "8px",
-          boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
-          display: "flex",
-          gap: "10px",
-          flexWrap: "wrap",
-          alignItems: "center",
         }}
       >
+        {/* Theme Toggle */}
+        <ThemeToggle />
+
+        <div className="grafana-toolbar-divider" />
+
         {/* Edit Mode Toggle */}
         <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            background: isEditMode ? "#e8f5e9" : "#f5f5f5",
-            padding: "4px 12px",
-            borderRadius: "20px",
-            border: `1px solid ${isEditMode ? "#4caf50" : "#ddd"}`,
-            cursor: "pointer",
-            transition: "all 0.3s",
-          }}
+          className={`grafana-mode-indicator ${isEditMode ? "active" : ""}`}
           onClick={() => setEditMode(!isEditMode)}
         >
           <div
-            style={{
-              width: "12px",
-              height: "12px",
-              borderRadius: "50%",
-              background: isEditMode ? "#4caf50" : "#9e9e9e",
-            }}
+            className={`grafana-status-dot ${isEditMode ? "grafana-status-dot-active" : "grafana-status-dot-inactive"}`}
           />
-          <strong style={{ color: isEditMode ? "#2e7d32" : "#616161" }}>
+          <span
+            style={{
+              fontWeight: 600,
+              fontSize: "var(--font-size-sm)",
+              color: isEditMode
+                ? "var(--severity-success-text)"
+                : "var(--text-secondary)",
+            }}
+          >
             {isEditMode ? "Edit Mode: ON" : "Edit Mode: OFF"}
-          </strong>
+          </span>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            gap: "5px",
-            borderRight: "1px solid #ddd",
-            paddingRight: "10px",
-            marginLeft: "10px",
-          }}
-        >
-          <strong>Add Rack:</strong>
+        <div className="grafana-toolbar-divider" />
+
+        {/* Add Rack */}
+        <div className="grafana-toolbar-group">
+          <span className="grafana-toolbar-label">Add Rack:</span>
           <button
+            className="grafana-btn grafana-btn-secondary"
             onClick={() =>
               addRack(24, [
                 Math.round(Math.random() * 5 * 2) / 2,
@@ -109,6 +97,7 @@ function App() {
             24U
           </button>
           <button
+            className="grafana-btn grafana-btn-secondary"
             onClick={() =>
               addRack(32, [
                 Math.round(Math.random() * 5 * 2) / 2,
@@ -119,6 +108,7 @@ function App() {
             32U
           </button>
           <button
+            className="grafana-btn grafana-btn-secondary"
             onClick={() =>
               addRack(48, [
                 Math.round(Math.random() * 5 * 2) / 2,
@@ -130,12 +120,28 @@ function App() {
           </button>
         </div>
 
-        <div style={{ display: "flex", gap: "5px" }}>
-          <button onClick={() => saveToJSON(racks)}>Save JSON</button>
-          <button onClick={() => fileInputRef.current?.click()}>
+        <div className="grafana-toolbar-divider" />
+
+        {/* File Operations */}
+        <div className="grafana-toolbar-group">
+          <button
+            className="grafana-btn grafana-btn-primary"
+            onClick={() => saveToJSON(racks)}
+          >
+            Save JSON
+          </button>
+          <button
+            className="grafana-btn grafana-btn-secondary"
+            onClick={() => fileInputRef.current?.click()}
+          >
             Load JSON
           </button>
-          <button onClick={loadSample}>Load Sample</button>
+          <button
+            className="grafana-btn grafana-btn-secondary"
+            onClick={loadSample}
+          >
+            Load Sample
+          </button>
           <input
             type="file"
             ref={fileInputRef}
@@ -144,37 +150,13 @@ function App() {
             onChange={handleLoad}
           />
         </div>
-
-        <div
-          style={{
-            marginLeft: "10px",
-            fontSize: "12px",
-            color: "#666",
-            alignSelf: "center",
-          }}
-        >
-          Use Left Mouse to Rotate, Right to Pan. Click Rack to Edit. Click
-          Error Marker to Fly-to.
-        </div>
       </div>
 
       {/* Dashboard Widgets (shown when no rack is selected) */}
       {!selectedRackId && <DashboardWidgets />}
 
       {/* Side Panel */}
-      {selectedRackId && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            right: 0,
-            height: "100%",
-            zIndex: 20,
-          }}
-        >
-          <DevicePanel />
-        </div>
-      )}
+      {selectedRackId && <DevicePanel />}
 
       {/* Global Device Modal */}
       <DeviceModal />

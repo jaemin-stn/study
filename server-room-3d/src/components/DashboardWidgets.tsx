@@ -2,12 +2,6 @@ import { useState, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import type { ErrorLevel } from "../types";
 
-// Sensor data type (mock for now)
-interface SensorData {
-  temperature: number | null;
-  humidity: number | null;
-}
-
 // Error item for table display
 interface ErrorItem {
   rackId: string;
@@ -18,16 +12,52 @@ interface ErrorItem {
   severity: ErrorLevel;
 }
 
-// Severity config for display
+// Severity config for display - Grafana style
 const severityConfig: Record<
   ErrorLevel,
-  { label: string; color: string; bgColor: string }
+  {
+    label: string;
+    bgClass: string;
+    badgeClass: string;
+    statBg: string;
+    statColor: string;
+  }
 > = {
-  critical: { label: "Critical", color: "#fff", bgColor: "#d32f2f" },
-  major: { label: "Major", color: "#fff", bgColor: "#f57c00" },
-  minor: { label: "Minor", color: "#000", bgColor: "#ffc107" },
-  warning: { label: "Warning", color: "#000", bgColor: "#90caf9" },
+  critical: {
+    label: "Critical",
+    bgClass: "severity-critical",
+    badgeClass: "grafana-badge-critical",
+    statBg: "var(--severity-critical)",
+    statColor: "#ffffff",
+  },
+  major: {
+    label: "Major",
+    bgClass: "severity-major",
+    badgeClass: "grafana-badge-major",
+    statBg: "var(--severity-major)",
+    statColor: "#ffffff",
+  },
+  minor: {
+    label: "Minor",
+    bgClass: "severity-minor",
+    badgeClass: "grafana-badge-minor",
+    statBg: "var(--severity-minor)",
+    statColor: "#1f1f1f",
+  },
+  warning: {
+    label: "Warning",
+    bgClass: "severity-warning",
+    badgeClass: "grafana-badge-warning",
+    statBg: "var(--severity-warning)",
+    statColor: "#1f1f1f",
+  },
 };
+
+// Sensor data type (mock for now)
+interface SensorData {
+  temperature: number | null;
+  humidity: number | null;
+}
 
 export const DashboardWidgets = () => {
   const racks = useStore((state) => state.racks);
@@ -102,274 +132,183 @@ export const DashboardWidgets = () => {
     <div
       style={{
         position: "absolute",
-        top: "10px",
-        right: "10px",
+        top: "12px",
+        right: "12px",
         zIndex: 15,
         display: "flex",
         flexDirection: "column",
         gap: "12px",
-        width: "320px",
+        width: "340px",
       }}
     >
-      {/* Widget 1: Error Summary */}
-      <div
-        style={{
-          background: "rgba(255, 255, 255, 0.95)",
-          borderRadius: "12px",
-          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
-          padding: "16px",
-          backdropFilter: "blur(10px)",
-          width: "100%",
-          boxSizing: "border-box",
-        }}
-      >
-        <h3
-          style={{
-            margin: "0 0 12px 0",
-            fontSize: "14px",
-            fontWeight: 600,
-            color: "#333",
-          }}
-        >
-          🚨 Rack Error Summary
-        </h3>
-        {/* Severity Cards */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: "8px",
-            marginBottom: "12px",
-          }}
-        >
-          {(Object.keys(severityConfig) as ErrorLevel[]).map((level) => {
-            const config = severityConfig[level];
-            const count = errorCounts[level];
-            const isSelected = selectedSeverity === level;
-
-            return (
-              <div
-                key={level}
-                onClick={() => setSelectedSeverity(level)}
-                style={{
-                  background: config.bgColor,
-                  color: config.color,
-                  padding: "10px 12px",
-                  borderRadius: "8px",
-                  cursor: "pointer",
-                  textAlign: "center",
-                  transition: "all 0.2s",
-                  transform: isSelected ? "scale(1.05)" : "scale(1)",
-                  boxShadow: isSelected ? "0 4px 12px rgba(0,0,0,0.3)" : "none",
-                  border: isSelected
-                    ? "2px solid #333"
-                    : "2px solid transparent",
-                }}
-              >
-                <div style={{ fontSize: "20px", fontWeight: 700 }}>{count}</div>
-                <div
-                  style={{ fontSize: "11px", fontWeight: 500, opacity: 0.9 }}
-                >
-                  {config.label}
-                </div>
-              </div>
-            );
-          })}
+      {/* Widget 1: Error Summary - Grafana Panel Style */}
+      <div className="grafana-panel">
+        <div className="grafana-panel-header">
+          <h3 className="grafana-panel-title">
+            <span style={{ fontSize: "16px" }}>🚨</span>
+            Rack Error Summary
+          </h3>
         </div>
-
-        {/* Drill-down Table - Always visible */}
-        <div
-          style={{
-            borderTop: "1px solid #eee",
-            paddingTop: "12px",
-          }}
-        >
+        <div className="grafana-panel-content">
+          {/* Severity Stat Cards */}
           <div
             style={{
-              fontSize: "12px",
-              fontWeight: 600,
-              marginBottom: "8px",
-              color: "#555",
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "8px",
+              marginBottom: "16px",
             }}
           >
-            {selectedSeverity
-              ? `${severityConfig[selectedSeverity].label} Errors (${filteredErrors.length})`
-              : "Select a severity level"}
-          </div>
+            {(Object.keys(severityConfig) as ErrorLevel[]).map((level) => {
+              const config = severityConfig[level];
+              const count = errorCounts[level];
+              const isSelected = selectedSeverity === level;
 
-          {/* Table Container with Fixed Height */}
-          <div
-            style={{
-              height: "180px",
-              border: "1px solid #eee",
-              borderRadius: "6px",
-              overflow: "hidden",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            {/* Sticky Header */}
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 0.7fr",
-                background: "#f5f5f5",
-                fontSize: "11px",
-                fontWeight: 600,
-                borderBottom: "1px solid #ddd",
-                flexShrink: 0,
-              }}
-            >
-              <div style={{ padding: "8px" }}>Rack</div>
-              <div style={{ padding: "8px" }}>Equipment</div>
-              <div style={{ padding: "8px" }}>Port</div>
-            </div>
-
-            {/* Scrollable Body */}
-            <div
-              style={{
-                flex: 1,
-                overflowY: "auto",
-                fontSize: "11px",
-              }}
-            >
-              {filteredErrors.length > 0 ? (
-                filteredErrors.map((err, idx) => (
-                  <div
-                    key={idx}
-                    onClick={() => handleErrorRowClick(err)}
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "1fr 1fr 0.7fr",
-                      background: idx % 2 === 0 ? "#fff" : "#fafafa",
-                      borderBottom: "1px solid #eee",
-                      cursor: "pointer",
-                      transition: "background 0.15s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "#e3f2fd";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background =
-                        idx % 2 === 0 ? "#fff" : "#fafafa";
-                    }}
-                  >
-                    <div
-                      style={{
-                        padding: "8px",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {err.rackName}
-                    </div>
-                    <div
-                      style={{
-                        padding: "8px",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {err.deviceName}
-                    </div>
-                    <div
-                      style={{
-                        padding: "8px",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {err.portNumber}
-                    </div>
-                  </div>
-                ))
-              ) : (
+              return (
                 <div
+                  key={level}
+                  className={`grafana-stat-card ${isSelected ? "selected" : ""}`}
+                  onClick={() => setSelectedSeverity(level)}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    height: "100%",
-                    color: "#999",
-                    fontSize: "12px",
+                    background: config.statBg,
+                    color: config.statColor,
                   }}
                 >
-                  {selectedSeverity
-                    ? `No ${severityConfig[selectedSeverity].label.toLowerCase()} errors`
-                    : "No data"}
+                  <div className="grafana-stat-value">{count}</div>
+                  <div className="grafana-stat-label">{config.label}</div>
                 </div>
+              );
+            })}
+          </div>
+
+          {/* Drill-down Table */}
+          <div
+            style={{
+              borderTop: "1px solid var(--border-weak)",
+              paddingTop: "12px",
+            }}
+          >
+            <div
+              style={{
+                fontSize: "var(--font-size-sm)",
+                fontWeight: 600,
+                marginBottom: "8px",
+                color: "var(--text-secondary)",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              {selectedSeverity && (
+                <span
+                  className={`grafana-badge ${severityConfig[selectedSeverity].badgeClass}`}
+                >
+                  {severityConfig[selectedSeverity].label}
+                </span>
               )}
+              <span>
+                {selectedSeverity
+                  ? `Errors (${filteredErrors.length})`
+                  : "Select a severity level"}
+              </span>
+            </div>
+
+            {/* Table Container with Fixed Height */}
+            <div
+              className="grafana-table-container"
+              style={{ height: "180px" }}
+            >
+              {/* Sticky Header */}
+              <div
+                className="grafana-table-header"
+                style={{ gridTemplateColumns: "1fr 1.2fr 0.6fr" }}
+              >
+                <div className="grafana-table-cell">Rack</div>
+                <div className="grafana-table-cell">Equipment</div>
+                <div className="grafana-table-cell">Port</div>
+              </div>
+
+              {/* Scrollable Body */}
+              <div style={{ height: "calc(100% - 32px)", overflowY: "auto" }}>
+                {filteredErrors.length > 0 ? (
+                  filteredErrors.map((err, idx) => (
+                    <div
+                      key={idx}
+                      className="grafana-table-row"
+                      style={{
+                        gridTemplateColumns: "1fr 1.2fr 0.6fr",
+                        fontSize: "var(--font-size-xs)",
+                      }}
+                      onClick={() => handleErrorRowClick(err)}
+                    >
+                      <div className="grafana-table-cell">{err.rackName}</div>
+                      <div className="grafana-table-cell">{err.deviceName}</div>
+                      <div className="grafana-table-cell">{err.portNumber}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      height: "100%",
+                      color: "var(--text-tertiary)",
+                      fontSize: "var(--font-size-sm)",
+                    }}
+                  >
+                    {selectedSeverity
+                      ? `No ${severityConfig[selectedSeverity].label.toLowerCase()} errors`
+                      : "No data"}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Widget 2: Sensor Averages */}
-      <div
-        style={{
-          background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-          borderRadius: "12px",
-          boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
-          padding: "16px",
-          color: "#fff",
-        }}
-      >
-        <h3 style={{ margin: "0 0 12px 0", fontSize: "14px", fontWeight: 600 }}>
-          🌡️ Server Room Sensors
-        </h3>
-
-        <div style={{ display: "flex", gap: "12px" }}>
-          {/* Temperature */}
-          <div
-            style={{
-              flex: 1,
-              background: "rgba(255, 255, 255, 0.15)",
-              borderRadius: "8px",
-              padding: "12px",
-              textAlign: "center",
-            }}
-          >
-            <div
-              style={{ fontSize: "11px", opacity: 0.8, marginBottom: "4px" }}
-            >
-              Avg Temperature
+      {/* Widget 2: Sensor Averages - Grafana Panel Style */}
+      <div className="grafana-panel">
+        <div className="grafana-panel-header">
+          <h3 className="grafana-panel-title">
+            <span style={{ fontSize: "16px" }}>🌡️</span>
+            Server Room Sensors
+          </h3>
+        </div>
+        <div
+          className="grafana-sensor-widget"
+          style={{
+            margin: "0",
+            borderRadius: "0 0 var(--radius-lg) var(--radius-lg)",
+          }}
+        >
+          <div style={{ display: "flex", gap: "12px" }}>
+            {/* Temperature */}
+            <div className="grafana-sensor-card">
+              <div className="grafana-sensor-label">Avg Temperature</div>
+              {sensorData.temperature !== null ? (
+                <div className="grafana-sensor-value">
+                  {sensorData.temperature.toFixed(1)}
+                  <span className="grafana-sensor-unit">°C</span>
+                </div>
+              ) : (
+                <div style={{ opacity: 0.7 }}>No data</div>
+              )}
             </div>
-            {sensorData.temperature !== null ? (
-              <div style={{ fontSize: "24px", fontWeight: 700 }}>
-                {sensorData.temperature.toFixed(1)}
-                <span style={{ fontSize: "14px", fontWeight: 400 }}>°C</span>
-              </div>
-            ) : (
-              <div style={{ fontSize: "14px", opacity: 0.7 }}>No data</div>
-            )}
-          </div>
 
-          {/* Humidity */}
-          <div
-            style={{
-              flex: 1,
-              background: "rgba(255, 255, 255, 0.15)",
-              borderRadius: "8px",
-              padding: "12px",
-              textAlign: "center",
-            }}
-          >
-            <div
-              style={{ fontSize: "11px", opacity: 0.8, marginBottom: "4px" }}
-            >
-              Avg Humidity
+            {/* Humidity */}
+            <div className="grafana-sensor-card">
+              <div className="grafana-sensor-label">Avg Humidity</div>
+              {sensorData.humidity !== null ? (
+                <div className="grafana-sensor-value">
+                  {sensorData.humidity.toFixed(0)}
+                  <span className="grafana-sensor-unit">%</span>
+                </div>
+              ) : (
+                <div style={{ opacity: 0.7 }}>No data</div>
+              )}
             </div>
-            {sensorData.humidity !== null ? (
-              <div style={{ fontSize: "24px", fontWeight: 700 }}>
-                {sensorData.humidity.toFixed(0)}
-                <span style={{ fontSize: "14px", fontWeight: 400 }}>%</span>
-              </div>
-            ) : (
-              <div style={{ fontSize: "14px", opacity: 0.7 }}>No data</div>
-            )}
           </div>
         </div>
       </div>

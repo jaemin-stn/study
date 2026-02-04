@@ -1,0 +1,783 @@
+/* Grafana-inspired Design System */
+/* Light Mode First Theme */
+
+:root,
+[data-theme="light"] {
+  /* Background colors */
+  --bg-canvas: #f4f5f5;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f4f5f5;
+  --bg-tertiary: #e9eaeb;
+
+  /* Text colors */
+  --text-primary: #1f1f1f;
+  --text-secondary: #585858;
+  --text-tertiary: #8e8e8e;
+  --text-disabled: #c7c7c7;
+  --text-link: #6e9fff;
+
+  /* Border colors */
+  --border-weak: #e9eaeb;
+  --border-medium: #cccccc;
+  --border-strong: #8e8e8e;
+
+  /* Panel styles */
+  --panel-bg: #ffffff;
+  --panel-border: #e9eaeb;
+  --panel-header-bg: #f4f5f5;
+  --panel-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+
+  /* Interactive states */
+  --hover-bg: rgba(204, 204, 220, 0.12);
+  --selected-bg: rgba(110, 159, 255, 0.15);
+  --active-bg: rgba(110, 159, 255, 0.25);
+
+  /* Grafana theme colors */
+  --theme-primary: #3871dc;
+  --theme-primary-hover: #2e5cb8;
+  --theme-secondary: #6e9fff;
+
+  /* Severity/Status colors - Grafana style */
+  --severity-critical: #d10e5c;
+  --severity-critical-bg: rgba(209, 14, 92, 0.12);
+  --severity-critical-text: #d10e5c;
+
+  --severity-major: #ff5f00;
+  --severity-major-bg: rgba(255, 95, 0, 0.12);
+  --severity-major-text: #ff5f00;
+
+  --severity-minor: #f2cc0c;
+  --severity-minor-bg: rgba(242, 204, 12, 0.12);
+  --severity-minor-text: #a68b02;
+
+  --severity-warning: #73bef4;
+  --severity-warning-bg: rgba(115, 190, 244, 0.12);
+  --severity-warning-text: #3a8fcf;
+
+  --severity-success: #1a7f4b;
+  --severity-success-bg: rgba(26, 127, 75, 0.12);
+  --severity-success-text: #1a7f4b;
+
+  /* Table styles */
+  --table-header-bg: #f4f5f5;
+  --table-header-text: #585858;
+  --table-row-hover: rgba(204, 204, 220, 0.12);
+  --table-row-alt: #fafafa;
+  --table-border: #e9eaeb;
+
+  /* Toolbar/Header */
+  --toolbar-bg: #ffffff;
+  --toolbar-border: #e9eaeb;
+
+  /* Modal */
+  --modal-bg: #ffffff;
+  --modal-backdrop: rgba(0, 0, 0, 0.5);
+  --modal-border: #e9eaeb;
+
+  /* Shadows */
+  --elevation-1: 0 1px 4px rgba(0, 0, 0, 0.06);
+  --elevation-2: 0 4px 8px rgba(0, 0, 0, 0.1);
+  --elevation-3: 0 8px 24px rgba(0, 0, 0, 0.14);
+
+  /* Spacing scale (8px base) */
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-xxl: 48px;
+
+  /* Border radius */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Typography */
+  --font-family:
+    "Inter", "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-size-xs: 11px;
+  --font-size-sm: 12px;
+  --font-size-md: 14px;
+  --font-size-lg: 16px;
+  --font-size-xl: 20px;
+  --font-size-xxl: 24px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line heights */
+  --line-height-tight: 1.25;
+  --line-height-normal: 1.5;
+
+  /* Toggle switch */
+  --toggle-bg: #cccccc;
+  --toggle-bg-active: #3871dc;
+  --toggle-knob: #ffffff;
+}
+
+[data-theme="dark"] {
+  /* Background colors */
+  --bg-canvas: #111217;
+  --bg-primary: #181b1f;
+  --bg-secondary: #22252b;
+  --bg-tertiary: #2c2f36;
+
+  /* Text colors */
+  --text-primary: #e4e6eb;
+  --text-secondary: #a7a9b3;
+  --text-tertiary: #6e7078;
+  --text-disabled: #4a4c56;
+  --text-link: #6e9fff;
+
+  /* Border colors */
+  --border-weak: #2c2f36;
+  --border-medium: #3d4048;
+  --border-strong: #6e7078;
+
+  /* Panel styles */
+  --panel-bg: #181b1f;
+  --panel-border: #2c2f36;
+  --panel-header-bg: #22252b;
+  --panel-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+
+  /* Interactive states */
+  --hover-bg: rgba(204, 204, 220, 0.07);
+  --selected-bg: rgba(110, 159, 255, 0.18);
+  --active-bg: rgba(110, 159, 255, 0.28);
+
+  /* Grafana theme colors */
+  --theme-primary: #6e9fff;
+  --theme-primary-hover: #5c8beb;
+  --theme-secondary: #3871dc;
+
+  /* Severity/Status colors - Grafana style (dark mode) */
+  --severity-critical: #ff5286;
+  --severity-critical-bg: rgba(255, 82, 134, 0.15);
+  --severity-critical-text: #ff5286;
+
+  --severity-major: #ff9830;
+  --severity-major-bg: rgba(255, 152, 48, 0.15);
+  --severity-major-text: #ff9830;
+
+  --severity-minor: #ffee52;
+  --severity-minor-bg: rgba(255, 238, 82, 0.15);
+  --severity-minor-text: #ffee52;
+
+  --severity-warning: #73bef4;
+  --severity-warning-bg: rgba(115, 190, 244, 0.15);
+  --severity-warning-text: #73bef4;
+
+  --severity-success: #73bf69;
+  --severity-success-bg: rgba(115, 191, 105, 0.15);
+  --severity-success-text: #73bf69;
+
+  /* Table styles */
+  --table-header-bg: #22252b;
+  --table-header-text: #a7a9b3;
+  --table-row-hover: rgba(204, 204, 220, 0.07);
+  --table-row-alt: #1c1f24;
+  --table-border: #2c2f36;
+
+  /* Toolbar/Header */
+  --toolbar-bg: #181b1f;
+  --toolbar-border: #2c2f36;
+
+  /* Modal */
+  --modal-bg: #181b1f;
+  --modal-backdrop: rgba(0, 0, 0, 0.7);
+  --modal-border: #2c2f36;
+
+  /* Shadows */
+  --elevation-1: 0 1px 4px rgba(0, 0, 0, 0.25);
+  --elevation-2: 0 4px 8px rgba(0, 0, 0, 0.35);
+  --elevation-3: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+  /* Toggle switch */
+  --toggle-bg: #4a4c56;
+  --toggle-bg-active: #6e9fff;
+  --toggle-knob: #ffffff;
+}
+
+/* Base Styles */
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+/* Grafana Panel Component */
+.grafana-panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--panel-shadow);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.grafana-panel:hover {
+  box-shadow: var(--elevation-2);
+}
+
+.grafana-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--panel-header-bg);
+  border-bottom: 1px solid var(--panel-border);
+  min-height: 40px;
+}
+
+.grafana-panel-title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.grafana-panel-content {
+  padding: var(--spacing-md);
+}
+
+/* Grafana Table Styles */
+.grafana-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.grafana-table-container {
+  border: 1px solid var(--table-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.grafana-table-header {
+  display: grid;
+  background: var(--table-header-bg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--table-header-text);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  border-bottom: 1px solid var(--table-border);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.grafana-table-row {
+  display: grid;
+  border-bottom: 1px solid var(--table-border);
+  transition: background-color 0.15s ease;
+  cursor: pointer;
+}
+
+.grafana-table-row:last-child {
+  border-bottom: none;
+}
+
+.grafana-table-row:hover {
+  background: var(--table-row-hover);
+}
+
+.grafana-table-row:nth-child(even) {
+  background: var(--table-row-alt);
+}
+
+.grafana-table-row:nth-child(even):hover {
+  background: var(--table-row-hover);
+}
+
+.grafana-table-cell {
+  padding: var(--spacing-sm) var(--spacing-md);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Severity Badges */
+.grafana-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.grafana-badge-critical {
+  background: var(--severity-critical-bg);
+  color: var(--severity-critical-text);
+  border: 1px solid var(--severity-critical);
+}
+
+.grafana-badge-major {
+  background: var(--severity-major-bg);
+  color: var(--severity-major-text);
+  border: 1px solid var(--severity-major);
+}
+
+.grafana-badge-minor {
+  background: var(--severity-minor-bg);
+  color: var(--severity-minor-text);
+  border: 1px solid var(--severity-minor);
+}
+
+.grafana-badge-warning {
+  background: var(--severity-warning-bg);
+  color: var(--severity-warning-text);
+  border: 1px solid var(--severity-warning);
+}
+
+.grafana-badge-success {
+  background: var(--severity-success-bg);
+  color: var(--severity-success-text);
+  border: 1px solid var(--severity-success);
+}
+
+/* Stat Cards (for error summary) */
+.grafana-stat-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-md);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.grafana-stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.grafana-stat-card.selected {
+  transform: scale(1.02);
+  border-color: var(--text-primary);
+}
+
+.grafana-stat-value {
+  font-size: var(--font-size-xxl);
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+}
+
+.grafana-stat-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  margin-top: var(--spacing-xs);
+  opacity: 0.9;
+}
+
+/* Button styles */
+.grafana-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: none;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-family: var(--font-family);
+}
+
+.grafana-btn-primary {
+  background: var(--theme-primary);
+  color: #ffffff;
+}
+
+.grafana-btn-primary:hover {
+  background: var(--theme-primary-hover);
+}
+
+.grafana-btn-secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-medium);
+}
+
+.grafana-btn-secondary:hover {
+  background: var(--hover-bg);
+}
+
+.grafana-btn-destructive {
+  background: var(--severity-critical);
+  color: #ffffff;
+}
+
+.grafana-btn-destructive:hover {
+  filter: brightness(0.9);
+}
+
+/* Input styles */
+.grafana-input {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+  font-family: var(--font-family);
+}
+
+.grafana-input:focus {
+  outline: none;
+  border-color: var(--theme-primary);
+  box-shadow: 0 0 0 2px rgba(110, 159, 255, 0.25);
+}
+
+.grafana-input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.grafana-select {
+  width: 100%;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-md);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: var(--font-family);
+}
+
+.grafana-select:focus {
+  outline: none;
+  border-color: var(--theme-primary);
+  box-shadow: 0 0 0 2px rgba(110, 159, 255, 0.25);
+}
+
+/* Form labels */
+.grafana-label {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+  margin-bottom: var(--spacing-xs);
+}
+
+/* Theme Toggle Switch */
+.theme-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  cursor: pointer;
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-md);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-weak);
+  transition: all 0.2s ease;
+}
+
+.theme-toggle:hover {
+  background: var(--hover-bg);
+  border-color: var(--border-medium);
+}
+
+.theme-toggle-track {
+  width: 40px;
+  height: 20px;
+  background: var(--toggle-bg);
+  border-radius: 10px;
+  position: relative;
+  transition: background 0.2s ease;
+}
+
+.theme-toggle-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--toggle-knob);
+  border-radius: 50%;
+  transition: transform 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+[data-theme="dark"] .theme-toggle-knob {
+  transform: translateX(20px);
+}
+
+[data-theme="dark"] .theme-toggle-track {
+  background: var(--toggle-bg-active);
+}
+
+.theme-toggle-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--text-secondary);
+}
+
+.theme-toggle-icon {
+  font-size: 16px;
+}
+
+/* Toolbar styles */
+.grafana-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--toolbar-bg);
+  border: 1px solid var(--toolbar-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-1);
+  flex-wrap: wrap;
+}
+
+.grafana-toolbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border-medium);
+  margin: 0 var(--spacing-xs);
+}
+
+.grafana-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.grafana-toolbar-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-secondary);
+}
+
+/* Status indicator */
+.grafana-status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.grafana-status-dot-active {
+  background: var(--severity-success);
+  box-shadow: 0 0 6px var(--severity-success);
+}
+
+.grafana-status-dot-inactive {
+  background: var(--text-tertiary);
+}
+
+/* Modal styles */
+.grafana-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--modal-backdrop);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.grafana-modal {
+  background: var(--modal-bg);
+  border: 1px solid var(--modal-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-3);
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.grafana-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--modal-border);
+}
+
+.grafana-modal-title {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.grafana-modal-close {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 24px;
+  cursor: pointer;
+  padding: var(--spacing-xs);
+  border-radius: var(--radius-sm);
+  transition: all 0.15s ease;
+}
+
+.grafana-modal-close:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+
+.grafana-modal-content {
+  padding: var(--spacing-lg);
+  overflow-y: auto;
+}
+
+/* Side panel styles */
+.grafana-side-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  background: var(--panel-bg);
+  border-left: 1px solid var(--panel-border);
+  box-shadow: var(--elevation-2);
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+}
+
+.grafana-side-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-bottom: 1px solid var(--panel-border);
+  background: var(--panel-header-bg);
+}
+
+.grafana-side-panel-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg);
+}
+
+/* Form field group */
+.grafana-field {
+  margin-bottom: var(--spacing-md);
+}
+
+.grafana-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-md);
+}
+
+/* Section within panels */
+.grafana-section {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-weak);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.grafana-section-title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--text-primary);
+  margin: 0 0 var(--spacing-md) 0;
+}
+
+/* Sensor widget */
+.grafana-sensor-widget {
+  background: linear-gradient(
+    135deg,
+    var(--theme-primary),
+    var(--theme-secondary)
+  );
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  color: #ffffff;
+}
+
+.grafana-sensor-card {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  text-align: center;
+  flex: 1;
+}
+
+.grafana-sensor-label {
+  font-size: var(--font-size-xs);
+  opacity: 0.85;
+  margin-bottom: var(--spacing-xs);
+}
+
+.grafana-sensor-value {
+  font-size: var(--font-size-xxl);
+  font-weight: var(--font-weight-bold);
+}
+
+.grafana-sensor-unit {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-regular);
+}
+
+/* Keyboard hints */
+.grafana-hint {
+  font-size: var(--font-size-sm);
+  color: var(--text-tertiary);
+}
+
+/* Edit mode indicator */
+.grafana-mode-indicator {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-xs) var(--spacing-md);
+  border-radius: 20px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid var(--border-medium);
+}
+
+.grafana-mode-indicator.active {
+  background: var(--severity-success-bg);
+  border-color: var(--severity-success);
+}
+
+.grafana-mode-indicator:not(.active) {
+  background: var(--bg-secondary);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-medium);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}

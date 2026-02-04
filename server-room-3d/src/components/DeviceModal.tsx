@@ -1,6 +1,14 @@
 import { useStore } from "../store/useStore";
 import type { Device } from "../types";
 
+// Severity badge class mapping
+const severityBadgeClass: Record<string, string> = {
+  critical: "grafana-badge-critical",
+  major: "grafana-badge-major",
+  minor: "grafana-badge-minor",
+  warning: "grafana-badge-warning",
+};
+
 export const DeviceModal = () => {
   const { racks, selectedDeviceId, highlightedPortId, selectDevice } =
     useStore();
@@ -21,17 +29,10 @@ export const DeviceModal = () => {
 
   if (!device) return null;
 
-  // Use specific layout based on device type or default to 24
-
   const renderPort = (portIndex: number) => {
     const portId = `p${portIndex + 1}`;
     const error = device?.portStates.find((p) => p.portId === portId);
     const isHighlighted = highlightedPortId === portId;
-
-    const baseColor = error ? "#ef4444" : "#22c55e";
-    const shadowColor = error
-      ? "rgba(239, 68, 68, 0.4)"
-      : "rgba(34, 197, 94, 0.2)";
 
     return (
       <div
@@ -39,20 +40,22 @@ export const DeviceModal = () => {
         style={{
           width: "32px",
           height: "32px",
-          backgroundColor: "#111",
+          backgroundColor: "var(--bg-tertiary)",
           border: isHighlighted
-            ? "2px solid #ffc107"
-            : `1px solid ${error ? "#ef4444" : "#333"}`,
-          borderRadius: "4px",
+            ? "2px solid var(--severity-minor)"
+            : error
+              ? "1px solid var(--severity-critical)"
+              : "1px solid var(--border-medium)",
+          borderRadius: "var(--radius-sm)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           position: "relative",
           cursor: "pointer",
           boxShadow: isHighlighted
-            ? "0 0 15px rgba(255, 193, 7, 0.6)"
+            ? "0 0 15px rgba(242, 204, 12, 0.5)"
             : error
-              ? `0 0 10px ${shadowColor}`
+              ? "0 0 8px var(--severity-critical-bg)"
               : "none",
           transform: isHighlighted ? "scale(1.15)" : "scale(1)",
           transition: "all 0.2s",
@@ -66,9 +69,9 @@ export const DeviceModal = () => {
           style={{
             width: "12px",
             height: "10px",
-            backgroundColor: "#222",
+            backgroundColor: "var(--bg-primary)",
             borderRadius: "2px",
-            border: "1px solid #444",
+            border: "1px solid var(--border-medium)",
           }}
         />
         {/* Status LED */}
@@ -80,8 +83,12 @@ export const DeviceModal = () => {
             width: "4px",
             height: "4px",
             borderRadius: "50%",
-            backgroundColor: baseColor,
-            boxShadow: `0 0 4px ${baseColor}`,
+            backgroundColor: error
+              ? "var(--severity-critical)"
+              : "var(--severity-success)",
+            boxShadow: error
+              ? "0 0 4px var(--severity-critical)"
+              : "0 0 4px var(--severity-success)",
           }}
         />
         {/* Port label for highlighted port */}
@@ -92,8 +99,8 @@ export const DeviceModal = () => {
               bottom: "-16px",
               left: "50%",
               transform: "translateX(-50%)",
-              fontSize: "9px",
-              color: "#ffc107",
+              fontSize: "var(--font-size-xs)",
+              color: "var(--severity-minor)",
               fontWeight: 700,
               whiteSpace: "nowrap",
             }}
@@ -106,132 +113,140 @@ export const DeviceModal = () => {
   };
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        backgroundColor: "rgba(0, 0, 0, 0.7)",
-        backdropFilter: "blur(4px)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 1000,
-      }}
-      onClick={() => selectDevice(null)}
-    >
+    <div className="grafana-modal-overlay" onClick={() => selectDevice(null)}>
       <div
-        style={{
-          width: "600px",
-          backgroundColor: "#1a1a1a",
-          borderRadius: "12px",
-          border: "1px solid #333",
-          padding: "24px",
-          boxShadow: "0 20px 50px rgba(0,0,0,0.5)",
-          display: "flex",
-          flexDirection: "column",
-          gap: "20px",
-        }}
+        className="grafana-modal"
+        style={{ width: "600px" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
+        {/* Header */}
+        <div className="grafana-modal-header">
           <div>
-            <h2 style={{ color: "#fff", margin: 0, fontSize: "20px" }}>
-              {device.name}
-            </h2>
-            <span style={{ color: "#888", fontSize: "12px" }}>
-              Type: {device.type} | Rack: {rackId?.substring(0, 4)}
+            <h2 className="grafana-modal-title">{device.name}</h2>
+            <span
+              style={{
+                fontSize: "var(--font-size-sm)",
+                color: "var(--text-secondary)",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                marginTop: "4px",
+              }}
+            >
+              <span
+                className="grafana-badge grafana-badge-success"
+                style={{ textTransform: "capitalize" }}
+              >
+                {device.type}
+              </span>
+              Rack: {rackId?.substring(0, 4)}
             </span>
           </div>
           <button
+            className="grafana-modal-close"
             onClick={() => selectDevice(null)}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#666",
-              fontSize: "24px",
-              cursor: "pointer",
-            }}
           >
             &times;
           </button>
         </div>
 
-        <div
-          style={{
-            backgroundColor: "#0a0a0a",
-            padding: "20px",
-            borderRadius: "8px",
-            border: "1px solid #222",
-            display: "grid",
-            gridTemplateColumns: "repeat(12, 1fr)",
-            gap: "8px",
-            justifyItems: "center",
-          }}
-        >
-          {Array.from({ length: 24 }).map((_, i) => renderPort(i))}
-        </div>
-
-        <div style={{ display: "flex", gap: "16px", fontSize: "13px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <div
-              style={{
-                width: "8px",
-                height: "8px",
-                borderRadius: "50%",
-                backgroundColor: "#22c55e",
-              }}
-            />
-            <span style={{ color: "#aaa" }}>Operational</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-            <div
-              style={{
-                width: "8px",
-                height: "8px",
-                borderRadius: "50%",
-                backgroundColor: "#ef4444",
-              }}
-            />
-            <span style={{ color: "#aaa" }}>Error</span>
-          </div>
-        </div>
-
-        {device.portStates.length > 0 && (
+        {/* Content */}
+        <div className="grafana-modal-content">
+          {/* Port Grid */}
           <div
             style={{
-              marginTop: "10px",
-              padding: "12px",
-              backgroundColor: "rgba(239, 68, 68, 0.1)",
-              borderLeft: "4px solid #ef4444",
-              borderRadius: "4px",
+              backgroundColor: "var(--bg-secondary)",
+              padding: "20px",
+              borderRadius: "var(--radius-md)",
+              border: "1px solid var(--border-weak)",
+              display: "grid",
+              gridTemplateColumns: "repeat(12, 1fr)",
+              gap: "8px",
+              justifyItems: "center",
             }}
           >
-            <h4
+            {Array.from({ length: 24 }).map((_, i) => renderPort(i))}
+          </div>
+
+          {/* Legend */}
+          <div
+            style={{
+              display: "flex",
+              gap: "24px",
+              marginTop: "16px",
+              fontSize: "var(--font-size-sm)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div className="grafana-status-dot grafana-status-dot-active" />
+              <span style={{ color: "var(--text-secondary)" }}>
+                Operational
+              </span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div
+                style={{
+                  width: "10px",
+                  height: "10px",
+                  borderRadius: "50%",
+                  backgroundColor: "var(--severity-critical)",
+                  boxShadow: "0 0 6px var(--severity-critical)",
+                }}
+              />
+              <span style={{ color: "var(--text-secondary)" }}>Error</span>
+            </div>
+          </div>
+
+          {/* Active Faults */}
+          {device.portStates.length > 0 && (
+            <div
               style={{
-                color: "#ef4444",
-                margin: "0 0 8px 0",
-                fontSize: "14px",
+                marginTop: "16px",
+                padding: "16px",
+                backgroundColor: "var(--severity-critical-bg)",
+                borderLeft: "4px solid var(--severity-critical)",
+                borderRadius: "var(--radius-md)",
               }}
             >
-              Active Faults
-            </h4>
-            {device.portStates.map((err, idx) => (
-              <div
-                key={idx}
-                style={{ color: "#fff", fontSize: "13px", marginBottom: "4px" }}
+              <h4
+                style={{
+                  color: "var(--severity-critical-text)",
+                  margin: "0 0 12px 0",
+                  fontSize: "var(--font-size-md)",
+                  fontWeight: "var(--font-weight-semibold)",
+                }}
               >
-                <strong>{err.portId}</strong>: {err.errorMessage} (
-                {err.errorLevel})
+                Active Faults
+              </h4>
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+              >
+                {device.portStates.map((err, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      color: "var(--text-primary)",
+                      fontSize: "var(--font-size-sm)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <strong style={{ color: "var(--severity-critical-text)" }}>
+                      {err.portId}
+                    </strong>
+                    <span>{err.errorMessage}</span>
+                    <span
+                      className={`grafana-badge ${severityBadgeClass[err.errorLevel] || ""}`}
+                    >
+                      {err.errorLevel}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

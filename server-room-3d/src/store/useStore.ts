@@ -6,6 +6,7 @@ interface AppState {
   racks: Rack[];
   selectedRackId: string | null;
   selectedDeviceId: string | null;
+  highlightedPortId: string | null;
   focusedRackId: string | null;
   isDragging: boolean;
   draggingRackId: string | null;
@@ -18,7 +19,7 @@ interface AppState {
   moveRack: (id: string, newPosition: [number, number]) => boolean; // returns success
   deleteRack: (id: string) => void;
   selectRack: (id: string | null) => void;
-  selectDevice: (id: string | null) => void;
+  selectDevice: (id: string | null, portId?: string | null) => void;
   focusRack: (id: string | null) => void;
   setDragging: (
     isDragging: boolean,
@@ -54,6 +55,7 @@ export const useStore = create<AppState>((set, get) => ({
   racks: [],
   selectedRackId: null,
   selectedDeviceId: null,
+  highlightedPortId: null,
   focusedRackId: null,
   isDragging: false,
   draggingRackId: null,
@@ -122,7 +124,8 @@ export const useStore = create<AppState>((set, get) => ({
       selectedDeviceId: null,
     });
   },
-  selectDevice: (id) => set({ selectedDeviceId: id }),
+  selectDevice: (id, portId = null) =>
+    set({ selectedDeviceId: id, highlightedPortId: portId }),
   focusRack: (id) => set({ focusedRackId: id }),
   setDragging: (isDragging, rackId = null, offset = null) =>
     set({

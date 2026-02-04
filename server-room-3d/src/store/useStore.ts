@@ -107,7 +107,7 @@ export const useStore = create<AppState>((set, get) => ({
     // If we are dragging, ensure we stop and save the position before changing selection
     if (state.isDragging && state.draggingRackId && state.dragPosition) {
       const gridX = Math.round((state.dragPosition[0] / GRID_SPACING) * 2) / 2;
-      const gridZ = Math.round(state.dragPosition[1] / GRID_SPACING);
+      const gridZ = Math.round(state.dragPosition[1] / (GRID_SPACING * 2)) * 2;
       state.endDrag(state.draggingRackId, [gridX, gridZ]);
     } else if (state.isDragging) {
       set({
@@ -175,7 +175,7 @@ export const useStore = create<AppState>((set, get) => ({
     // If disabling edit mode while dragging, finalize the position
     if (!enabled && isDragging && draggingRackId && dragPosition) {
       const gridX = Math.round((dragPosition[0] / GRID_SPACING) * 2) / 2;
-      const gridZ = Math.round(dragPosition[1] / GRID_SPACING);
+      const gridZ = Math.round(dragPosition[1] / (GRID_SPACING * 2)) * 2;
       console.log(
         `Mode toggled OFF while dragging. Finalizing to [${gridX}, ${gridZ}]`,
       );

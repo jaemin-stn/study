@@ -59,14 +59,14 @@ export const CameraController = () => {
     const distHeight = rackHeight / 2 / Math.tan(vFovRad / 2);
     const distWidth = rackWidth / 2 / Math.tan(hFovRad / 2);
 
-    // Use smaller margin (0.7) to bring the camera closer and frame the rack larger
-    const baseDistance = Math.max(distHeight, distWidth) * 0.7;
+    // Use a comfortable margin (1.1) to ensure the rack fits plus some padding
+    const baseDistance = Math.max(distHeight, distWidth) * 1.1;
 
-    // Reduce the distance further for a tighter framing
-    const distance = Math.max(baseDistance, 1.5); // Minimum distance to avoid clipping
+    // Reduce the distance slightly but maintain safety for tall racks
+    const distance = Math.max(baseDistance, 2.0); // Minimum distance to avoid clipping
 
-    // Target is the center of the rack (slightly lower to see more of the front face)
-    const targetCenterY = rackHeight * 0.45;
+    // Target is the exact center of the rack for balanced framing
+    const targetCenterY = rackHeight * 0.5;
     targetLookAt.current = new THREE.Vector3(rackX, targetCenterY, rackZ);
 
     // Camera position: higher up and looking down at the front face of the rack

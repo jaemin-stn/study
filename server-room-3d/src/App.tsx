@@ -6,22 +6,45 @@ import { DashboardWidgets } from "./components/DashboardWidgets";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { FocusCarousel } from "./components/FocusCarousel";
 import { useStore } from "./store/useStore";
-import { saveToJSON, loadFromJSON, sampleRacks } from "./utils/storage";
+import {
+  saveToJSON,
+  loadFromJSON,
+  saveToExcel,
+  loadFromExcel,
+  sampleRacks,
+} from "./utils/storage";
 
 function App() {
   const { addRack, loadState, selectedRackId, racks, isEditMode, setEditMode } =
     useStore();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
 
   const handleLoad = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       try {
         const loadedRacks = await loadFromJSON(e.target.files[0]);
         loadState(loadedRacks);
+        alert("JSON loaded successfully!");
       } catch (err) {
         alert("Failed to load JSON");
         console.error(err);
       }
+      e.target.value = ""; // Reset for re-uploading same file
+    }
+  };
+
+  const handleExcelLoad = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      try {
+        const loadedRacks = await loadFromExcel(e.target.files[0]);
+        loadState(loadedRacks);
+        alert("Excel loaded successfully!");
+      } catch (err) {
+        alert("Failed to load Excel: " + (err as Error).message);
+        console.error(err);
+      }
+      e.target.value = ""; // Reset
     }
   };
 
@@ -128,20 +151,15 @@ function App() {
           <button
             className="grafana-btn grafana-btn-primary"
             onClick={() => saveToJSON(racks)}
+            title="Export as JSON"
           >
-            Save JSON
+            Export JSON
           </button>
           <button
             className="grafana-btn grafana-btn-secondary"
             onClick={() => fileInputRef.current?.click()}
           >
-            Load JSON
-          </button>
-          <button
-            className="grafana-btn grafana-btn-secondary"
-            onClick={loadSample}
-          >
-            Load Sample
+            Import JSON
           </button>
           <input
             type="file"
@@ -150,6 +168,44 @@ function App() {
             accept=".json"
             onChange={handleLoad}
           />
+
+          <div
+            style={{
+              width: "1px",
+              height: "20px",
+              background: "rgba(255,255,255,0.1)",
+              margin: "0 8px",
+            }}
+          />
+
+          <button
+            className="grafana-btn grafana-btn-primary"
+            onClick={() => saveToExcel(racks)}
+            title="Export as Excel"
+          >
+            Export Excel
+          </button>
+          <button
+            className="grafana-btn grafana-btn-secondary"
+            onClick={() => excelInputRef.current?.click()}
+          >
+            Import Excel
+          </button>
+          <input
+            type="file"
+            ref={excelInputRef}
+            style={{ display: "none" }}
+            accept=".xlsx"
+            onChange={handleExcelLoad}
+          />
+
+          <button
+            className="grafana-btn grafana-btn-secondary"
+            onClick={loadSample}
+            style={{ marginLeft: "12px" }}
+          >
+            Sample
+          </button>
         </div>
       </div>
 

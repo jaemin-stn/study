@@ -52,9 +52,9 @@ export const Scene = () => {
 
   // Theme-based colors
   const isDarkMode = theme === "dark";
-  const backgroundColor = isDarkMode ? "#0d0d0d" : "#f0f0f0";
-  const gridCellColor = isDarkMode ? "#333" : "#ccc";
-  const gridSectionColor = isDarkMode ? "#555" : "#999";
+  const backgroundColor = isDarkMode ? "#585d6e" : "#f0f0f0"; // Dark mode background set to #585d6e
+  const gridCellColor = isDarkMode ? "#6b7080" : "#ccc"; // Neutral/cool gray for dark mode grid cells
+  const gridSectionColor = isDarkMode ? "#7d8292" : "#999"; // Neutral/cool gray for dark mode grid sections
 
   // Global release handler using native window listener for 100% reliability
   useEffect(() => {

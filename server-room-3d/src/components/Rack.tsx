@@ -47,15 +47,19 @@ export const Rack = ({
   // Theme-based colors
   const frameColor = isSelected
     ? isDarkMode
-      ? "#0d47a1"
+      ? "#FFFFFF" // White highlight for dark mode
       : "#1a73e8"
     : isDarkMode
-      ? "#1a1a1a"
+      ? "#2e313b" // Darker than background
       : "#333333";
-  const railColor = isDarkMode ? "#555" : "#888";
-  const interiorColor = isDarkMode ? "#020202" : "#050505";
-  const glassEmissive = isDarkMode ? "#0d47a1" : "#1a73e8";
-  const rearPanelColor = isDarkMode ? "#0a0a0a" : "#111";
+  const railColor = isDarkMode ? "#aab0be" : "#888";
+  const interiorColor = isDarkMode ? "#1a1c23" : "#050505";
+  const glassEmissive = isDarkMode
+    ? isSelected
+      ? "#FFFFFF"
+      : "#4d5261"
+    : "#1a73e8";
+  const rearPanelColor = isDarkMode ? "#24272e" : "#111";
 
   // Convert orientation to radians with proper mapping:
   // North (0°) should face -Z world (180° rotation)
@@ -226,8 +230,12 @@ export const Rack = ({
               fontSize: "12px",
               fontWeight: 600,
               border: isDarkMode
-                ? "1px solid rgba(255, 255, 255, 0.1)"
-                : "1px solid rgba(0, 0, 0, 0.08)",
+                ? isSelected
+                  ? "1px solid #FFFFFF"
+                  : "1px solid rgba(255, 255, 255, 0.1)"
+                : isSelected
+                  ? "1px solid #1a73e8"
+                  : "1px solid rgba(0, 0, 0, 0.08)",
               boxShadow: isDarkMode
                 ? "0 4px 15px rgba(0, 0, 0, 0.4)"
                 : "0 4px 12px rgba(0, 0, 0, 0.1)",
@@ -246,7 +254,11 @@ export const Rack = ({
                 width: "6px",
                 height: "6px",
                 borderRadius: "50%",
-                background: "#1a73e8",
+                background: isDarkMode
+                  ? isSelected
+                    ? "#FFFFFF"
+                    : "#4d5261"
+                  : "#1a73e8",
                 display: "inline-block",
               }}
             />

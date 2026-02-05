@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useStore } from "../store/useStore";
+import { useStore, checkFrontClearanceViolation } from "../store/useStore";
 import type { DeviceType, ErrorLevel } from "../types";
 import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
 import type { DeviceTemplate } from "../utils/deviceTemplates";
@@ -351,18 +351,42 @@ export const DevicePanel = () => {
                 { label: "East (90°)", value: 90 },
                 { label: "South (180°)", value: 180 },
                 { label: "West (270°)", value: 270 },
-              ].map((dir) => (
-                <button
-                  key={dir.value}
-                  className={`grafana-btn ${rack.orientation === dir.value ? "grafana-btn-primary" : "grafana-btn-secondary"}`}
-                  onClick={() =>
-                    updateRackOrientation(rack.id, dir.value as any)
-                  }
-                  style={{ fontSize: "var(--font-size-xs)" }}
-                >
-                  {dir.label}
-                </button>
-              ))}
+              ].map((dir) => {
+                // Check if this direction would violate front clearance
+                const wouldViolate = checkFrontClearanceViolation(
+                  racks,
+                  rack.id,
+                  rack.position,
+                  dir.value as 0 | 90 | 180 | 270,
+                );
+                const isCurrentDirection = rack.orientation === dir.value;
+                const isDisabled = wouldViolate && !isCurrentDirection;
+
+                return (
+                  <button
+                    key={dir.value}
+                    className={`grafana-btn ${isCurrentDirection ? "grafana-btn-primary" : "grafana-btn-secondary"}`}
+                    onClick={() =>
+                      !isDisabled &&
+                      updateRackOrientation(rack.id, dir.value as any)
+                    }
+                    disabled={isDisabled}
+                    style={{
+                      fontSize: "var(--font-size-xs)",
+                      opacity: isDisabled ? 0.4 : 1,
+                      cursor: isDisabled ? "not-allowed" : "pointer",
+                    }}
+                    title={
+                      isDisabled
+                        ? "이 방향으로 회전하면 다른 랙의 정면 1단위 이내에 위치하게 됩니다."
+                        : ""
+                    }
+                  >
+                    {dir.label}
+                    {isDisabled && " ⛔"}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

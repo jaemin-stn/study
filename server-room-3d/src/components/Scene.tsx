@@ -32,8 +32,8 @@ const DragHandler = () => {
           (Math.round(((tempPoint.x - offsetX) / GRID_SPACING) * 2) / 2) *
           GRID_SPACING;
         const snappedZ =
-          Math.round((tempPoint.z - offsetZ) / (GRID_SPACING * 2)) *
-          (GRID_SPACING * 2);
+          (Math.round(((tempPoint.z - offsetZ) / GRID_SPACING) * 2) / 2) *
+          GRID_SPACING;
         updateDragPosition([snappedX, snappedZ]);
       }
     }
@@ -57,9 +57,9 @@ export const Scene = () => {
         const rackId = state.draggingRackId;
 
         if (rackId && dragPos) {
-          // Snap to 0.5 for X, 1.0 for Z
+          // Snap to 0.5 for both X and Z
           const gridX = Math.round((dragPos[0] / GRID_SPACING) * 2) / 2;
-          const gridZ = Math.round(dragPos[1] / (GRID_SPACING * 2)) * 2;
+          const gridZ = Math.round((dragPos[1] / GRID_SPACING) * 2) / 2;
 
           console.log(`[Drop] Rack: ${rackId} -> Grid: [${gridX}, ${gridZ}]`);
           state.endDrag(rackId, [gridX, gridZ]);

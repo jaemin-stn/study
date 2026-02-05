@@ -52,6 +52,128 @@ const checkCollision = (
   );
 };
 
+// Helper to check front clearance violation (combined Rule A + Rule B)
+// Rule A: Any OTHER rack is within 1.0 unit in front of the PLACED rack's front face
+// Rule B: The PLACED rack would be within 1.0 unit in front of any OTHER rack's front face
+export const checkFrontClearanceViolation = (
+  racks: Rack[],
+  movedRackId: string,
+  newPos: [number, number],
+  movedRackOrientation?: 0 | 90 | 180 | 270,
+): boolean => {
+  const CLEARANCE = 1.0; // 1.0 unit clearance from front face
+
+  // Find the moved rack to get its orientation
+  const movedRack = racks.find((r) => r.id === movedRackId);
+  const placedOrientation =
+    movedRackOrientation ?? movedRack?.orientation ?? 180;
+
+  // Calculate the front direction of the PLACED rack
+  let placedFrontDirX = 0;
+  let placedFrontDirZ = 0;
+  switch (placedOrientation) {
+    case 0:
+      placedFrontDirZ = -1;
+      break;
+    case 90:
+      placedFrontDirX = 1;
+      break;
+    case 180:
+      placedFrontDirZ = 1;
+      break;
+    case 270:
+      placedFrontDirX = -1;
+      break;
+  }
+
+  for (const otherRack of racks) {
+    if (otherRack.id === movedRackId) continue;
+
+    const otherRackX = otherRack.position[0];
+    const otherRackZ = otherRack.position[1];
+    const otherOrientation = otherRack.orientation ?? 180;
+
+    // Delta from placed rack to other rack
+    const deltaToOtherX = otherRackX - newPos[0];
+    const deltaToOtherZ = otherRackZ - newPos[1];
+
+    // ===== Rule A: Check if OTHER rack is in front of PLACED rack's front face =====
+    if (placedFrontDirX !== 0) {
+      const inFront =
+        placedFrontDirX > 0 ? deltaToOtherX > 0 : deltaToOtherX < 0;
+      const withinClearance = Math.abs(deltaToOtherX) <= CLEARANCE;
+      const aligned = Math.abs(deltaToOtherZ) < 0.5;
+      if (inFront && withinClearance && aligned) {
+        console.warn(
+          `Rule A violation: rack at [${otherRackX}, ${otherRackZ}] is within 1.0 unit in front of placed rack at [${newPos[0]}, ${newPos[1]}]`,
+        );
+        return true;
+      }
+    }
+    if (placedFrontDirZ !== 0) {
+      const inFront =
+        placedFrontDirZ > 0 ? deltaToOtherZ > 0 : deltaToOtherZ < 0;
+      const withinClearance = Math.abs(deltaToOtherZ) <= CLEARANCE;
+      const aligned = Math.abs(deltaToOtherX) < 0.5;
+      if (inFront && withinClearance && aligned) {
+        console.warn(
+          `Rule A violation: rack at [${otherRackX}, ${otherRackZ}] is within 1.0 unit in front of placed rack at [${newPos[0]}, ${newPos[1]}]`,
+        );
+        return true;
+      }
+    }
+
+    // ===== Rule B: Check if PLACED rack is in front of OTHER rack's front face =====
+    let otherFrontDirX = 0;
+    let otherFrontDirZ = 0;
+    switch (otherOrientation) {
+      case 0:
+        otherFrontDirZ = -1;
+        break;
+      case 90:
+        otherFrontDirX = 1;
+        break;
+      case 180:
+        otherFrontDirZ = 1;
+        break;
+      case 270:
+        otherFrontDirX = -1;
+        break;
+    }
+
+    // Delta from other rack to placed rack
+    const deltaFromOtherX = newPos[0] - otherRackX;
+    const deltaFromOtherZ = newPos[1] - otherRackZ;
+
+    if (otherFrontDirX !== 0) {
+      const inFront =
+        otherFrontDirX > 0 ? deltaFromOtherX > 0 : deltaFromOtherX < 0;
+      const withinClearance = Math.abs(deltaFromOtherX) <= CLEARANCE;
+      const aligned = Math.abs(deltaFromOtherZ) < 0.5;
+      if (inFront && withinClearance && aligned) {
+        console.warn(
+          `Rule B violation: placed rack at [${newPos[0]}, ${newPos[1]}] is within 1.0 unit in front of rack at [${otherRackX}, ${otherRackZ}]`,
+        );
+        return true;
+      }
+    }
+    if (otherFrontDirZ !== 0) {
+      const inFront =
+        otherFrontDirZ > 0 ? deltaFromOtherZ > 0 : deltaFromOtherZ < 0;
+      const withinClearance = Math.abs(deltaFromOtherZ) <= CLEARANCE;
+      const aligned = Math.abs(deltaFromOtherX) < 0.5;
+      if (inFront && withinClearance && aligned) {
+        console.warn(
+          `Rule B violation: placed rack at [${newPos[0]}, ${newPos[1]}] is within 1.0 unit in front of rack at [${otherRackX}, ${otherRackZ}]`,
+        );
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
+
 export const useStore = create<AppState>((set, get) => ({
   racks: [],
   selectedRackId: null,
@@ -109,7 +231,7 @@ export const useStore = create<AppState>((set, get) => ({
     // If we are dragging, ensure we stop and save the position before changing selection
     if (state.isDragging && state.draggingRackId && state.dragPosition) {
       const gridX = Math.round((state.dragPosition[0] / GRID_SPACING) * 2) / 2;
-      const gridZ = Math.round(state.dragPosition[1] / (GRID_SPACING * 2)) * 2;
+      const gridZ = Math.round((state.dragPosition[1] / GRID_SPACING) * 2) / 2;
       state.endDrag(state.draggingRackId, [gridX, gridZ]);
     } else if (state.isDragging) {
       set({
@@ -140,11 +262,19 @@ export const useStore = create<AppState>((set, get) => ({
   endDrag: (id, newPosition) => {
     const { racks } = get();
     const colliding = checkCollision(racks, id, newPosition);
+    const frontClearanceViolation = checkFrontClearanceViolation(
+      racks,
+      id,
+      newPosition,
+    );
 
-    if (colliding) {
-      console.warn(
-        `Collision at [${newPosition[0]}, ${newPosition[1]}], reverting.`,
-      );
+    if (colliding || frontClearanceViolation) {
+      if (colliding) {
+        console.warn(
+          `Collision at [${newPosition[0]}, ${newPosition[1]}], reverting.`,
+        );
+      }
+      // Revert: do not update position, just reset drag state
       set({
         isDragging: false,
         draggingRackId: null,
@@ -172,6 +302,25 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   updateRackOrientation: (id, orientation) => {
+    const { racks } = get();
+    const rack = racks.find((r) => r.id === id);
+    if (!rack) return;
+
+    // Validate rotation: check if any rack is within 1 unit in front after rotation
+    const frontClearanceViolation = checkFrontClearanceViolation(
+      racks,
+      id,
+      rack.position,
+      orientation,
+    );
+
+    if (frontClearanceViolation) {
+      console.warn(
+        `Rotation blocked: another rack is within 1.0 unit in front at orientation ${orientation}°`,
+      );
+      return; // Rollback: do not apply rotation
+    }
+
     set((state) => ({
       racks: state.racks.map((r) => (r.id === id ? { ...r, orientation } : r)),
     }));
@@ -183,7 +332,7 @@ export const useStore = create<AppState>((set, get) => ({
     // If disabling edit mode while dragging, finalize the position
     if (!enabled && isDragging && draggingRackId && dragPosition) {
       const gridX = Math.round((dragPosition[0] / GRID_SPACING) * 2) / 2;
-      const gridZ = Math.round(dragPosition[1] / (GRID_SPACING * 2)) * 2;
+      const gridZ = Math.round((dragPosition[1] / GRID_SPACING) * 2) / 2;
       console.log(
         `Mode toggled OFF while dragging. Finalizing to [${gridX}, ${gridZ}]`,
       );

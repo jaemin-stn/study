@@ -217,57 +217,59 @@ export const Rack = ({
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      <Billboard position={[0, height / 2 + 0.4, 0]}>
-        <Html center zIndexRange={[0, 10]}>
-          <div
-            style={{
-              background: isDarkMode
-                ? "rgba(23, 24, 28, 0.85)"
-                : "rgba(255, 255, 255, 0.9)",
-              color: isDarkMode ? "#ebedef" : "#202226",
-              padding: "4px 12px",
-              borderRadius: "16px",
-              fontSize: "12px",
-              fontWeight: 600,
-              border: isDarkMode
-                ? isSelected
-                  ? "1px solid #FFFFFF"
-                  : "1px solid rgba(255, 255, 255, 0.1)"
-                : isSelected
-                  ? "1px solid #1a73e8"
-                  : "1px solid rgba(0, 0, 0, 0.08)",
-              boxShadow: isDarkMode
-                ? "0 4px 15px rgba(0, 0, 0, 0.4)"
-                : "0 4px 12px rgba(0, 0, 0, 0.1)",
-              whiteSpace: "nowrap",
-              backdropFilter: "blur(8px)",
-              pointerEvents: "none",
-              userSelect: "none",
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              fontFamily: "Inter, system-ui, sans-serif",
-            }}
-          >
-            <span
+      {isHovered && (
+        <Billboard position={[0, height / 2 + 0.4, 0]}>
+          <Html center zIndexRange={[0, 10]}>
+            <div
               style={{
-                width: "6px",
-                height: "6px",
-                borderRadius: "50%",
                 background: isDarkMode
+                  ? "rgba(23, 24, 28, 0.85)"
+                  : "rgba(255, 255, 255, 0.9)",
+                color: isDarkMode ? "#ebedef" : "#202226",
+                padding: "4px 12px",
+                borderRadius: "16px",
+                fontSize: "12px",
+                fontWeight: 600,
+                border: isDarkMode
                   ? isSelected
-                    ? "#FFFFFF"
-                    : "#4d5261"
-                  : "#1a73e8",
-                display: "inline-block",
+                    ? "1px solid #FFFFFF"
+                    : "1px solid rgba(255, 255, 255, 0.1)"
+                  : isSelected
+                    ? "1px solid #1a73e8"
+                    : "1px solid rgba(0, 0, 0, 0.08)",
+                boxShadow: isDarkMode
+                  ? "0 4px 15px rgba(0, 0, 0, 0.4)"
+                  : "0 4px 12px rgba(0, 0, 0, 0.1)",
+                whiteSpace: "nowrap",
+                backdropFilter: "blur(8px)",
+                pointerEvents: "none",
+                userSelect: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontFamily: "Inter, system-ui, sans-serif",
               }}
-            />
-            <span>{`${uHeight}U`}</span>
-            <span style={{ opacity: 0.4 }}>|</span>
-            <span>{id.slice(0, 4).toUpperCase()}</span>
-          </div>
-        </Html>
-      </Billboard>
+            >
+              <span
+                style={{
+                  width: "6px",
+                  height: "6px",
+                  borderRadius: "50%",
+                  background: isDarkMode
+                    ? isSelected
+                      ? "#FFFFFF"
+                      : "#4d5261"
+                    : "#1a73e8",
+                  display: "inline-block",
+                }}
+              />
+              <span>{`${uHeight}U`}</span>
+              <span style={{ opacity: 0.4 }}>|</span>
+              <span>{id.slice(0, 4).toUpperCase()}</span>
+            </div>
+          </Html>
+        </Billboard>
+      )}
 
       <group position={[0, 0, depth / 2 - 0.02]}>
         {devices.map((device) => (

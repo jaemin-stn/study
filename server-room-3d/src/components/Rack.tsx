@@ -1,9 +1,10 @@
 import { useEffect, useState, useMemo } from "react";
-import { Text, RoundedBox, useTexture } from "@react-three/drei";
+import { RoundedBox, useTexture, Billboard, Html } from "@react-three/drei";
 import { animated, useSpring } from "@react-spring/three";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
+import { useTheme } from "../contexts/ThemeContext";
 import type { Rack as RackType } from "../types";
 import { ErrorMarker } from "./ErrorMarker";
 import { U_HEIGHT, GRID_SPACING } from "./constants";
@@ -22,9 +23,11 @@ export const Rack = ({
   dragPosition,
 }: RackProps) => {
   const selectedRackId = useStore((state: any) => state.selectedRackId);
+  const { theme } = useTheme();
 
   const isSelected = selectedRackId === id;
   const isInternalDragging = draggingRackId === id;
+  const isDarkMode = theme === "dark";
   const orientation = useStore(
     (state: any) =>
       state.racks.find((r: any) => r.id === id)?.orientation ?? 180,
@@ -40,7 +43,19 @@ export const Rack = ({
   const height = uHeight * U_HEIGHT + 0.1;
   const width = 0.6;
   const depth = 1.0;
-  const frameColor = isSelected ? "#1a73e8" : "#333333";
+
+  // Theme-based colors
+  const frameColor = isSelected
+    ? isDarkMode
+      ? "#0d47a1"
+      : "#1a73e8"
+    : isDarkMode
+      ? "#1a1a1a"
+      : "#333333";
+  const railColor = isDarkMode ? "#555" : "#888";
+  const interiorColor = isDarkMode ? "#020202" : "#050505";
+  const glassEmissive = isDarkMode ? "#0d47a1" : "#1a73e8";
+  const rearPanelColor = isDarkMode ? "#0a0a0a" : "#111";
 
   // Convert orientation to radians with proper mapping:
   // North (0°) should face -Z world (180° rotation)
@@ -125,13 +140,13 @@ export const Rack = ({
         <group position={[0, 0, 0.05]}>
           <mesh position={[0, 0, -0.1]}>
             <boxGeometry args={[width - 0.08, height - 0.08, 0.05]} />
-            <meshStandardMaterial color="#050505" roughness={1} />
+            <meshStandardMaterial color={interiorColor} roughness={1} />
           </mesh>
 
           <mesh position={[-width / 2 + 0.1, 0, 0]}>
             <boxGeometry args={[0.02, height - 0.1, 0.04]} />
             <meshStandardMaterial
-              color="#888"
+              color={railColor}
               metalness={0.9}
               roughness={0.1}
             />
@@ -139,7 +154,7 @@ export const Rack = ({
           <mesh position={[width / 2 - 0.1, 0, 0]}>
             <boxGeometry args={[0.02, height - 0.1, 0.04]} />
             <meshStandardMaterial
-              color="#888"
+              color={railColor}
               metalness={0.9}
               roughness={0.1}
             />
@@ -151,7 +166,7 @@ export const Rack = ({
               color="#000"
               transparent
               opacity={0.5}
-              emissive="#1a73e8"
+              emissive={glassEmissive}
               emissiveIntensity={isSelected ? 0.3 : 0.1}
             />
           </mesh>
@@ -161,7 +176,11 @@ export const Rack = ({
       {/* 2. REAR PANEL (Vented look) */}
       <mesh position={[0, 0, -depth / 2 - 0.005]}>
         <planeGeometry args={[width - 0.05, height - 0.05]} />
-        <meshStandardMaterial color="#111" roughness={0.9} wireframe />
+        <meshStandardMaterial
+          color={rearPanelColor}
+          roughness={0.9}
+          wireframe
+        />
       </mesh>
 
       {/* 3. FRONT GLASS DOOR */}
@@ -194,16 +213,49 @@ export const Rack = ({
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      <Text
-        position={[0, height / 2 + 0.4, 0]}
-        rotation={[-Math.PI / 4, 0, 0]}
-        fontSize={0.22}
-        color="#000"
-        anchorX="center"
-        anchorY="bottom"
-      >
-        {`${uHeight}U - ${id.slice(0, 4)}`}
-      </Text>
+      <Billboard position={[0, height / 2 + 0.4, 0]}>
+        <Html center zIndexRange={[0, 10]}>
+          <div
+            style={{
+              background: isDarkMode
+                ? "rgba(23, 24, 28, 0.85)"
+                : "rgba(255, 255, 255, 0.9)",
+              color: isDarkMode ? "#ebedef" : "#202226",
+              padding: "4px 12px",
+              borderRadius: "16px",
+              fontSize: "12px",
+              fontWeight: 600,
+              border: isDarkMode
+                ? "1px solid rgba(255, 255, 255, 0.1)"
+                : "1px solid rgba(0, 0, 0, 0.08)",
+              boxShadow: isDarkMode
+                ? "0 4px 15px rgba(0, 0, 0, 0.4)"
+                : "0 4px 12px rgba(0, 0, 0, 0.1)",
+              whiteSpace: "nowrap",
+              backdropFilter: "blur(8px)",
+              pointerEvents: "none",
+              userSelect: "none",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              fontFamily: "Inter, system-ui, sans-serif",
+            }}
+          >
+            <span
+              style={{
+                width: "6px",
+                height: "6px",
+                borderRadius: "50%",
+                background: "#1a73e8",
+                display: "inline-block",
+              }}
+            />
+            <span>{`${uHeight}U`}</span>
+            <span style={{ opacity: 0.4 }}>|</span>
+            <span>{id.slice(0, 4).toUpperCase()}</span>
+          </div>
+        </Html>
+      </Billboard>
 
       <group position={[0, 0, depth / 2 - 0.02]}>
         {devices.map((device) => (

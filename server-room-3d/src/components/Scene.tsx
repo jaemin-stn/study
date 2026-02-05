@@ -5,6 +5,7 @@ import { useStore } from "../store/useStore";
 import { Rack } from "./Rack";
 import { CameraController } from "./CameraController";
 import { GRID_SPACING } from "./constants";
+import { useTheme } from "../contexts/ThemeContext";
 import * as THREE from "three";
 
 const DragHandler = () => {
@@ -47,6 +48,13 @@ export const Scene = () => {
   const isDragging = useStore((state) => state.isDragging);
   const draggingRackId = useStore((state) => state.draggingRackId);
   const dragPosition = useStore((state) => state.dragPosition);
+  const { theme } = useTheme();
+
+  // Theme-based colors
+  const isDarkMode = theme === "dark";
+  const backgroundColor = isDarkMode ? "#0d0d0d" : "#f0f0f0";
+  const gridCellColor = isDarkMode ? "#333" : "#ccc";
+  const gridSectionColor = isDarkMode ? "#555" : "#999";
 
   // Global release handler using native window listener for 100% reliability
   useEffect(() => {
@@ -79,27 +87,27 @@ export const Scene = () => {
     <Canvas
       shadows
       camera={{ position: [10, 10, 10], fov: 50 }}
-      style={{ width: "100%", height: "100vh", background: "#f0f0f0" }}
+      style={{ width: "100%", height: "100vh", background: backgroundColor }}
       onPointerMissed={() => useStore.getState().selectRack(null)}
     >
-      <ambientLight intensity={0.5} />
+      <ambientLight intensity={isDarkMode ? 0.3 : 0.5} />
       <directionalLight
         position={[10, 20, 5]}
-        intensity={1}
+        intensity={isDarkMode ? 0.8 : 1}
         castShadow
         shadow-mapSize={[1024, 1024]}
       />
 
       <Suspense fallback={null}>
-        <Environment preset="city" />
+        <Environment preset={isDarkMode ? "night" : "city"} />
 
         {/* Visual Grid */}
         <Grid
           args={[40, 40]}
           cellSize={GRID_SPACING}
-          cellColor="#ccc"
+          cellColor={gridCellColor}
           sectionSize={GRID_SPACING * 5}
-          sectionColor="#999"
+          sectionColor={gridSectionColor}
           fadeDistance={50}
           infiniteGrid
         />

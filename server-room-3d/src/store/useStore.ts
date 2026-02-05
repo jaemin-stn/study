@@ -61,7 +61,7 @@ export const checkFrontClearanceViolation = (
   newPos: [number, number],
   movedRackOrientation?: 0 | 90 | 180 | 270,
 ): boolean => {
-  const CLEARANCE = 1.0; // 1.0 unit clearance from front face
+  const CLEARANCE = 1.5; // 1.5 unit clearance from front face
 
   // Find the moved rack to get its orientation
   const movedRack = racks.find((r) => r.id === movedRackId);
@@ -105,7 +105,7 @@ export const checkFrontClearanceViolation = (
       const aligned = Math.abs(deltaToOtherZ) < 0.5;
       if (inFront && withinClearance && aligned) {
         console.warn(
-          `Rule A violation: rack at [${otherRackX}, ${otherRackZ}] is within 1.0 unit in front of placed rack at [${newPos[0]}, ${newPos[1]}]`,
+          `Rule A violation: rack at [${otherRackX}, ${otherRackZ}] is within 1.5 units in front of placed rack at [${newPos[0]}, ${newPos[1]}]`,
         );
         return true;
       }
@@ -117,7 +117,7 @@ export const checkFrontClearanceViolation = (
       const aligned = Math.abs(deltaToOtherX) < 0.5;
       if (inFront && withinClearance && aligned) {
         console.warn(
-          `Rule A violation: rack at [${otherRackX}, ${otherRackZ}] is within 1.0 unit in front of placed rack at [${newPos[0]}, ${newPos[1]}]`,
+          `Rule A violation: rack at [${otherRackX}, ${otherRackZ}] is within 1.5 units in front of placed rack at [${newPos[0]}, ${newPos[1]}]`,
         );
         return true;
       }
@@ -152,7 +152,7 @@ export const checkFrontClearanceViolation = (
       const aligned = Math.abs(deltaFromOtherZ) < 0.5;
       if (inFront && withinClearance && aligned) {
         console.warn(
-          `Rule B violation: placed rack at [${newPos[0]}, ${newPos[1]}] is within 1.0 unit in front of rack at [${otherRackX}, ${otherRackZ}]`,
+          `Rule B violation: placed rack at [${newPos[0]}, ${newPos[1]}] is within 1.5 units in front of rack at [${otherRackX}, ${otherRackZ}]`,
         );
         return true;
       }
@@ -164,7 +164,7 @@ export const checkFrontClearanceViolation = (
       const aligned = Math.abs(deltaFromOtherX) < 0.5;
       if (inFront && withinClearance && aligned) {
         console.warn(
-          `Rule B violation: placed rack at [${newPos[0]}, ${newPos[1]}] is within 1.0 unit in front of rack at [${otherRackX}, ${otherRackZ}]`,
+          `Rule B violation: placed rack at [${newPos[0]}, ${newPos[1]}] is within 1.5 units in front of rack at [${otherRackX}, ${otherRackZ}]`,
         );
         return true;
       }

@@ -4,6 +4,7 @@ import { DevicePanel } from "./components/DevicePanel";
 import { DeviceModal } from "./components/DeviceModal";
 import { DashboardWidgets } from "./components/DashboardWidgets";
 import { ThemeToggle } from "./components/ThemeToggle";
+import { FocusCarousel } from "./components/FocusCarousel";
 import { useStore } from "./store/useStore";
 import { saveToJSON, loadFromJSON, sampleRacks } from "./utils/storage";
 
@@ -160,6 +161,9 @@ function App() {
 
       {/* Global Device Modal */}
       <DeviceModal />
+
+      {/* Rack Navigation Carousel (Normal Mode) */}
+      <FocusCarousel />
     </div>
   );
 }

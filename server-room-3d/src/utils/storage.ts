@@ -193,7 +193,7 @@ export const sampleRacks: Rack[] = Array.from({ length: 20 }).map((_, i) => {
   return {
     id: crypto.randomUUID(),
     uHeight,
-    position: [col * 2.5, row * 2.0],
+    position: [col * 1.5, row * 2.0],
     orientation: 180,
     devices,
   };

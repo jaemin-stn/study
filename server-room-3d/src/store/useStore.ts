@@ -13,8 +13,10 @@ interface AppState {
   dragPosition: [number, number] | null;
   dragOffset: [number, number] | null;
   isEditMode: boolean;
+  hoveredRackId: string | null;
 
   // Actions
+  setHoveredRack: (id: string | null) => void;
   addRack: (uHeight: 24 | 32 | 48, position: [number, number]) => void;
   moveRack: (id: string, newPosition: [number, number]) => boolean; // returns success
   deleteRack: (id: string) => void;
@@ -185,7 +187,9 @@ export const useStore = create<AppState>((set, get) => ({
   dragPosition: null,
   dragOffset: null,
   isEditMode: false,
+  hoveredRackId: null,
 
+  setHoveredRack: (id) => set({ hoveredRackId: id }),
   addRack: (uHeight, position) => {
     const { racks } = get();
     if (checkCollision(racks, null, position)) {

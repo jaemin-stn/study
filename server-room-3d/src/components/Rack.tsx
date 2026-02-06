@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { RoundedBox, useTexture, Billboard, Html } from "@react-three/drei";
 import { animated, useSpring } from "@react-spring/three";
 import { useThree } from "@react-three/fiber";
@@ -23,9 +23,11 @@ export const Rack = ({
   dragPosition,
 }: RackProps) => {
   const selectedRackId = useStore((state: any) => state.selectedRackId);
+  const hoveredRackId = useStore((state: any) => state.hoveredRackId);
   const { theme } = useTheme();
 
   const isSelected = selectedRackId === id;
+  const isHovered = hoveredRackId === id;
   const isInternalDragging = draggingRackId === id;
   const isDarkMode = theme === "dark";
   const orientation = useStore(
@@ -111,7 +113,7 @@ export const Rack = ({
     }
   };
 
-  const [isHovered, setHovered] = useState(false);
+  const setHoveredRack = useStore((state: any) => state.setHoveredRack);
   useEffect(() => {
     const { isEditMode } = useStore.getState();
     if (isHovered && !draggingRackId && isEditMode) {
@@ -210,8 +212,14 @@ export const Rack = ({
       {/* Interaction Layer */}
       <mesh
         onPointerDown={handlePointerDown}
-        onPointerEnter={() => setHovered(true)}
-        onPointerLeave={() => setHovered(false)}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          setHoveredRack(id);
+        }}
+        onPointerOut={(e) => {
+          e.stopPropagation();
+          setHoveredRack(null);
+        }}
       >
         <boxGeometry args={[width + 0.1, height + 0.1, depth + 0.1]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />

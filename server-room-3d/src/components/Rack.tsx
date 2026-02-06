@@ -24,10 +24,13 @@ export const Rack = ({
 }: RackProps) => {
   const selectedRackId = useStore((state: any) => state.selectedRackId);
   const hoveredRackId = useStore((state: any) => state.hoveredRackId);
+  const focusedRackId = useStore((state: any) => state.focusedRackId);
   const { theme } = useTheme();
 
   const isSelected = selectedRackId === id;
   const isHovered = hoveredRackId === id;
+  const isFocused = focusedRackId === id;
+  const isInternalFocused = isSelected || isFocused;
   const isInternalDragging = draggingRackId === id;
   const isDarkMode = theme === "dark";
   const orientation = useStore(
@@ -77,12 +80,12 @@ export const Rack = ({
       ? [dragPosition[0], height / 2 + 0.1, dragPosition[1]]
       : [position[0] * GRID_SPACING, height / 2, position[1] * GRID_SPACING];
 
-  const { pos, rot, scale, doorOpacity } = useSpring({
+  const { pos, rot, scale, doorRotation } = useSpring({
     pos: currentTargetPos,
     rot: [0, rotationRad, 0],
     scale: isInternalDragging ? 1.05 : 1,
-    doorOpacity: isInternalDragging ? 0.1 : 0.2,
-    config: { mass: 1, tension: 350, friction: 35 },
+    doorRotation: isInternalFocused ? -Math.PI / 2 : 0,
+    config: { mass: 1, tension: 280, friction: 30 },
     immediate: isInternalDragging, // Use immediate only during active dragging
   });
 
@@ -132,37 +135,81 @@ export const Rack = ({
     >
       {/* 1. STRUCTURAL FRAME (Main Skeleton) */}
       <group>
-        <RoundedBox args={[width, height, depth]} radius={0.01} smoothness={4}>
-          <meshPhysicalMaterial
+        {/* Main Enclosure (Hollow shell) */}
+        {/* Top */}
+        <mesh position={[0, height / 2 - 0.01, 0]}>
+          <boxGeometry args={[width, 0.03, depth]} />
+          <meshStandardMaterial
             color={frameColor}
-            roughness={0.2}
-            metalness={0.8}
-            reflectivity={0.5}
-            clearcoat={1}
-            clearcoatRoughness={0.1}
+            roughness={0.6}
+            metalness={0.9}
           />
-        </RoundedBox>
+        </mesh>
+        {/* Bottom */}
+        <mesh position={[0, -height / 2 + 0.01, 0]}>
+          <boxGeometry args={[width, 0.03, depth]} />
+          <meshStandardMaterial
+            color={frameColor}
+            roughness={0.6}
+            metalness={0.9}
+          />
+        </mesh>
+        {/* Left Side */}
+        <mesh position={[-width / 2 + 0.01, 0, 0]}>
+          <boxGeometry args={[0.02, height - 0.06, depth]} />
+          <meshStandardMaterial
+            color={frameColor}
+            roughness={0.6}
+            metalness={0.9}
+          />
+        </mesh>
+        {/* Right Side */}
+        <mesh position={[width / 2 - 0.01, 0, 0]}>
+          <boxGeometry args={[0.02, height - 0.06, depth]} />
+          <meshStandardMaterial
+            color={frameColor}
+            roughness={0.6}
+            metalness={0.9}
+          />
+        </mesh>
 
-        <group position={[0, 0, 0.05]}>
-          <mesh position={[0, 0, -0.1]}>
+        {/* Side Ventilation Slots */}
+        <mesh
+          position={[-width / 2 - 0.005, 0, 0]}
+          rotation={[0, -Math.PI / 2, 0]}
+        >
+          <planeGeometry args={[depth - 0.2, height - 0.4]} />
+          <meshStandardMaterial color="#111" roughness={1} wireframe />
+        </mesh>
+        <mesh
+          position={[width / 2 + 0.005, 0, 0]}
+          rotation={[0, Math.PI / 2, 0]}
+        >
+          <planeGeometry args={[depth - 0.2, height - 0.4]} />
+          <meshStandardMaterial color="#111" roughness={1} wireframe />
+        </mesh>
+
+        <group position={[0, 0, depth / 2 - 0.07]}>
+          <mesh position={[0, 0, -depth + 0.12]}>
             <boxGeometry args={[width - 0.08, height - 0.08, 0.05]} />
             <meshStandardMaterial color={interiorColor} roughness={1} />
           </mesh>
 
-          <mesh position={[-width / 2 + 0.1, 0, 0]}>
-            <boxGeometry args={[0.02, height - 0.1, 0.04]} />
+          {/* Vertical Mounting Rails */}
+          <mesh position={[-width / 2 + 0.08, 0, 0]}>
+            <boxGeometry args={[0.03, height - 0.05, 0.03]} />
             <meshStandardMaterial
               color={railColor}
-              metalness={0.9}
-              roughness={0.1}
+              metalness={1}
+              roughness={0.2}
             />
           </mesh>
-          <mesh position={[width / 2 - 0.1, 0, 0]}>
-            <boxGeometry args={[0.02, height - 0.1, 0.04]} />
+          <mesh position={[width / 2 - 0.08, 0, 0]}>
+            <boxGeometry args={[0.03, height - 0.05, 0.03]} />
             <meshStandardMaterial
               color={railColor}
-              metalness={0.9}
-              roughness={0.1}
+              metalness={1}
+              roughness={0.2}
             />
           </mesh>
 
@@ -189,25 +236,65 @@ export const Rack = ({
         />
       </mesh>
 
-      {/* 3. FRONT GLASS DOOR */}
-      <group position={[0, 0, depth / 2 + 0.01]}>
-        <RoundedBox
-          args={[width - 0.04, height - 0.04, 0.02]}
-          radius={0.005}
-          smoothness={4}
-        >
+      {/* 3. FRONT HINGED DOOR (Hollow Frame + Glass) */}
+      <animated.group
+        position={[-width / 2, 0, depth / 2]} // Pivot at exact left edge
+        rotation-y={doorRotation as any}
+      >
+        {/* Door Frame Border - Top */}
+        <mesh position={[width / 2, height / 2 - 0.02, 0.01]}>
+          <boxGeometry args={[width, 0.04, 0.02]} />
+          <meshStandardMaterial
+            color={frameColor}
+            roughness={0.7}
+            metalness={0.8}
+          />
+        </mesh>
+        {/* Door Frame Border - Bottom */}
+        <mesh position={[width / 2, -height / 2 + 0.02, 0.01]}>
+          <boxGeometry args={[width, 0.04, 0.02]} />
+          <meshStandardMaterial
+            color={frameColor}
+            roughness={0.7}
+            metalness={0.8}
+          />
+        </mesh>
+        {/* Door Frame Border - Left */}
+        <mesh position={[0.02, 0, 0.01]}>
+          <boxGeometry args={[0.04, height - 0.08, 0.02]} />
+          <meshStandardMaterial
+            color={frameColor}
+            roughness={0.7}
+            metalness={0.8}
+          />
+        </mesh>
+        {/* Door Frame Border - Right */}
+        <mesh position={[width - 0.02, 0, 0.01]}>
+          <boxGeometry args={[0.04, height - 0.08, 0.02]} />
+          <meshStandardMaterial
+            color={frameColor}
+            roughness={0.7}
+            metalness={0.8}
+          />
+        </mesh>
+
+        {/* Clear Glass Center Panel */}
+        <mesh position={[width / 2, 0, 0.01]}>
+          <planeGeometry args={[width - 0.08, height - 0.08]} />
           <animated.meshPhysicalMaterial
             transparent
-            opacity={doorOpacity as any}
+            opacity={0.15} // Low opacity for clear visibility
             color="#ffffff"
-            metalness={0.1}
-            roughness={0.05}
-            transmission={0.95}
-            thickness={0.05}
-            envMapIntensity={1}
+            metalness={0.0}
+            roughness={0.0}
+            transmission={1.0} // Perfect transparency
+            thickness={0}
+            envMapIntensity={0.5} // Subtle reflection
+            clearcoat={1.0}
+            clearcoatRoughness={0.0}
           />
-        </RoundedBox>
-      </group>
+        </mesh>
+      </animated.group>
 
       {/* Interaction Layer */}
       <mesh
@@ -279,7 +366,14 @@ export const Rack = ({
         </Billboard>
       )}
 
-      <group position={[0, 0, depth / 2 - 0.02]}>
+      <group position={[0, 0, depth / 2 - 0.07]}>
+        {/* Internal ambient brightness for equipment */}
+        <pointLight
+          position={[0, height / 2, 0.2]}
+          intensity={0.5}
+          distance={1}
+          decay={2}
+        />
         {devices.map((device) => (
           <DeviceMesh
             key={device.id}

@@ -5,6 +5,7 @@ import { DeviceModal } from "./components/DeviceModal";
 import { DashboardWidgets } from "./components/DashboardWidgets";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { FocusCarousel } from "./components/FocusCarousel";
+import { ImportExportModal } from "./components/ImportExportModal";
 import { useStore } from "./store/useStore";
 import {
   saveToJSON,
@@ -217,6 +218,9 @@ function App() {
 
       {/* Global Device Modal */}
       <DeviceModal />
+
+      {/* Global Import/Export Modal */}
+      <ImportExportModal />
 
       {/* Rack Navigation Carousel (Normal Mode) */}
       <FocusCarousel />

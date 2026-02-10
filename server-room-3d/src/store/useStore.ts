@@ -14,9 +14,11 @@ export interface AppState {
   dragOffset: [number, number] | null;
   isEditMode: boolean;
   hoveredRackId: string | null;
+  importExportModalRackId: string | null;
 
   // Actions
   setHoveredRack: (id: string | null) => void;
+  setImportExportModalRackId: (id: string | null) => void;
   addRack: (uHeight: 24 | 32 | 48, position: [number, number]) => void;
   moveRack: (id: string, newPosition: [number, number]) => boolean; // returns success
   deleteRack: (id: string) => void;
@@ -35,6 +37,10 @@ export interface AppState {
 
   addDevice: (rackId: string, device: Omit<Device, "id">) => boolean;
   removeDevice: (rackId: string, deviceId: string) => void;
+  updateRack: (
+    id: string,
+    updates: Partial<Omit<Rack, "id" | "position">>,
+  ) => void;
 
   // Data Persistence
   loadState: (racks: Rack[]) => void;
@@ -188,8 +194,10 @@ export const useStore = create<AppState>((set, get) => ({
   dragOffset: null,
   isEditMode: false,
   hoveredRackId: null,
+  importExportModalRackId: null,
 
   setHoveredRack: (id) => set({ hoveredRackId: id }),
+  setImportExportModalRackId: (id) => set({ importExportModalRackId: id }),
   addRack: (uHeight, position) => {
     const { racks } = get();
     if (checkCollision(racks, null, position)) {
@@ -395,6 +403,12 @@ export const useStore = create<AppState>((set, get) => ({
           ? { ...r, devices: r.devices.filter((d) => d.id !== deviceId) }
           : r,
       ),
+    }));
+  },
+
+  updateRack: (id, updates) => {
+    set((state) => ({
+      racks: state.racks.map((r) => (r.id === id ? { ...r, ...updates } : r)),
     }));
   },
 

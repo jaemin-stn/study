@@ -14,6 +14,30 @@ const ERROR_PULSE_STYLE = `
     animation: error-pulse 1.5s infinite ease-in-out;
     border: 2px solid var(--severity-critical) !important;
 }
+.btn-import-export {
+    background: var(--theme-primary) !important;
+    color: #ffffff !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    box-shadow: 0 0 10px rgba(110, 159, 255, 0.3);
+    font-weight: 600 !important;
+}
+.btn-import-export:hover {
+    filter: brightness(1.1);
+    box-shadow: 0 0 15px rgba(110, 159, 255, 0.5);
+    transform: translateY(-1px);
+}
+.btn-import-export:active {
+    transform: translateY(0);
+    filter: brightness(0.9);
+}
+.btn-import-export:disabled {
+    background: var(--text-disabled) !important;
+    color: var(--text-tertiary) !important;
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
+}
 `;
 
 export const DevicePanel = () => {
@@ -27,6 +51,7 @@ export const DevicePanel = () => {
     deleteRack,
     isEditMode,
     updateRackOrientation,
+    setImportExportModalRackId,
   } = useStore();
   const rack = racks.find((r) => r.id === selectedRackId);
 
@@ -116,6 +141,7 @@ export const DevicePanel = () => {
 
   // Helper to render rack slots
   const renderSlots = () => {
+    if (!rack) return null;
     const usedSlots = new Set<number>();
     rack.devices.forEach((d) => {
       for (let i = 0; i < d.uSize; i++) {
@@ -326,12 +352,27 @@ export const DevicePanel = () => {
             {rack.uHeight}U Configuration
           </span>
         </div>
-        <button
-          onClick={() => selectRack(null)}
-          className="grafana-modal-close"
-        >
-          ×
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button
+            onClick={() => setImportExportModalRackId(rack.id)}
+            className="grafana-btn btn-import-export"
+            style={{
+              padding: "4px 12px",
+              fontSize: "var(--font-size-xs)",
+              height: "28px",
+            }}
+            title="Import or Export this rack's data"
+          >
+            Import/Export
+          </button>
+          <button
+            onClick={() => selectRack(null)}
+            className="grafana-modal-close"
+            style={{ position: "static", transform: "none" }}
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       <div className="grafana-side-panel-content">
@@ -352,7 +393,6 @@ export const DevicePanel = () => {
                 { label: "South (180°)", value: 180 },
                 { label: "West (270°)", value: 270 },
               ].map((dir) => {
-                // Check if this direction would violate front clearance
                 const wouldViolate = checkFrontClearanceViolation(
                   racks,
                   rack.id,

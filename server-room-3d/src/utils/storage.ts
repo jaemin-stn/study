@@ -42,8 +42,8 @@ export const saveToExcel = (racks: Rack[]) => {
     orientation: r.orientation,
   }));
 
-  const deviceData: any[] = [];
-  const portData: any[] = [];
+  const deviceData: Record<string, unknown>[] = [];
+  const portData: Record<string, unknown>[] = [];
 
   racks.forEach((r) => {
     r.devices.forEach((d) => {
@@ -95,12 +95,15 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
 
         if (!rackSheet) throw new Error('Sheet "Racks" not found');
 
-        const racksFlat: any[] = XLSX.utils.sheet_to_json(rackSheet);
-        const devicesFlat: any[] = deviceSheet
-          ? XLSX.utils.sheet_to_json(deviceSheet)
+        const racksFlat = XLSX.utils.sheet_to_json(rackSheet) as Record<
+          string,
+          unknown
+        >[];
+        const devicesFlat = deviceSheet
+          ? (XLSX.utils.sheet_to_json(deviceSheet) as Record<string, unknown>[])
           : [];
-        const portsFlat: any[] = portSheet
-          ? XLSX.utils.sheet_to_json(portSheet)
+        const portsFlat = portSheet
+          ? (XLSX.utils.sheet_to_json(portSheet) as Record<string, unknown>[])
           : [];
 
         const racks: Rack[] = racksFlat.map((r) => {
@@ -111,9 +114,9 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
                 .filter((p) => p.deviceId === d.deviceId)
                 .map((p) => ({
                   portId: String(p.portId),
-                  status: p.status,
-                  errorLevel: p.errorLevel || undefined,
-                  errorMessage: p.errorMessage || undefined,
+                  status: p.status as "normal" | "error",
+                  errorLevel: (p.errorLevel as any) || undefined,
+                  errorMessage: (p.errorMessage as any) || undefined,
                 }));
 
               return {
@@ -128,11 +131,11 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
             });
 
           return {
-            id: r.rackId,
-            uHeight: Number(r.uHeight) as any,
+            id: r.rackId as string,
+            uHeight: Number(r.uHeight) as 24 | 32 | 48,
             position: [Number(r.posX), Number(r.posZ)],
-            orientation: Number(r.orientation) as any,
-            devices: rackDevices,
+            orientation: Number(r.orientation) as 0 | 90 | 180 | 270,
+            devices: rackDevices as any, // Cast to any to bypass compatibility check with deep nested structures
           };
         });
 

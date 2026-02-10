@@ -1,11 +1,13 @@
 import { useEffect, useMemo } from "react";
 import { RoundedBox, useTexture, Billboard, Html } from "@react-three/drei";
+import { type ThreeEvent } from "@react-three/fiber";
 import { animated, useSpring } from "@react-spring/three";
 import { useThree } from "@react-three/fiber";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
+import type { AppState } from "../store/useStore";
 import { useTheme } from "../contexts/ThemeContext";
-import type { Rack as RackType } from "../types";
+import type { Rack as RackType, Device } from "../types";
 import { ErrorMarker } from "./ErrorMarker";
 import { U_HEIGHT, GRID_SPACING } from "./constants";
 
@@ -22,9 +24,9 @@ export const Rack = ({
   draggingRackId,
   dragPosition,
 }: RackProps) => {
-  const selectedRackId = useStore((state: any) => state.selectedRackId);
-  const hoveredRackId = useStore((state: any) => state.hoveredRackId);
-  const focusedRackId = useStore((state: any) => state.focusedRackId);
+  const selectedRackId = useStore((state: AppState) => state.selectedRackId);
+  const hoveredRackId = useStore((state: AppState) => state.hoveredRackId);
+  const focusedRackId = useStore((state: AppState) => state.focusedRackId);
   const { theme } = useTheme();
 
   const isSelected = selectedRackId === id;
@@ -34,8 +36,8 @@ export const Rack = ({
   const isInternalDragging = draggingRackId === id;
   const isDarkMode = theme === "dark";
   const orientation = useStore(
-    (state: any) =>
-      state.racks.find((r: any) => r.id === id)?.orientation ?? 180,
+    (state: AppState) =>
+      state.racks.find((r: RackType) => r.id === id)?.orientation ?? 180,
   );
 
   const { raycaster, mouse, camera } = useThree();
@@ -89,7 +91,7 @@ export const Rack = ({
     immediate: isInternalDragging, // Use immediate only during active dragging
   });
 
-  const handlePointerDown = (e: any) => {
+  const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     const { selectRack, setDragging, updateDragPosition, isEditMode } =
       useStore.getState();
@@ -116,7 +118,7 @@ export const Rack = ({
     }
   };
 
-  const setHoveredRack = useStore((state: any) => state.setHoveredRack);
+  const setHoveredRack = useStore((state: AppState) => state.setHoveredRack);
   useEffect(() => {
     const { isEditMode } = useStore.getState();
     if (isHovered && !draggingRackId && isEditMode) {
@@ -129,9 +131,9 @@ export const Rack = ({
 
   return (
     <animated.group
-      position={pos as any}
-      rotation={rot as any}
-      scale={scale as any}
+      position={pos as unknown as THREE.Vector3}
+      rotation={rot as unknown as THREE.Euler}
+      scale={scale as unknown as THREE.Vector3}
     >
       {/* 1. STRUCTURAL FRAME (Main Skeleton) */}
       <group>
@@ -239,7 +241,7 @@ export const Rack = ({
       {/* 3. FRONT HINGED DOOR (Hollow Frame + Glass) */}
       <animated.group
         position={[-width / 2, 0, depth / 2]} // Pivot at exact left edge
-        rotation-y={doorRotation as any}
+        rotation-y={doorRotation as unknown as number}
       >
         {/* Door Frame Border - Top */}
         <mesh position={[width / 2, height / 2 - 0.02, 0.01]}>
@@ -415,7 +417,7 @@ const DeviceMesh = ({
   rackHeight,
   onSelect,
 }: {
-  device: any;
+  device: Device;
   rackHeight: number;
   onSelect: () => void;
 }) => {
@@ -482,7 +484,7 @@ const DeviceFaceplate = ({
   width,
   height,
 }: {
-  type: any;
+  type: Device["type"];
   width: number;
   height: number;
 }) => {

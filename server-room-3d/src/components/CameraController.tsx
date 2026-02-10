@@ -105,7 +105,7 @@ export const CameraController = () => {
     }
   }, [selectedRackId, focusedRackId, racks, isEditMode]);
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (
       !isAnimating ||
       !targetPos.current ||
@@ -125,13 +125,13 @@ export const CameraController = () => {
     orbitControls.target.lerp(targetLookAt.current, alpha);
 
     // Smooth zoom update
-    if (Math.abs(camera.zoom - targetZoom.current) > 0.001) {
-      camera.zoom = THREE.MathUtils.lerp(
-        camera.zoom,
+    if (Math.abs(state.camera.zoom - targetZoom.current) > 0.001) {
+      state.camera.zoom = THREE.MathUtils.lerp(
+        state.camera.zoom,
         targetZoom.current,
         alpha,
       );
-      camera.updateProjectionMatrix();
+      state.camera.updateProjectionMatrix();
     }
 
     orbitControls.update();
@@ -142,10 +142,10 @@ export const CameraController = () => {
 
     if (posDist < 0.005 && targetDist < 0.005) {
       // Snap to exact target values on completion
-      camera.position.copy(targetPos.current);
+      state.camera.position.copy(targetPos.current);
       orbitControls.target.copy(targetLookAt.current);
-      camera.zoom = targetZoom.current;
-      camera.updateProjectionMatrix();
+      state.camera.zoom = targetZoom.current;
+      state.camera.updateProjectionMatrix();
       orbitControls.update();
 
       setIsAnimating(false);

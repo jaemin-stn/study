@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useStore, checkFrontClearanceViolation } from "../store/useStore";
-import type { DeviceType, ErrorLevel } from "../types";
+import type { DeviceType, ErrorLevel, PortState } from "../types";
 import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
 import type { DeviceTemplate } from "../utils/deviceTemplates";
 
@@ -85,7 +85,7 @@ export const DevicePanel = () => {
       uSize: newUSize,
       uPosition: start,
       imageUrl: newImageUrl || undefined,
-      portStates: [] as any[],
+      portStates: [] as PortState[],
     };
 
     if (simError !== "none") {
@@ -368,7 +368,10 @@ export const DevicePanel = () => {
                     className={`grafana-btn ${isCurrentDirection ? "grafana-btn-primary" : "grafana-btn-secondary"}`}
                     onClick={() =>
                       !isDisabled &&
-                      updateRackOrientation(rack.id, dir.value as any)
+                      updateRackOrientation(
+                        rack.id,
+                        dir.value as 0 | 90 | 180 | 270,
+                      )
                     }
                     disabled={isDisabled}
                     style={{
@@ -433,7 +436,7 @@ export const DevicePanel = () => {
               <select
                 className="grafana-select"
                 value={newType}
-                onChange={(e) => setNewType(e.target.value as any)}
+                onChange={(e) => setNewType(e.target.value as DeviceType)}
               >
                 <option value="Switch">Switch</option>
                 <option value="Router">Router</option>
@@ -445,7 +448,9 @@ export const DevicePanel = () => {
               <select
                 className="grafana-select"
                 value={simError}
-                onChange={(e) => setSimError(e.target.value as any)}
+                onChange={(e) =>
+                  setSimError(e.target.value as ErrorLevel | "none")
+                }
               >
                 <option value="none">Normal</option>
                 <option value="warning">Warning</option>

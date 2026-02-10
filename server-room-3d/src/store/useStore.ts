@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { Rack, Device } from "../types";
 import { GRID_SPACING } from "../components/constants";
 
-interface AppState {
+export interface AppState {
   racks: Rack[];
   selectedRackId: string | null;
   selectedDeviceId: string | null;

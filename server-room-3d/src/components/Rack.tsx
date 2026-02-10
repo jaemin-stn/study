@@ -9,7 +9,7 @@ import type { AppState } from "../store/useStore";
 import { useTheme } from "../contexts/ThemeContext";
 import type { Rack as RackType, Device } from "../types";
 import { ErrorMarker } from "./ErrorMarker";
-import { U_HEIGHT, GRID_SPACING } from "./constants";
+import { U_HEIGHT, GRID_SPACING, DEVICE_DEPTH } from "./constants";
 
 interface RackProps extends RackType {
   draggingRackId: string | null;
@@ -428,21 +428,21 @@ const DeviceMesh = ({
 
   return (
     <group
-      position={[0, centerY, 0.01]}
+      position={[0, centerY, -0.41]}
       onClick={(e) => {
         e.stopPropagation();
         onSelect();
       }}
     >
       <RoundedBox
-        args={[0.54, deviceH - 0.005, 0.1]}
+        args={[0.54, deviceH - 0.005, DEVICE_DEPTH]}
         radius={0.005}
         smoothness={2}
       >
         <meshStandardMaterial color="#222222" roughness={0.4} metalness={0.7} />
       </RoundedBox>
 
-      <group position={[0, 0, 0.051]}>
+      <group position={[0, 0, DEVICE_DEPTH / 2 + 0.001]}>
         {device.imageUrl ? (
           <ImageFaceplate
             url={device.imageUrl}

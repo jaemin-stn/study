@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import { Scene } from "./components/Scene";
 import { DevicePanel } from "./components/DevicePanel";
 import { DeviceModal } from "./components/DeviceModal";
@@ -7,47 +6,17 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import { FocusCarousel } from "./components/FocusCarousel";
 import { ImportExportModal } from "./components/ImportExportModal";
 import { useStore } from "./store/useStore";
-import {
-  saveToJSON,
-  loadFromJSON,
-  saveToExcel,
-  loadFromExcel,
-  sampleRacks,
-} from "./utils/storage";
+import { sampleRacks } from "./utils/storage";
 
 function App() {
-  const { addRack, loadState, selectedRackId, racks, isEditMode, setEditMode } =
-    useStore();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const excelInputRef = useRef<HTMLInputElement>(null);
-
-  const handleLoad = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      try {
-        const loadedRacks = await loadFromJSON(e.target.files[0]);
-        loadState(loadedRacks);
-        alert("JSON loaded successfully!");
-      } catch (err) {
-        alert("Failed to load JSON");
-        console.error(err);
-      }
-      e.target.value = ""; // Reset for re-uploading same file
-    }
-  };
-
-  const handleExcelLoad = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      try {
-        const loadedRacks = await loadFromExcel(e.target.files[0]);
-        loadState(loadedRacks);
-        alert("Excel loaded successfully!");
-      } catch (err) {
-        alert("Failed to load Excel: " + (err as Error).message);
-        console.error(err);
-      }
-      e.target.value = ""; // Reset
-    }
-  };
+  const {
+    addRack,
+    loadState,
+    selectedRackId,
+    isEditMode,
+    setEditMode,
+    setImportExportModalRackId,
+  } = useStore();
 
   const loadSample = () => {
     loadState(sampleRacks);
@@ -147,28 +116,22 @@ function App() {
 
         <div className="grafana-toolbar-divider" />
 
-        {/* File Operations */}
+        {/* Unified Room Operations */}
         <div className="grafana-toolbar-group">
           <button
             className="grafana-btn grafana-btn-primary"
-            onClick={() => saveToJSON(racks)}
-            title="Export as JSON"
+            onClick={() => setImportExportModalRackId("all")}
+            title="Export Room Data"
           >
-            Export JSON
+            Export
           </button>
           <button
             className="grafana-btn grafana-btn-secondary"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => setImportExportModalRackId("all")}
+            title="Import Room Data"
           >
-            Import JSON
+            Import
           </button>
-          <input
-            type="file"
-            ref={fileInputRef}
-            style={{ display: "none" }}
-            accept=".json"
-            onChange={handleLoad}
-          />
 
           <div
             style={{
@@ -180,30 +143,8 @@ function App() {
           />
 
           <button
-            className="grafana-btn grafana-btn-primary"
-            onClick={() => saveToExcel(racks)}
-            title="Export as Excel"
-          >
-            Export Excel
-          </button>
-          <button
-            className="grafana-btn grafana-btn-secondary"
-            onClick={() => excelInputRef.current?.click()}
-          >
-            Import Excel
-          </button>
-          <input
-            type="file"
-            ref={excelInputRef}
-            style={{ display: "none" }}
-            accept=".xlsx"
-            onChange={handleExcelLoad}
-          />
-
-          <button
             className="grafana-btn grafana-btn-secondary"
             onClick={loadSample}
-            style={{ marginLeft: "12px" }}
           >
             Sample
           </button>

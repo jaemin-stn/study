@@ -2,8 +2,55 @@ import type { Rack } from "../types";
 import { DEVICE_TEMPLATES } from "./deviceTemplates";
 import * as XLSX from "xlsx";
 
-export const saveToJSON = (racks: Rack[]) => {
-  const json = JSON.stringify(racks, null, 2);
+export const saveToJSON = (racks: Rack[], options?: ExportOptions) => {
+  const rackRaw = racks.map((r) => ({
+    rackId: r.id,
+    uHeight: r.uHeight,
+    posX: r.position[0],
+    posZ: r.position[1],
+    orientation: r.orientation,
+  }));
+
+  const deviceRaw: Record<string, unknown>[] = [];
+  const portRaw: Record<string, unknown>[] = [];
+
+  racks.forEach((r) => {
+    r.devices.forEach((d) => {
+      deviceRaw.push({
+        deviceId: d.id,
+        rackId: r.id,
+        name: d.name,
+        type: d.type,
+        uSize: d.uSize,
+        uPosition: d.uPosition,
+        imageUrl: d.imageUrl || "",
+      });
+
+      d.portStates.forEach((p) => {
+        portRaw.push({
+          portId: p.portId,
+          deviceId: d.id,
+          status: p.status,
+          errorLevel: p.errorLevel || "",
+          errorMessage: p.errorMessage || "",
+        });
+      });
+    });
+  });
+
+  const rackData = options ? filterData(rackRaw, options.rack) : rackRaw;
+  const deviceData = options
+    ? filterData(deviceRaw, options.device)
+    : deviceRaw;
+  const portData = options ? filterData(portRaw, options.port) : portRaw;
+
+  const data = {
+    Rack: rackData,
+    Equipment: deviceData,
+    Ports: portData,
+  };
+
+  const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -33,8 +80,27 @@ export const loadFromJSON = (file: File): Promise<Rack[]> => {
   });
 };
 
-export const saveToExcel = (racks: Rack[]) => {
-  const rackData = racks.map((r) => ({
+export interface ExportOptions {
+  rack: string[];
+  device: string[];
+  port: string[];
+}
+
+const filterData = (data: any[], selectedFields: string[]) => {
+  if (selectedFields.length === 0) return [];
+  return data.map((item) => {
+    const filtered: any = {};
+    selectedFields.forEach((field) => {
+      if (item.hasOwnProperty(field)) {
+        filtered[field] = item[field];
+      }
+    });
+    return filtered;
+  });
+};
+
+export const saveToExcel = (racks: Rack[], options?: ExportOptions) => {
+  const rackRaw = racks.map((r) => ({
     rackId: r.id,
     uHeight: r.uHeight,
     posX: r.position[0],
@@ -42,12 +108,12 @@ export const saveToExcel = (racks: Rack[]) => {
     orientation: r.orientation,
   }));
 
-  const deviceData: Record<string, unknown>[] = [];
-  const portData: Record<string, unknown>[] = [];
+  const deviceRaw: Record<string, unknown>[] = [];
+  const portRaw: Record<string, unknown>[] = [];
 
   racks.forEach((r) => {
     r.devices.forEach((d) => {
-      deviceData.push({
+      deviceRaw.push({
         deviceId: d.id,
         rackId: r.id,
         name: d.name,
@@ -58,7 +124,7 @@ export const saveToExcel = (racks: Rack[]) => {
       });
 
       d.portStates.forEach((p) => {
-        portData.push({
+        portRaw.push({
           portId: p.portId,
           deviceId: d.id,
           status: p.status,
@@ -69,14 +135,25 @@ export const saveToExcel = (racks: Rack[]) => {
     });
   });
 
-  const wb = XLSX.utils.book_new();
-  const rackSheet = XLSX.utils.json_to_sheet(rackData);
-  const deviceSheet = XLSX.utils.json_to_sheet(deviceData);
-  const portSheet = XLSX.utils.json_to_sheet(portData);
+  const rackData = options ? filterData(rackRaw, options.rack) : rackRaw;
+  const deviceData = options
+    ? filterData(deviceRaw, options.device)
+    : deviceRaw;
+  const portData = options ? filterData(portRaw, options.port) : portRaw;
 
-  XLSX.utils.book_append_sheet(wb, rackSheet, "Racks");
-  XLSX.utils.book_append_sheet(wb, deviceSheet, "Devices");
-  XLSX.utils.book_append_sheet(wb, portSheet, "Ports");
+  const wb = XLSX.utils.book_new();
+  if (rackData.length > 0) {
+    const rackSheet = XLSX.utils.json_to_sheet(rackData);
+    XLSX.utils.book_append_sheet(wb, rackSheet, "Rack");
+  }
+  if (deviceData.length > 0) {
+    const deviceSheet = XLSX.utils.json_to_sheet(deviceData);
+    XLSX.utils.book_append_sheet(wb, deviceSheet, "Equipment");
+  }
+  if (portData.length > 0) {
+    const portSheet = XLSX.utils.json_to_sheet(portData);
+    XLSX.utils.book_append_sheet(wb, portSheet, "Ports");
+  }
 
   XLSX.writeFile(wb, `server-room-${Date.now()}.xlsx`);
 };
@@ -89,11 +166,11 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array" });
 
-        const rackSheet = workbook.Sheets["Racks"];
-        const deviceSheet = workbook.Sheets["Devices"];
+        const rackSheet = workbook.Sheets["Rack"];
+        const deviceSheet = workbook.Sheets["Equipment"];
         const portSheet = workbook.Sheets["Ports"];
 
-        if (!rackSheet) throw new Error('Sheet "Racks" not found');
+        if (!rackSheet) throw new Error('Sheet "Rack" not found');
 
         const racksFlat = XLSX.utils.sheet_to_json(rackSheet) as Record<
           string,
@@ -135,7 +212,7 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
             uHeight: Number(r.uHeight) as 24 | 32 | 48,
             position: [Number(r.posX), Number(r.posZ)],
             orientation: Number(r.orientation) as 0 | 90 | 180 | 270,
-            devices: rackDevices as any, // Cast to any to bypass compatibility check with deep nested structures
+            devices: rackDevices as any,
           };
         });
 
@@ -149,8 +226,53 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
   });
 };
 
-export const saveRackToJSON = (rack: Rack) => {
-  const json = JSON.stringify(rack, null, 2);
+export const saveRackToJSON = (rack: Rack, options?: ExportOptions) => {
+  const rackRaw = [
+    {
+      rackId: rack.id,
+      uHeight: rack.uHeight,
+      posX: rack.position[0],
+      posZ: rack.position[1],
+      orientation: rack.orientation,
+    },
+  ];
+
+  const deviceRaw = rack.devices.map((d) => ({
+    deviceId: d.id,
+    rackId: rack.id,
+    name: d.name,
+    type: d.type,
+    uSize: d.uSize,
+    uPosition: d.uPosition,
+    imageUrl: d.imageUrl || "",
+  }));
+
+  const portRaw: any[] = [];
+  rack.devices.forEach((d) => {
+    d.portStates.forEach((p) => {
+      portRaw.push({
+        portId: p.portId,
+        deviceId: d.id,
+        status: p.status,
+        errorLevel: p.errorLevel || "",
+        errorMessage: p.errorMessage || "",
+      });
+    });
+  });
+
+  const rackData = options ? filterData(rackRaw, options.rack) : rackRaw;
+  const deviceData = options
+    ? filterData(deviceRaw, options.device)
+    : deviceRaw;
+  const portData = options ? filterData(portRaw, options.port) : portRaw;
+
+  const data = {
+    Rack: rackData,
+    Equipment: deviceData,
+    Ports: portData,
+  };
+
+  const json = JSON.stringify(data, null, 2);
   const blob = new Blob([json], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -180,17 +302,20 @@ export const loadRackFromJSON = (file: File): Promise<Rack> => {
   });
 };
 
-export const saveRackToExcel = (rack: Rack) => {
-  const rackData = [
+export const saveRackToExcel = (rack: Rack, options?: ExportOptions) => {
+  const rackRaw = [
     {
-      rackName: rack.id, // Or use a name if available
+      rackId: rack.id,
       uHeight: rack.uHeight,
+      posX: rack.position[0],
+      posZ: rack.position[1],
       orientation: rack.orientation,
     },
   ];
 
-  const deviceData = rack.devices.map((d) => ({
+  const deviceRaw = rack.devices.map((d) => ({
     deviceId: d.id,
+    rackId: rack.id,
     name: d.name,
     type: d.type,
     uSize: d.uSize,
@@ -198,10 +323,10 @@ export const saveRackToExcel = (rack: Rack) => {
     imageUrl: d.imageUrl || "",
   }));
 
-  const portData: any[] = [];
+  const portRaw: any[] = [];
   rack.devices.forEach((d) => {
     d.portStates.forEach((p) => {
-      portData.push({
+      portRaw.push({
         portId: p.portId,
         deviceId: d.id,
         status: p.status,
@@ -211,14 +336,25 @@ export const saveRackToExcel = (rack: Rack) => {
     });
   });
 
-  const wb = XLSX.utils.book_new();
-  const rackSheet = XLSX.utils.json_to_sheet(rackData);
-  const deviceSheet = XLSX.utils.json_to_sheet(deviceData);
-  const portSheet = XLSX.utils.json_to_sheet(portData);
+  const rackData = options ? filterData(rackRaw, options.rack) : rackRaw;
+  const deviceData = options
+    ? filterData(deviceRaw, options.device)
+    : deviceRaw;
+  const portData = options ? filterData(portRaw, options.port) : portRaw;
 
-  XLSX.utils.book_append_sheet(wb, rackSheet, "Rack");
-  XLSX.utils.book_append_sheet(wb, deviceSheet, "Equipment");
-  XLSX.utils.book_append_sheet(wb, portSheet, "Ports");
+  const wb = XLSX.utils.book_new();
+  if (rackData.length > 0) {
+    const rackSheet = XLSX.utils.json_to_sheet(rackData);
+    XLSX.utils.book_append_sheet(wb, rackSheet, "Rack");
+  }
+  if (deviceData.length > 0) {
+    const deviceSheet = XLSX.utils.json_to_sheet(deviceData);
+    XLSX.utils.book_append_sheet(wb, deviceSheet, "Equipment");
+  }
+  if (portData.length > 0) {
+    const portSheet = XLSX.utils.json_to_sheet(portData);
+    XLSX.utils.book_append_sheet(wb, portSheet, "Ports");
+  }
 
   XLSX.writeFile(wb, `rack-${rack.id.substring(0, 8)}-${Date.now()}.xlsx`);
 };
@@ -294,12 +430,10 @@ export const sampleRacks: Rack[] = Array.from({ length: 20 }).map((_, i) => {
   const col = i % 10;
   const uHeight: 24 | 32 | 48 = i % 3 === 0 ? 24 : i % 3 === 1 ? 32 : 48;
 
-  // Pick 5 devices from all templates
   const devices = [];
   let currentUPos = 1;
 
   for (let d = 0; d < 5; d++) {
-    // Try to find a template that fits in the remaining space
     const remainingU = uHeight - currentUPos + 1;
     const fittingTemplates = DEVICE_TEMPLATES.filter(
       (t) => t.uSize <= remainingU,
@@ -330,7 +464,7 @@ export const sampleRacks: Rack[] = Array.from({ length: 20 }).map((_, i) => {
             ]
           : [],
     });
-    currentUPos += template.uSize + 1; // Leave 1U space
+    currentUPos += template.uSize + 1;
   }
 
   return {

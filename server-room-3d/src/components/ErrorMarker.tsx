@@ -4,8 +4,7 @@ import { useStore } from "../store/useStore";
 import type { Rack, ErrorLevel } from "../types";
 import * as THREE from "three";
 import { Html, Billboard } from "@react-three/drei";
-
-const U_HEIGHT = 0.0445;
+import { U_HEIGHT, ERROR_MARKER_HEIGHT } from "./constants";
 
 interface ErrorMarkerProps {
   rack: Rack;
@@ -60,9 +59,15 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
 
   if (!highestError) return null;
 
-  const rackHeight = rack.uHeight * U_HEIGHT;
-  // Position relatively: X=0, Z=0, Y=rackHeight + offset
-  const position: [number, number, number] = [0, rackHeight + 0.8, 0];
+  // Calculate position relative to rack center
+  // Rack base is at -height / 2. We want marker at ERROR_MARKER_HEIGHT (abs)
+  // Since rack center is at world Y = height / 2, marker rel Y = ERROR_MARKER_HEIGHT - height / 2
+  const actualRackHeight = rack.uHeight * U_HEIGHT + 0.1;
+  const position: [number, number, number] = [
+    0,
+    ERROR_MARKER_HEIGHT - actualRackHeight / 2,
+    0,
+  ];
 
   const color = ERROR_COLORS[highestError];
 

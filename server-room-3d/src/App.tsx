@@ -78,13 +78,13 @@ function App() {
 
         {/* Add Rack */}
         <div className="grafana-toolbar-group">
-          <span className="grafana-toolbar-label">Add Rack:</span>
+          <span className="grafana-toolbar-label">Add Standard:</span>
           <button
             className="grafana-btn grafana-btn-secondary"
             onClick={() =>
               addRack(24, [
-                Math.round(Math.random() * 5 * 2) / 2,
-                Math.round(Math.random() * 5 * 2) / 2,
+                Math.round(Math.random() * 5 * 2) / 4,
+                Math.round(Math.random() * 5 * 2) / 4,
               ])
             }
           >
@@ -94,8 +94,8 @@ function App() {
             className="grafana-btn grafana-btn-secondary"
             onClick={() =>
               addRack(32, [
-                Math.round(Math.random() * 5 * 2) / 2,
-                Math.round(Math.random() * 5 * 2) / 2,
+                Math.round(Math.random() * 5 * 2) / 4,
+                Math.round(Math.random() * 5 * 2) / 4,
               ])
             }
           >
@@ -105,9 +105,61 @@ function App() {
             className="grafana-btn grafana-btn-secondary"
             onClick={() =>
               addRack(48, [
-                Math.round(Math.random() * 5 * 2) / 2,
-                Math.round(Math.random() * 5 * 2) / 2,
+                Math.round(Math.random() * 5 * 2) / 4,
+                Math.round(Math.random() * 5 * 2) / 4,
               ])
+            }
+          >
+            48U
+          </button>
+
+          <span
+            className="grafana-toolbar-label"
+            style={{ marginLeft: "12px" }}
+          >
+            Add Wide:
+          </span>
+          <button
+            className="grafana-btn grafana-btn-secondary"
+            onClick={() =>
+              addRack(
+                24,
+                [
+                  Math.round(Math.random() * 5 * 2) / 4,
+                  Math.round(Math.random() * 5 * 2) / 4,
+                ],
+                1.0,
+              )
+            }
+          >
+            24U
+          </button>
+          <button
+            className="grafana-btn grafana-btn-secondary"
+            onClick={() =>
+              addRack(
+                32,
+                [
+                  Math.round(Math.random() * 5 * 2) / 4,
+                  Math.round(Math.random() * 5 * 2) / 4,
+                ],
+                1.0,
+              )
+            }
+          >
+            32U
+          </button>
+          <button
+            className="grafana-btn grafana-btn-secondary"
+            onClick={() =>
+              addRack(
+                48,
+                [
+                  Math.round(Math.random() * 5 * 2) / 4,
+                  Math.round(Math.random() * 5 * 2) / 4,
+                ],
+                1.0,
+              )
             }
           >
             48U

@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import type { Rack, Device } from "../types";
-import { GRID_SPACING } from "../components/constants";
+import {
+  GRID_SPACING,
+  RACK_WIDTH_STANDARD,
+  RACK_DEPTH,
+} from "../components/constants";
 
 export interface AppState {
   racks: Rack[];
@@ -19,7 +23,11 @@ export interface AppState {
   // Actions
   setHoveredRack: (id: string | null) => void;
   setImportExportModalRackId: (id: string | null) => void;
-  addRack: (uHeight: 24 | 32 | 48, position: [number, number]) => void;
+  addRack: (
+    uHeight: 24 | 32 | 48,
+    position: [number, number],
+    width?: number,
+  ) => void;
   moveRack: (id: string, newPosition: [number, number]) => boolean; // returns success
   deleteRack: (id: string) => void;
   selectRack: (id: string | null) => void;
@@ -46,18 +54,37 @@ export interface AppState {
   loadState: (racks: Rack[]) => void;
 }
 
-// Helper to check collision
+// Helper to check collision using AABB (Axis-Aligned Bounding Box)
 const checkCollision = (
   racks: Rack[],
   idToExclude: string | null,
   pos: [number, number],
+  width: number,
+  orientation: 0 | 90 | 180 | 270 = 180,
 ): boolean => {
-  return racks.some(
-    (r) =>
-      r.id !== idToExclude &&
-      r.position[0] === pos[0] &&
-      r.position[1] === pos[1],
-  );
+  // We use world units for collision check
+  const isRotated = orientation === 90 || orientation === 270;
+  const w1 = isRotated ? RACK_DEPTH : width;
+  const d1 = isRotated ? width : RACK_DEPTH;
+  const x1 = pos[0] * GRID_SPACING;
+  const z1 = pos[1] * GRID_SPACING;
+
+  return racks.some((r) => {
+    if (r.id === idToExclude) return false;
+
+    const otherOrientation = r.orientation ?? 180;
+    const otherIsRotated = otherOrientation === 90 || otherOrientation === 270;
+    const w2 = otherIsRotated ? RACK_DEPTH : r.width;
+    const d2 = otherIsRotated ? r.width : RACK_DEPTH;
+    const x2 = r.position[0] * GRID_SPACING;
+    const z2 = r.position[1] * GRID_SPACING;
+
+    // AABB overlap check
+    const overlapX = Math.abs(x1 - x2) < (w1 + w2) / 2 - 0.01; // Small buffer
+    const overlapZ = Math.abs(z1 - z2) < (d1 + d2) / 2 - 0.01;
+
+    return overlapX && overlapZ;
+  });
 };
 
 // Helper to check front clearance violation (combined Rule A + Rule B)
@@ -68,6 +95,7 @@ export const checkFrontClearanceViolation = (
   movedRackId: string,
   newPos: [number, number],
   movedRackOrientation?: 0 | 90 | 180 | 270,
+  movedRackWidth?: number,
 ): boolean => {
   const CLEARANCE = 1.5; // 1.5 unit clearance from front face
 
@@ -75,6 +103,7 @@ export const checkFrontClearanceViolation = (
   const movedRack = racks.find((r) => r.id === movedRackId);
   const placedOrientation =
     movedRackOrientation ?? movedRack?.orientation ?? 180;
+  const placedWidth = movedRackWidth ?? movedRack?.width ?? RACK_WIDTH_STANDARD;
 
   // Calculate the front direction of the PLACED rack
   let placedFrontDirX = 0;
@@ -110,7 +139,19 @@ export const checkFrontClearanceViolation = (
       const inFront =
         placedFrontDirX > 0 ? deltaToOtherX > 0 : deltaToOtherX < 0;
       const withinClearance = Math.abs(deltaToOtherX) <= CLEARANCE;
-      const aligned = Math.abs(deltaToOtherZ) < 0.5;
+
+      // Alignment check (width-aware)
+      const otherWidth = otherRack.width;
+      const otherOrientation = otherRack.orientation ?? 180;
+      const otherIsRotated =
+        otherOrientation === 90 || otherOrientation === 270;
+      const otherEffWidth = otherIsRotated ? RACK_DEPTH : otherWidth;
+      const placedIsRotated =
+        placedOrientation === 90 || placedOrientation === 270;
+      const placedEffDepth = placedIsRotated ? placedWidth : RACK_DEPTH;
+
+      const aligned =
+        Math.abs(deltaToOtherZ) < (placedEffDepth + otherEffWidth) / 2;
       if (inFront && withinClearance && aligned) {
         console.warn(
           `Rule A violation: rack at [${otherRackX}, ${otherRackZ}] is within 1.5 units in front of placed rack at [${newPos[0]}, ${newPos[1]}]`,
@@ -122,7 +163,19 @@ export const checkFrontClearanceViolation = (
       const inFront =
         placedFrontDirZ > 0 ? deltaToOtherZ > 0 : deltaToOtherZ < 0;
       const withinClearance = Math.abs(deltaToOtherZ) <= CLEARANCE;
-      const aligned = Math.abs(deltaToOtherX) < 0.5;
+
+      // Alignment check (width-aware)
+      const otherWidth = otherRack.width;
+      const otherOrientation = otherRack.orientation ?? 180;
+      const otherIsRotated =
+        otherOrientation === 90 || otherOrientation === 270;
+      const otherEffWidth = otherIsRotated ? RACK_DEPTH : otherWidth;
+      const placedIsRotated =
+        placedOrientation === 90 || placedOrientation === 270;
+      const placedEffWidth = placedIsRotated ? RACK_DEPTH : placedWidth;
+
+      const aligned =
+        Math.abs(deltaToOtherX) < (placedEffWidth + otherEffWidth) / 2;
       if (inFront && withinClearance && aligned) {
         console.warn(
           `Rule A violation: rack at [${otherRackX}, ${otherRackZ}] is within 1.5 units in front of placed rack at [${newPos[0]}, ${newPos[1]}]`,
@@ -198,9 +251,9 @@ export const useStore = create<AppState>((set, get) => ({
 
   setHoveredRack: (id) => set({ hoveredRackId: id }),
   setImportExportModalRackId: (id) => set({ importExportModalRackId: id }),
-  addRack: (uHeight, position) => {
+  addRack: (uHeight, position, width = RACK_WIDTH_STANDARD) => {
     const { racks } = get();
-    if (checkCollision(racks, null, position)) {
+    if (checkCollision(racks, null, position, width)) {
       console.warn("Collision detected, cannot add rack here");
       return;
     }
@@ -208,6 +261,7 @@ export const useStore = create<AppState>((set, get) => ({
     const newRack: Rack = {
       id: crypto.randomUUID(),
       uHeight,
+      width,
       position,
       orientation: 180,
       devices: [],
@@ -218,7 +272,10 @@ export const useStore = create<AppState>((set, get) => ({
 
   moveRack: (id, newPosition) => {
     const { racks } = get();
-    if (checkCollision(racks, id, newPosition)) {
+    const rack = racks.find((r) => r.id === id);
+    if (!rack) return false;
+
+    if (checkCollision(racks, id, newPosition, rack.width, rack.orientation)) {
       return false;
     }
 
@@ -273,11 +330,48 @@ export const useStore = create<AppState>((set, get) => ({
 
   endDrag: (id, newPosition) => {
     const { racks } = get();
-    const colliding = checkCollision(racks, id, newPosition);
+    const rack = racks.find((r) => r.id === id);
+    if (!rack) return false;
+
+    // Edge-to-edge snapping logic:
+    // If we are close to another rack horizontally, snap to its edge.
+    let finalPosition = [...newPosition] as [number, number];
+    const SNAP_THRESHOLD = 0.5; // Snap if within 0.5m
+
+    const worldX = newPosition[0] * GRID_SPACING;
+
+    for (const other of racks) {
+      if (other.id === id) continue;
+      if (Math.abs(other.position[1] - newPosition[1]) > 0.1) continue; // Must be in same row roughly
+
+      const otherWorldX = other.position[0] * GRID_SPACING;
+      const gap =
+        Math.abs(worldX - otherWorldX) - (rack.width + other.width) / 2;
+
+      if (gap >= -0.1 && gap < SNAP_THRESHOLD) {
+        // Snap!
+        const direction = worldX > otherWorldX ? 1 : -1;
+        const snappedWorldX =
+          otherWorldX + (direction * (other.width + rack.width)) / 2;
+        finalPosition[0] = snappedWorldX / GRID_SPACING;
+        console.log(`Snapped edge-to-edge with rack ${other.id.slice(0, 4)}`);
+        break;
+      }
+    }
+
+    const colliding = checkCollision(
+      racks,
+      id,
+      finalPosition,
+      rack.width,
+      rack.orientation,
+    );
     const frontClearanceViolation = checkFrontClearanceViolation(
       racks,
       id,
-      newPosition,
+      finalPosition,
+      rack.orientation,
+      rack.width,
     );
 
     if (colliding || frontClearanceViolation) {
@@ -297,10 +391,10 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     const newRacks = racks.map((r) =>
-      r.id === id ? { ...r, position: newPosition } : r,
+      r.id === id ? { ...r, position: finalPosition } : r,
     );
     console.log(
-      `State updated. Rack ${id} position is now [${newPosition[0]}, ${newPosition[1]}]`,
+      `State updated. Rack ${id} position is now [${finalPosition[0]}, ${finalPosition[1]}]`,
     );
 
     set({
@@ -324,6 +418,7 @@ export const useStore = create<AppState>((set, get) => ({
       id,
       rack.position,
       orientation,
+      rack.width,
     );
 
     if (frontClearanceViolation) {

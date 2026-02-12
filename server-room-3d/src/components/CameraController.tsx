@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
 import { useStore } from "../store/useStore";
 import * as THREE from "three";
@@ -19,12 +19,16 @@ export const CameraController = () => {
   const racks = useStore((state) => state.racks);
   const isEditMode = useStore((state) => state.isEditMode);
 
+  // Pre-allocated objects for render loop stability
   const savedState = useRef<CameraState | null>(null);
   const lastProcessedRackId = useRef<string | null>(null);
-  const targetPos = useRef<THREE.Vector3 | null>(null);
-  const targetLookAt = useRef<THREE.Vector3 | null>(null);
-  const targetZoom = useRef<number>(1);
-  const [isAnimating, setIsAnimating] = useState(false);
+
+  const vTargetPos = useRef(new THREE.Vector3());
+  const vTargetLookAt = useRef(new THREE.Vector3());
+  const vTargetZoom = useRef(1);
+
+  // Use ref for animation flag to avoid React re-renders during interpolation
+  const isAnimating = useRef(false);
 
   // Common function to set up animation to a rack
   const setupFocus = (rackId: string | null) => {
@@ -34,10 +38,10 @@ export const CameraController = () => {
 
     if (!rackId) {
       if (savedState.current) {
-        targetPos.current = savedState.current.position;
-        targetLookAt.current = savedState.current.target;
-        targetZoom.current = savedState.current.zoom;
-        setIsAnimating(true);
+        vTargetPos.current.copy(savedState.current.position);
+        vTargetLookAt.current.copy(savedState.current.target);
+        vTargetZoom.current = savedState.current.zoom;
+        isAnimating.current = true;
       }
       return;
     }
@@ -74,7 +78,7 @@ export const CameraController = () => {
     const distance = Math.max(baseDistance, 2.0);
 
     const targetCenterY = rackHeight * 0.5;
-    targetLookAt.current = new THREE.Vector3(rackX, targetCenterY, rackZ);
+    vTargetLookAt.current.set(rackX, targetCenterY, rackZ);
 
     const orientation = rack.orientation ?? 180;
     const orientationRad = ((180 - orientation) * Math.PI) / 180;
@@ -84,14 +88,10 @@ export const CameraController = () => {
     const offsetZ = Math.cos(orientationRad) * effectiveDistance;
     const cameraHeight = rackHeight * 0.6 + distance * 0.3;
 
-    targetPos.current = new THREE.Vector3(
-      rackX + offsetX,
-      cameraHeight,
-      rackZ + offsetZ,
-    );
-    targetZoom.current = 1;
+    vTargetPos.current.set(rackX + offsetX, cameraHeight, rackZ + offsetZ);
+    vTargetZoom.current = 1;
 
-    setIsAnimating(true);
+    isAnimating.current = true;
   };
 
   // Handle initial selection/focus
@@ -103,16 +103,10 @@ export const CameraController = () => {
     if (!isEditMode && !isDragging) {
       setupFocus(rackId);
     }
-  }, [selectedRackId, focusedRackId, racks, isEditMode]);
+  }, [selectedRackId, focusedRackId, isEditMode]);
 
   useFrame((state, delta) => {
-    if (
-      !isAnimating ||
-      !targetPos.current ||
-      !targetLookAt.current ||
-      !controls
-    )
-      return;
+    if (!isAnimating.current || !controls) return;
 
     const orbitControls = controls as unknown as OrbitControls;
 
@@ -121,14 +115,14 @@ export const CameraController = () => {
     const alpha = 1 - Math.exp(-8 * delta);
 
     // Atomic update of position and target to prevent jitter
-    camera.position.lerp(targetPos.current, alpha);
-    orbitControls.target.lerp(targetLookAt.current, alpha);
+    camera.position.lerp(vTargetPos.current, alpha);
+    orbitControls.target.lerp(vTargetLookAt.current, alpha);
 
     // Smooth zoom update
-    if (Math.abs(state.camera.zoom - targetZoom.current) > 0.001) {
+    if (Math.abs(state.camera.zoom - vTargetZoom.current) > 0.001) {
       state.camera.zoom = THREE.MathUtils.lerp(
         state.camera.zoom,
-        targetZoom.current,
+        vTargetZoom.current,
         alpha,
       );
       state.camera.updateProjectionMatrix();
@@ -137,18 +131,18 @@ export const CameraController = () => {
     orbitControls.update();
 
     // Check completion threshold
-    const posDist = camera.position.distanceTo(targetPos.current);
-    const targetDist = orbitControls.target.distanceTo(targetLookAt.current);
+    const posDist = camera.position.distanceTo(vTargetPos.current);
+    const targetDist = orbitControls.target.distanceTo(vTargetLookAt.current);
 
     if (posDist < 0.005 && targetDist < 0.005) {
       // Snap to exact target values on completion
-      state.camera.position.copy(targetPos.current);
-      orbitControls.target.copy(targetLookAt.current);
-      state.camera.zoom = targetZoom.current;
+      state.camera.position.copy(vTargetPos.current);
+      orbitControls.target.copy(vTargetLookAt.current);
+      state.camera.zoom = vTargetZoom.current;
       state.camera.updateProjectionMatrix();
       orbitControls.update();
 
-      setIsAnimating(false);
+      isAnimating.current = false;
 
       // If we just finished return-to-base, clear the saved state
       if (!selectedRackId && !focusedRackId) {

@@ -30,6 +30,7 @@ export type Orientation = 0 | 90 | 180 | 270;
 export interface Rack {
   id: string;
   uHeight: 24 | 32 | 48; // 렉 높이 옵션
+  width: number; // 렉 너비 (0.6, 1.0 등)
   position: [number, number]; // 그리드 좌표 [x, z]
   orientation?: Orientation; // Rotation angle in degrees
   devices: Device[];

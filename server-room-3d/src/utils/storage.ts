@@ -1,11 +1,13 @@
 import type { Rack } from "../types";
 import { DEVICE_TEMPLATES } from "./deviceTemplates";
 import * as XLSX from "xlsx";
+import { RACK_WIDTH_STANDARD } from "../components/constants";
 
 export const saveToJSON = (racks: Rack[], options?: ExportOptions) => {
   const rackRaw = racks.map((r) => ({
     rackId: r.id,
     uHeight: r.uHeight,
+    width: r.width,
     posX: r.position[0],
     posZ: r.position[1],
     orientation: r.orientation,
@@ -103,6 +105,7 @@ export const saveToExcel = (racks: Rack[], options?: ExportOptions) => {
   const rackRaw = racks.map((r) => ({
     rackId: r.id,
     uHeight: r.uHeight,
+    width: r.width,
     posX: r.position[0],
     posZ: r.position[1],
     orientation: r.orientation,
@@ -210,6 +213,7 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
           return {
             id: r.rackId as string,
             uHeight: Number(r.uHeight) as 24 | 32 | 48,
+            width: Number(r.width || RACK_WIDTH_STANDARD),
             position: [Number(r.posX), Number(r.posZ)],
             orientation: Number(r.orientation) as 0 | 90 | 180 | 270,
             devices: rackDevices as any,
@@ -231,6 +235,7 @@ export const saveRackToJSON = (rack: Rack, options?: ExportOptions) => {
     {
       rackId: rack.id,
       uHeight: rack.uHeight,
+      width: rack.width,
       posX: rack.position[0],
       posZ: rack.position[1],
       orientation: rack.orientation,
@@ -307,6 +312,7 @@ export const saveRackToExcel = (rack: Rack, options?: ExportOptions) => {
     {
       rackId: rack.id,
       uHeight: rack.uHeight,
+      width: rack.width,
       posX: rack.position[0],
       posZ: rack.position[1],
       orientation: rack.orientation,
@@ -411,6 +417,7 @@ export const loadRackFromExcel = (file: File): Promise<Partial<Rack>> => {
 
         const partialRack: Partial<Rack> = {
           uHeight: Number(r.uHeight) as 24 | 32 | 48,
+          width: Number(r.width || RACK_WIDTH_STANDARD),
           orientation: Number(r.orientation) as 0 | 90 | 180 | 270,
           devices: rackDevices as any,
         };
@@ -470,6 +477,7 @@ export const sampleRacks: Rack[] = Array.from({ length: 20 }).map((_, i) => {
   return {
     id: crypto.randomUUID(),
     uHeight,
+    width: RACK_WIDTH_STANDARD,
     position: [col * 2.5, row * 2.0],
     orientation: 180,
     devices,

@@ -19,6 +19,7 @@ interface RackProps extends RackType {
 export const Rack = ({
   id,
   uHeight,
+  width: rackWidth,
   position,
   devices,
   draggingRackId,
@@ -48,7 +49,7 @@ export const Rack = ({
   const tempPoint = useMemo(() => new THREE.Vector3(), []);
 
   const height = uHeight * U_HEIGHT + 0.1;
-  const width = 0.6;
+  const width = rackWidth;
   const depth = 1.0;
 
   // Theme-based colors
@@ -381,6 +382,7 @@ export const Rack = ({
             key={device.id}
             device={device}
             rackHeight={height}
+            rackWidth={width}
             onSelect={() => {
               const {
                 focusRack,
@@ -407,7 +409,7 @@ export const Rack = ({
         ))}
       </group>
 
-      <ErrorMarker rack={{ id, uHeight, position, devices }} />
+      <ErrorMarker rack={{ id, uHeight, position, devices, width }} />
     </animated.group>
   );
 };
@@ -415,16 +417,19 @@ export const Rack = ({
 const DeviceMesh = ({
   device,
   rackHeight,
+  rackWidth,
   onSelect,
 }: {
   device: Device;
   rackHeight: number;
+  rackWidth: number;
   onSelect: () => void;
 }) => {
   const deviceH = device.uSize * U_HEIGHT;
   const bottomY = -rackHeight / 2;
   const yOffset = (device.uPosition - 1) * U_HEIGHT;
   const centerY = bottomY + yOffset + deviceH / 2 + 0.05;
+  const deviceWidth = rackWidth - 0.06; // Dynamic width: 0.03 margin from the outer edge (0.01 inner from frame)
 
   return (
     <group
@@ -435,7 +440,7 @@ const DeviceMesh = ({
       }}
     >
       <RoundedBox
-        args={[0.54, deviceH - 0.005, DEVICE_DEPTH]}
+        args={[deviceWidth, deviceH - 0.005, DEVICE_DEPTH]}
         radius={0.005}
         smoothness={2}
       >
@@ -446,13 +451,13 @@ const DeviceMesh = ({
         {device.imageUrl ? (
           <ImageFaceplate
             url={device.imageUrl}
-            width={0.54}
+            width={deviceWidth}
             height={deviceH - 0.005}
           />
         ) : (
           <DeviceFaceplate
             type={device.type}
-            width={0.54}
+            width={deviceWidth}
             height={deviceH - 0.005}
           />
         )}

@@ -90,12 +90,17 @@ export const Scene = () => {
       style={{ width: "100%", height: "100vh", background: backgroundColor }}
       onPointerMissed={() => useStore.getState().selectRack(null)}
     >
-      <ambientLight intensity={isDarkMode ? 0.3 : 0.5} />
+      <ambientLight intensity={isDarkMode ? 0.6 : 0.8} />
       <directionalLight
         position={[10, 20, 5]}
-        intensity={isDarkMode ? 0.8 : 1}
+        intensity={isDarkMode ? 1.2 : 1.5}
         castShadow
         shadow-mapSize={[1024, 1024]}
+      />
+      <hemisphereLight
+        intensity={isDarkMode ? 0.4 : 0.6}
+        color="#ffffff"
+        groundColor="#444444"
       />
 
       <Suspense fallback={null}>

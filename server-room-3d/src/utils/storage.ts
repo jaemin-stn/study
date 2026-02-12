@@ -1,7 +1,11 @@
 import type { Rack } from "../types";
 import { DEVICE_TEMPLATES } from "./deviceTemplates";
 import * as XLSX from "xlsx";
-import { RACK_WIDTH_STANDARD } from "../components/constants";
+import {
+  RACK_WIDTH_STANDARD,
+  RACK_WIDTH_WIDE,
+  GRID_SPACING,
+} from "../components/constants";
 
 export const saveToJSON = (racks: Rack[], options?: ExportOptions) => {
   const rackRaw = racks.map((r) => ({
@@ -432,10 +436,18 @@ export const loadRackFromExcel = (file: File): Promise<Partial<Rack>> => {
   });
 };
 
-export const sampleRacks: Rack[] = Array.from({ length: 20 }).map((_, i) => {
+export const sampleRacks: Rack[] = Array.from({ length: 40 }).map((_, i) => {
   const row = Math.floor(i / 10);
   const col = i % 10;
+
+  // Mix standard and wide racks: every 5th rack (index 4 and 9 in row) is wide
+  const isWide = col === 4 || col === 9;
+  const width = isWide ? RACK_WIDTH_WIDE : RACK_WIDTH_STANDARD;
   const uHeight: 24 | 32 | 48 = i % 3 === 0 ? 24 : i % 3 === 1 ? 32 : 48;
+
+  // Define exactly 6 rack indexes that will have an error
+  const errorRackIndexes = [3, 12, 19, 24, 31, 37];
+  const hasError = errorRackIndexes.includes(i);
 
   const devices = [];
   let currentUPos = 1;
@@ -450,6 +462,10 @@ export const sampleRacks: Rack[] = Array.from({ length: 20 }).map((_, i) => {
 
     const template =
       fittingTemplates[Math.floor(Math.random() * fittingTemplates.length)];
+
+    // Only add an error to the first device of the designated error racks
+    const shouldAddError = hasError && d === 0;
+
     devices.push({
       id: crypto.randomUUID(),
       name: `${template.name}-${i}-${d}`,
@@ -457,28 +473,40 @@ export const sampleRacks: Rack[] = Array.from({ length: 20 }).map((_, i) => {
       uSize: template.uSize,
       uPosition: currentUPos,
       imageUrl: template.imageUrl,
-      portStates:
-        Math.random() > 0.7
-          ? [
-              {
-                portId: `p${Math.floor(Math.random() * 24) + 1}`,
-                status: "error" as const,
-                errorLevel: (
-                  ["warning", "minor", "major", "critical"] as const
-                )[Math.floor(Math.random() * 4)],
-                errorMessage: "Port link failure",
-              },
-            ]
-          : [],
+      portStates: shouldAddError
+        ? [
+            {
+              portId: `p${Math.floor(Math.random() * 24) + 1}`,
+              status: "error" as const,
+              errorLevel: (["warning", "minor", "major", "critical"] as const)[
+                Math.floor(Math.random() * 4)
+              ],
+              errorMessage: "Port link failure",
+            },
+          ]
+        : [],
     });
     currentUPos += template.uSize + 1;
   }
 
+  // Calculate world X by summing widths of previous racks in the same row
+  let worldX = 0;
+  for (let j = 0; j < col; j++) {
+    const prevCol = j;
+    // Same logic as above for width
+    const prevIsWide = prevCol === 4 || prevCol === 9;
+    worldX += prevIsWide ? RACK_WIDTH_WIDE : RACK_WIDTH_STANDARD;
+  }
+
+  // Center X in world units = current accumulated width + (current width / 2)
+  // Convert to state units by dividing by GRID_SPACING
+  const stateX = (worldX + width / 2) / GRID_SPACING;
+
   return {
     id: crypto.randomUUID(),
     uHeight,
-    width: RACK_WIDTH_STANDARD,
-    position: [col * 2.5, row * 2.0],
+    width,
+    position: [stateX, row * 2.0],
     orientation: 180,
     devices,
   };

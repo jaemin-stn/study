@@ -281,20 +281,15 @@ export const Rack = ({
           />
         </mesh>
 
-        {/* Clear Glass Center Panel */}
+        {/* Glass Center Panel - Optimized to MeshStandardMaterial */}
         <mesh position={[width / 2, 0, 0.01]}>
           <planeGeometry args={[width - 0.08, height - 0.08]} />
-          <animated.meshPhysicalMaterial
+          <meshStandardMaterial
             transparent
-            opacity={0.15} // Low opacity for clear visibility
+            opacity={0.2}
             color="#ffffff"
-            metalness={0.0}
-            roughness={0.0}
-            transmission={1.0} // Perfect transparency
-            thickness={0}
-            envMapIntensity={0.5} // Subtle reflection
-            clearcoat={1.0}
-            clearcoatRoughness={0.0}
+            roughness={0}
+            metalness={0.5}
           />
         </mesh>
       </animated.group>
@@ -370,13 +365,7 @@ export const Rack = ({
       )}
 
       <group position={[0, 0, depth / 2 - 0.07]}>
-        {/* Internal ambient brightness for equipment */}
-        <pointLight
-          position={[0, height / 2, 0.2]}
-          intensity={0.5}
-          distance={1}
-          decay={2}
-        />
+        {/* Removed per-rack pointLight for performance */}
         {devices.map((device) => (
           <DeviceMesh
             key={device.id}

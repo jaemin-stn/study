@@ -7,7 +7,8 @@ import { useStore } from "../store/useStore";
  * Follows the Grafana-inspired design system.
  */
 export const FocusCarousel: React.FC = () => {
-  const { racks, selectedRackId, selectRack, isEditMode } = useStore();
+  const { racks, selectedRackId, selectRack, focusRack, isEditMode } =
+    useStore();
 
   // Requirements: Only visible in normal mode, when a rack is focused, and if more than one rack exists.
   if (isEditMode || !selectedRackId || racks.length <= 1) return null;
@@ -18,13 +19,17 @@ export const FocusCarousel: React.FC = () => {
   const handlePrev = () => {
     // Requirements: Wrap around to the last rack if at the first.
     const prevIndex = (currentIndex - 1 + racks.length) % racks.length;
-    selectRack(racks[prevIndex].id);
+    const targetId = racks[prevIndex].id;
+    selectRack(targetId);
+    focusRack(targetId);
   };
 
   const handleNext = () => {
     // Requirements: Wrap around to the first rack if at the last.
     const nextIndex = (currentIndex + 1) % racks.length;
-    selectRack(racks[nextIndex].id);
+    const targetId = racks[nextIndex].id;
+    selectRack(targetId);
+    focusRack(targetId);
   };
 
   return (

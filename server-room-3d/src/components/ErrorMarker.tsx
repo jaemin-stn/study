@@ -26,6 +26,7 @@ const ERROR_PRIORITY: Record<ErrorLevel, number> = {
 
 export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
   const selectRack = useStore((state) => state.selectRack);
+  const focusRack = useStore((state) => state.focusRack);
   const markerRef = useRef<THREE.Group>(null);
 
   // Calculate highest error
@@ -79,6 +80,7 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
           onClick={(e) => {
             e.stopPropagation();
             selectRack(rack.id);
+            focusRack(rack.id);
           }}
         >
           {/* Cone pointing down */}
@@ -117,6 +119,7 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
               onClick={(e) => {
                 e.stopPropagation();
                 selectRack(rack.id);
+                focusRack(rack.id);
               }}
             >
               {(highestError as string).toUpperCase()}

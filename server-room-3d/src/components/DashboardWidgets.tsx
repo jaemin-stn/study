@@ -62,6 +62,7 @@ interface SensorData {
 export const DashboardWidgets = () => {
   const racks = useStore((state) => state.racks);
   const selectRack = useStore((state) => state.selectRack);
+  const focusRack = useStore((state) => state.focusRack);
   const selectDevice = useStore((state) => state.selectDevice);
   const [selectedSeverity, setSelectedSeverity] = useState<ErrorLevel | null>(
     "critical",
@@ -91,8 +92,9 @@ export const DashboardWidgets = () => {
 
   // Handle error row click
   const handleErrorRowClick = (error: ErrorItem) => {
-    // First select the rack
+    // First select and focus the rack
     selectRack(error.rackId);
+    focusRack(error.rackId);
     // Then open the device modal with highlighted port (use setTimeout to ensure state updates)
     setTimeout(() => {
       selectDevice(error.deviceId, error.portNumber);

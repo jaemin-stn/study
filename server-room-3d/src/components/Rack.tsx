@@ -1,8 +1,7 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, forwardRef } from "react";
 import { RoundedBox, useTexture, Billboard, Html } from "@react-three/drei";
-import { type ThreeEvent } from "@react-three/fiber";
 import { animated, useSpring } from "@react-spring/three";
-import { useThree } from "@react-three/fiber";
+import { type ThreeEvent, useThree, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
 import type { AppState } from "../store/useStore";
@@ -10,6 +9,26 @@ import { useTheme } from "../contexts/ThemeContext";
 import type { Rack as RackType, Device } from "../types";
 import { ErrorMarker } from "./ErrorMarker";
 import { U_HEIGHT, GRID_SPACING, DEVICE_DEPTH } from "./constants";
+import type { ErrorLevel } from "../types";
+
+const ERROR_COLORS: Record<ErrorLevel, string> = {
+  critical: "#ff0000",
+  major: "#ff8800",
+  minor: "#ffff00",
+  warning: "#0088ff",
+};
+
+const ERROR_PRIORITY: Record<ErrorLevel, number> = {
+  critical: 4,
+  major: 3,
+  minor: 2,
+  warning: 1,
+};
+
+// Snapshot of selectedRackId captured inside handlePointerDown BEFORE selectRack()
+// mutates it. Since the Interaction Layer is geometrically closer to the camera,
+// handlePointerDown fires FIRST, then DeviceMesh's onClick fires and reads this.
+let selectedRackIdBeforePointerDown: string | null = null;
 
 interface RackProps extends RackType {
   draggingRackId: string | null;
@@ -96,6 +115,9 @@ export const Rack = ({
     e.stopPropagation();
     const { selectRack, setDragging, updateDragPosition, isEditMode } =
       useStore.getState();
+
+    // Snapshot BEFORE mutation — DeviceMesh onClick reads this for two-step gate
+    selectedRackIdBeforePointerDown = useStore.getState().selectedRackId;
 
     selectRack(id);
 
@@ -373,26 +395,21 @@ export const Rack = ({
             rackHeight={height}
             rackWidth={width}
             onSelect={() => {
-              const {
-                focusRack,
-                selectRack,
-                selectDevice,
-                selectedRackId,
-                isEditMode,
-              } = useStore.getState();
+              const { focusRack, selectDevice, isEditMode } =
+                useStore.getState();
 
-              // 1) Select the parent rack
-              if (selectedRackId !== id) {
-                selectRack(id);
-              }
+              if (isEditMode) return;
 
-              // 2) Focus only if NOT in edit mode
-              if (!isEditMode) {
+              // Use the snapshot captured in handlePointerDown (which fires FIRST)
+              // to determine if the rack was ALREADY focused before this interaction.
+              if (selectedRackIdBeforePointerDown === id) {
+                // Rack was already focused → open port modal
+                selectDevice(device.id);
+              } else {
+                // Rack was NOT focused → handlePointerDown already called selectRack(id)
+                // Just focus the camera; no modal.
                 focusRack(id);
               }
-
-              // 3) Close modal if open
-              selectDevice(null);
             }}
           />
         ))}
@@ -414,11 +431,67 @@ const DeviceMesh = ({
   rackWidth: number;
   onSelect: () => void;
 }) => {
+  const meshRef = useRef<THREE.Mesh>(null);
+  const faceplateRef = useRef<THREE.Mesh>(null);
+
   const deviceH = device.uSize * U_HEIGHT;
   const bottomY = -rackHeight / 2;
   const yOffset = (device.uPosition - 1) * U_HEIGHT;
   const centerY = bottomY + yOffset + deviceH / 2 + 0.05;
-  const deviceWidth = rackWidth - 0.06; // Dynamic width: 0.03 margin from the outer edge (0.01 inner from frame)
+  const deviceWidth = rackWidth - 0.06;
+
+  const { hasError, errorColor } = useMemo(() => {
+    let maxPriority = 0;
+    let highestLevel: ErrorLevel | null = null;
+
+    device.portStates?.forEach((p) => {
+      if (p.status === "error" && p.errorLevel) {
+        const priority = ERROR_PRIORITY[p.errorLevel] || 0;
+        if (priority > maxPriority) {
+          maxPriority = priority;
+          highestLevel = p.errorLevel;
+        }
+      }
+    });
+
+    return {
+      hasError: highestLevel !== null,
+      errorColor: highestLevel ? ERROR_COLORS[highestLevel] : null,
+    };
+  }, [device.portStates]);
+
+  useFrame(({ clock }) => {
+    const bodyMat = meshRef.current?.material;
+    const faceMat = faceplateRef.current?.material;
+
+    if (hasError && errorColor) {
+      // 1 second interval blink (uniform transition)
+      // Pulse intensity between 0 and 0.6 for a subtle, uniform glow
+      const intensity =
+        0.3 + Math.sin(clock.getElapsedTime() * Math.PI * 2) * 0.3;
+
+      if (bodyMat instanceof THREE.MeshStandardMaterial) {
+        bodyMat.emissive.set(errorColor);
+        bodyMat.emissiveIntensity = intensity;
+      }
+
+      if (faceMat instanceof THREE.MeshStandardMaterial) {
+        faceMat.emissive.set(errorColor);
+        faceMat.emissiveIntensity = intensity;
+      }
+    } else {
+      if (bodyMat instanceof THREE.MeshStandardMaterial) {
+        bodyMat.emissive.set("#000000");
+        bodyMat.emissiveIntensity = 0;
+        bodyMat.opacity = 1.0;
+      }
+      if (faceMat instanceof THREE.MeshStandardMaterial) {
+        faceMat.emissive.set("#000000");
+        faceMat.emissiveIntensity = 0;
+        faceMat.opacity = 1.0;
+      }
+    }
+  });
 
   return (
     <group
@@ -429,11 +502,17 @@ const DeviceMesh = ({
       }}
     >
       <RoundedBox
+        ref={meshRef}
         args={[deviceWidth, deviceH - 0.005, DEVICE_DEPTH]}
         radius={0.005}
         smoothness={2}
       >
-        <meshStandardMaterial color="#222222" roughness={0.4} metalness={0.7} />
+        <meshStandardMaterial
+          color="#222222"
+          roughness={0.4}
+          metalness={0.7}
+          transparent={hasError}
+        />
       </RoundedBox>
 
       <group position={[0, 0, DEVICE_DEPTH / 2 + 0.001]}>
@@ -442,12 +521,17 @@ const DeviceMesh = ({
             url={device.imageUrl}
             width={deviceWidth}
             height={deviceH - 0.005}
+            ref={faceplateRef}
+            hasError={hasError}
           />
         ) : (
           <DeviceFaceplate
             type={device.type}
             width={deviceWidth}
             height={deviceH - 0.005}
+            ref={faceplateRef}
+            hasError={hasError}
+            errorColor={errorColor}
           />
         )}
       </group>
@@ -455,51 +539,66 @@ const DeviceMesh = ({
   );
 };
 
-const ImageFaceplate = ({
-  url,
-  width,
-  height,
-}: {
-  url: string;
-  width: number;
-  height: number;
-}) => {
+const ImageFaceplate = forwardRef<
+  THREE.Mesh,
+  {
+    url: string;
+    width: number;
+    height: number;
+    hasError?: boolean;
+  }
+>(({ url, width, height, hasError }, ref) => {
   const texture = useTexture(url);
   return (
-    <mesh position={[0, 0, 0]}>
+    <mesh position={[0, 0, 0]} ref={ref}>
       <planeGeometry args={[width, height]} />
-      <meshStandardMaterial map={texture} />
+      <meshStandardMaterial map={texture} transparent={hasError} />
     </mesh>
   );
-};
+});
 
-const DeviceFaceplate = ({
-  type,
-  width,
-  height,
-}: {
-  type: Device["type"];
-  width: number;
-  height: number;
-}) => {
+const DeviceFaceplate = forwardRef<
+  THREE.Mesh,
+  {
+    type: Device["type"];
+    width: number;
+    height: number;
+    hasError?: boolean;
+    errorColor?: string | null;
+  }
+>(({ type, width, height, hasError, errorColor }, ref) => {
   const isServer = type === "Server";
   const isRouter = type === "Router";
   const isSwitch = type === "Switch";
 
   return (
     <group>
-      <mesh>
+      <mesh ref={ref}>
         <planeGeometry args={[width, height]} />
-        <meshStandardMaterial color="#1a1a1a" roughness={0.8} />
+        <meshStandardMaterial
+          color="#1a1a1a"
+          roughness={0.8}
+          transparent={hasError}
+        />
       </mesh>
 
       <mesh position={[-width / 2 + 0.04, 0, 0.001]}>
         <circleGeometry args={[0.006, 16]} />
-        <meshBasicMaterial color="#00ff00" />
+        <meshBasicMaterial
+          color={hasError && errorColor ? errorColor : "#00ff00"}
+        />
       </mesh>
       <mesh position={[-width / 2 + 0.06, 0, 0.001]}>
         <circleGeometry args={[0.006, 16]} />
-        <meshBasicMaterial color={isServer ? "#00ff00" : "#ffaa00"} />
+        <meshBasicMaterial
+          color={
+            hasError && errorColor
+              ? errorColor
+              : isServer
+                ? "#00ff00"
+                : "#ffaa00"
+          }
+        />
       </mesh>
 
       {isSwitch && (
@@ -539,4 +638,4 @@ const DeviceFaceplate = ({
       )}
     </group>
   );
-};
+});

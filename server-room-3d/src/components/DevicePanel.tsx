@@ -4,16 +4,14 @@ import type { DeviceType, ErrorLevel, PortState } from "../types";
 import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
 import type { DeviceTemplate } from "../utils/deviceTemplates";
 
-const ERROR_PULSE_STYLE = `
-@keyframes error-pulse {
-    0% { border-color: var(--severity-critical); box-shadow: 0 0 2px var(--severity-critical); }
-    50% { border-color: var(--severity-critical); box-shadow: 0 0 12px var(--severity-critical); }
-    100% { border-color: var(--severity-critical); box-shadow: 0 0 2px var(--severity-critical); }
-}
-.device-error-pulse {
-    animation: error-pulse 1.5s infinite ease-in-out;
-    border: 2px solid var(--severity-critical) !important;
-}
+const ERROR_PRIORITY: Record<ErrorLevel, number> = {
+  critical: 4,
+  major: 3,
+  minor: 2,
+  warning: 1,
+};
+
+const IMPORT_EXPORT_STYLE = `
 .btn-import-export {
     background: var(--theme-primary) !important;
     color: #ffffff !important;
@@ -132,12 +130,10 @@ export const DevicePanel = () => {
     }
   };
 
-  // Device Colors
-  const typeColors: Record<string, string> = {
-    Switch: "var(--severity-success)",
-    Router: "var(--severity-major)",
-    Server: "var(--theme-primary)",
-  };
+  // Device Colors - Unified base color (low-saturation)
+  const UNIFIED_DEVICE_BG = "var(--bg-tertiary)";
+  const UNIFIED_DEVICE_TEXT = "var(--text-primary)";
+  const UNIFIED_DEVICE_BORDER = "var(--border-medium)";
 
   // Helper to render rack slots
   const renderSlots = () => {
@@ -156,8 +152,30 @@ export const DevicePanel = () => {
 
       if (device) {
         const heightPx = device.uSize * 28;
-        const bg = typeColors[device.type] || "var(--text-tertiary)";
-        const hasError = device.portStates.some((p) => p.status === "error");
+
+        // Calculate highest severity error
+        let maxPriority = 0;
+        let highestSeverity: ErrorLevel | null = null;
+        device.portStates.forEach((p) => {
+          if (p.status === "error" && p.errorLevel) {
+            const priority = ERROR_PRIORITY[p.errorLevel] || 0;
+            if (priority > maxPriority) {
+              maxPriority = priority;
+              highestSeverity = p.errorLevel;
+            }
+          }
+        });
+
+        const hasError = highestSeverity !== null;
+
+        // Unified low-saturation base color vs Error "Lit" state
+        const bg = hasError
+          ? `var(--severity-${highestSeverity})`
+          : UNIFIED_DEVICE_BG;
+        const textColor = hasError ? "#ffffff" : UNIFIED_DEVICE_TEXT;
+        const borderColor = hasError
+          ? `var(--severity-${highestSeverity})`
+          : UNIFIED_DEVICE_BORDER;
 
         rendered.push(
           <div
@@ -166,22 +184,20 @@ export const DevicePanel = () => {
               height: `${heightPx}px`,
               backgroundColor: bg,
               borderRadius: "var(--radius-sm)",
-              border: hasError
-                ? "2px solid var(--severity-critical)"
-                : "1px solid rgba(0,0,0,0.1)",
+              border: `1px solid ${borderColor}`,
               marginBottom: "2px",
               display: "flex",
               alignItems: "center",
               justifyContent: "space-between",
               padding: "0 10px",
-              color: "#fff",
-              fontWeight: 500,
+              color: textColor,
+              fontWeight: hasError ? 700 : 500,
               fontSize: "var(--font-size-sm)",
               boxShadow: "var(--elevation-1)",
               position: "relative",
               cursor: "pointer",
+              transition: "background-color 0.2s, color 0.2s",
             }}
-            className={hasError ? "device-error-pulse" : ""}
             onClick={() => selectDevice(device.id)}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -329,7 +345,7 @@ export const DevicePanel = () => {
 
   return (
     <div className="grafana-side-panel" style={{ width: "400px" }}>
-      <style>{ERROR_PULSE_STYLE}</style>
+      <style>{IMPORT_EXPORT_STYLE}</style>
 
       <div className="grafana-side-panel-header">
         <div>

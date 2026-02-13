@@ -38,9 +38,9 @@
   --theme-secondary: #6e9fff;
 
   /* Severity/Status colors - Grafana style */
-  --severity-critical: #d10e5c;
-  --severity-critical-bg: rgba(209, 14, 92, 0.12);
-  --severity-critical-text: #d10e5c;
+  --severity-critical: #ff0000;
+  --severity-critical-bg: rgba(255, 0, 0, 0.12);
+  --severity-critical-text: #ff0000;
 
   --severity-major: #ff5f00;
   --severity-major-bg: rgba(255, 95, 0, 0.12);
@@ -153,9 +153,9 @@
   --theme-secondary: #3871dc;
 
   /* Severity/Status colors - Grafana style (dark mode) */
-  --severity-critical: #ff5286;
-  --severity-critical-bg: rgba(255, 82, 134, 0.15);
-  --severity-critical-text: #ff5286;
+  --severity-critical: #ff0000;
+  --severity-critical-bg: rgba(255, 0, 0, 0.15);
+  --severity-critical-text: #ff0000;
 
   --severity-major: #ff9830;
   --severity-major-bg: rgba(255, 152, 48, 0.15);

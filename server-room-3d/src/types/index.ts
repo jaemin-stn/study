@@ -39,3 +39,15 @@ export interface Rack {
 export interface DraggedItem {
   type: "rk"; // rack
 }
+
+// 임포트된 3D 모델
+export interface ImportedModel {
+  id: string;
+  name: string;
+  fileName: string;
+  /** Base64 data URL of the GLB file */
+  dataUrl: string;
+  position: [number, number, number];
+  rotation: [number, number, number]; // Euler angles in radians
+  scale: [number, number, number];
+}

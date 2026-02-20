@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Rack, Device } from "../types";
+import type { Rack, Device, ImportedModel } from "../types";
 import {
   GRID_SPACING,
   RACK_WIDTH_STANDARD,
@@ -20,6 +20,12 @@ export interface AppState {
   hoveredRackId: string | null;
   importExportModalRackId: string | null;
 
+  // Imported 3D Models
+  importedModels: ImportedModel[];
+  selectedModelId: string | null;
+  draggingModelId: string | null;
+  modelDragPosition: [number, number] | null;
+
   // Actions
   setHoveredRack: (id: string | null) => void;
   setImportExportModalRackId: (id: string | null) => void;
@@ -28,7 +34,7 @@ export interface AppState {
     position: [number, number],
     width?: number,
   ) => void;
-  moveRack: (id: string, newPosition: [number, number]) => boolean; // returns success
+  moveRack: (id: string, newPosition: [number, number]) => boolean;
   deleteRack: (id: string) => void;
   selectRack: (id: string | null) => void;
   selectDevice: (id: string | null, portId?: string | null) => void;
@@ -50,8 +56,23 @@ export interface AppState {
     updates: Partial<Omit<Rack, "id" | "position">>,
   ) => void;
 
+  // Imported Model Actions
+  addImportedModel: (model: Omit<ImportedModel, "id">) => string;
+  selectModel: (id: string | null) => void;
+  deleteModel: (id: string) => void;
+  updateModel: (
+    id: string,
+    updates: Partial<Omit<ImportedModel, "id">>,
+  ) => void;
+  setModelDragging: (
+    modelId: string | null,
+    pos?: [number, number] | null,
+  ) => void;
+  updateModelDragPosition: (pos: [number, number] | null) => void;
+  endModelDrag: (id: string, position: [number, number]) => void;
+
   // Data Persistence
-  loadState: (racks: Rack[]) => void;
+  loadState: (racks: Rack[], models?: ImportedModel[]) => void;
 }
 
 // Helper to check collision using AABB (Axis-Aligned Bounding Box)
@@ -249,6 +270,11 @@ export const useStore = create<AppState>((set, get) => ({
   hoveredRackId: null,
   importExportModalRackId: null,
 
+  importedModels: [],
+  selectedModelId: null,
+  draggingModelId: null,
+  modelDragPosition: null,
+
   setHoveredRack: (id) => set({ hoveredRackId: id }),
   setImportExportModalRackId: (id) => set({ importExportModalRackId: id }),
   addRack: (uHeight, position, width = RACK_WIDTH_STANDARD) => {
@@ -311,10 +337,17 @@ export const useStore = create<AppState>((set, get) => ({
       });
     }
 
+    // If clicking the same rack that is already selected AND we have a focus,
+    // do not clear focusedRackId to satisfy "Clicking on the focused rack itself should NOT clear focus".
+    if (id && id === state.selectedRackId && state.focusedRackId) {
+      return;
+    }
+
     set({
       selectedRackId: id,
       focusedRackId: null,
       selectedDeviceId: null,
+      selectedModelId: id ? null : state.selectedModelId,
     });
   },
   selectDevice: (id, portId = null) =>
@@ -507,6 +540,59 @@ export const useStore = create<AppState>((set, get) => ({
     }));
   },
 
-  loadState: (newRacks) =>
-    set({ racks: newRacks, selectedRackId: null, focusedRackId: null }),
+  loadState: (newRacks, newModels) =>
+    set({
+      racks: newRacks,
+      importedModels: newModels ?? [],
+      selectedRackId: null,
+      focusedRackId: null,
+      selectedModelId: null,
+    }),
+
+  // Imported Model Actions
+  addImportedModel: (modelData) => {
+    const newId = crypto.randomUUID();
+    const model: ImportedModel = { ...modelData, id: newId };
+    set((state) => ({ importedModels: [...state.importedModels, model] }));
+    return newId;
+  },
+
+  selectModel: (id) =>
+    set({
+      selectedModelId: id,
+      selectedRackId: id ? null : undefined,
+      focusedRackId: null,
+      selectedDeviceId: null,
+    }),
+
+  deleteModel: (id) =>
+    set((state) => ({
+      importedModels: state.importedModels.filter((m) => m.id !== id),
+      selectedModelId:
+        state.selectedModelId === id ? null : state.selectedModelId,
+    })),
+
+  updateModel: (id, updates) =>
+    set((state) => ({
+      importedModels: state.importedModels.map((m) =>
+        m.id === id ? { ...m, ...updates } : m,
+      ),
+    })),
+
+  setModelDragging: (modelId, pos = null) =>
+    set({ draggingModelId: modelId, modelDragPosition: pos }),
+
+  updateModelDragPosition: (pos) => set({ modelDragPosition: pos }),
+
+  endModelDrag: (id, position) => {
+    set((state) => ({
+      importedModels: state.importedModels.map((m) =>
+        m.id === id
+          ? { ...m, position: [position[0], m.position[1], position[1]] }
+          : m,
+      ),
+      draggingModelId: null,
+      modelDragPosition: null,
+    }));
+  },
 }));

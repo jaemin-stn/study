@@ -1,8 +1,9 @@
-import { Suspense, useMemo, useEffect } from "react";
+import { Suspense, useMemo, useEffect, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Environment, Grid } from "@react-three/drei";
 import { useStore } from "../store/useStore";
 import { Rack } from "./Rack";
+import { ImportedModelMesh } from "./ImportedModelMesh";
 import { CameraController } from "./CameraController";
 import { GRID_SPACING } from "./constants";
 import { useTheme } from "../contexts/ThemeContext";
@@ -48,6 +49,8 @@ export const Scene = () => {
   const isDragging = useStore((state) => state.isDragging);
   const draggingRackId = useStore((state) => state.draggingRackId);
   const dragPosition = useStore((state) => state.dragPosition);
+  const importedModels = useStore((state) => state.importedModels);
+  const draggingModelId = useStore((state) => state.draggingModelId);
   const { theme } = useTheme();
 
   // Theme-based colors
@@ -55,11 +58,14 @@ export const Scene = () => {
   const backgroundColor = isDarkMode ? "#585d6e" : "#f0f0f0"; // Dark mode background set to #585d6e
   const gridCellColor = isDarkMode ? "#6b7080" : "#ccc"; // Neutral/cool gray for dark mode grid cells
   const gridSectionColor = isDarkMode ? "#7d8292" : "#999"; // Neutral/cool gray for dark mode grid sections
+  const pointerDownPos = useRef<{ x: number; y: number } | null>(null);
 
   // Global release handler using native window listener for 100% reliability
   useEffect(() => {
     const handleGlobalUp = () => {
       const state = useStore.getState();
+
+      // Handle rack drag end
       if (state.isDragging) {
         const dragPos = state.dragPosition;
         const rackId = state.draggingRackId;
@@ -77,6 +83,12 @@ export const Scene = () => {
         }
         document.body.style.cursor = "auto";
       }
+
+      // Handle model drag end
+      if (state.draggingModelId && state.modelDragPosition) {
+        state.endModelDrag(state.draggingModelId, state.modelDragPosition);
+        document.body.style.cursor = "auto";
+      }
     };
 
     window.addEventListener("pointerup", handleGlobalUp);
@@ -88,7 +100,21 @@ export const Scene = () => {
       shadows
       camera={{ position: [10, 10, 10], fov: 50 }}
       style={{ width: "100%", height: "100vh", background: backgroundColor }}
-      onPointerMissed={() => useStore.getState().selectRack(null)}
+      onPointerDown={(e) => {
+        pointerDownPos.current = { x: e.clientX, y: e.clientY };
+      }}
+      onPointerMissed={(e) => {
+        // Only clear focus on a "click" (minimal movement between down and up)
+        if (pointerDownPos.current) {
+          const dx = e.clientX - pointerDownPos.current.x;
+          const dy = e.clientY - pointerDownPos.current.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 5) {
+            useStore.getState().selectRack(null);
+          }
+        }
+        pointerDownPos.current = null;
+      }}
     >
       <ambientLight intensity={isDarkMode ? 0.6 : 0.8} />
       <directionalLight
@@ -129,13 +155,18 @@ export const Scene = () => {
 
         {/* The Hidden Drag Engine */}
         <DragHandler />
+
+        {/* Imported 3D Models */}
+        {importedModels.map((model) => (
+          <ImportedModelMesh key={model.id} model={model} />
+        ))}
       </Suspense>
 
       <OrbitControls
         makeDefault
         minPolarAngle={0}
         maxPolarAngle={Math.PI / 2.1}
-        enabled={!isDragging}
+        enabled={!isDragging && !draggingModelId}
       />
       <CameraController />
     </Canvas>

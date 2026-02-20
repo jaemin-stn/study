@@ -5,6 +5,7 @@ import { DashboardWidgets } from "./components/DashboardWidgets";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { FocusCarousel } from "./components/FocusCarousel";
 import { ImportExportModal } from "./components/ImportExportModal";
+import { ModelImporter } from "./components/ModelImporter";
 import { useStore } from "./store/useStore";
 import { sampleRacks } from "./utils/storage";
 
@@ -214,6 +215,9 @@ function App() {
 
       {/* Global Import/Export Modal */}
       <ImportExportModal />
+
+      {/* 3D Model Importer (Edit Mode only) */}
+      <ModelImporter />
 
       {/* Rack Navigation Carousel (Normal Mode) */}
       <FocusCarousel />

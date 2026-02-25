@@ -50,4 +50,6 @@ export interface ImportedModel {
   position: [number, number, number];
   rotation: [number, number, number]; // Euler angles in radians
   scale: [number, number, number];
+  /** Per-model movement toggle: true = movable, false = locked (default: false) */
+  isMoveEnabled?: boolean;
 }

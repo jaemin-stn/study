@@ -1,5 +1,6 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useStore } from "../store/useStore";
+import type { ImportedModel } from "../types";
 
 /** Read a File as a base64 data URL */
 const fileToDataUrl = (file: File): Promise<string> =>
@@ -23,6 +24,7 @@ export const ModelImporter = () => {
   const selectModel = useStore((s) => s.selectModel);
   const deleteModel = useStore((s) => s.deleteModel);
   const updateModel = useStore((s) => s.updateModel);
+  const toggleModelMove = useStore((s) => s.toggleModelMove);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,9 +35,7 @@ export const ModelImporter = () => {
   const handleImport = useCallback(
     async (file: File) => {
       if (!isValidExtension(file.name)) {
-        setError(
-          "지원되지 않는 파일 형식입니다. .glb 또는 .gltf 파일만 가능합니다.",
-        );
+        setError("Unsupported format. Use .glb or .gltf only.");
         setTimeout(() => setError(null), 4000);
         return;
       }
@@ -54,9 +54,10 @@ export const ModelImporter = () => {
           position: [0, 0, 0],
           rotation: [0, 0, 0],
           scale: [1, 1, 1],
+          isMoveEnabled: false,
         });
       } catch {
-        setError("파일을 읽는 중 오류가 발생했습니다.");
+        setError("Failed to read file.");
         setTimeout(() => setError(null), 4000);
       } finally {
         setIsLoading(false);
@@ -74,8 +75,6 @@ export const ModelImporter = () => {
     [handleImport],
   );
 
-  // Window-level listener for native file drag from desktop.
-  // Only listens for "dragenter" events — does NOT intercept pointer events.
   useEffect(() => {
     const handleDragEnter = (e: DragEvent) => {
       if (e.dataTransfer?.types.includes("Files") && isEditMode) {
@@ -90,7 +89,6 @@ export const ModelImporter = () => {
 
   return (
     <>
-      {/* Hidden file input */}
       <input
         ref={fileInputRef}
         type="file"
@@ -99,144 +97,222 @@ export const ModelImporter = () => {
         onChange={handleFileChange}
       />
 
-      {/* Toolbar section */}
       <div
-        className="grafana-toolbar"
         style={{
           position: "absolute",
-          top: "180px",
-          left: "12px",
-          zIndex: 20,
+          top: "140px",
+          left: "20px",
+          zIndex: 100,
           display: "flex",
           flexDirection: "column",
-          gap: "8px",
-          maxWidth: "320px",
+          gap: "12px",
+          width: "300px",
+          maxHeight: "calc(100vh - 160px)",
         }}
       >
-        {/* Import button */}
+        {/* Import Action Card */}
         <div
-          className="grafana-toolbar-group"
-          style={{ justifyContent: "flex-end" }}
+          className="grafana-panel"
+          style={{
+            padding: "16px",
+            background:
+              "linear-gradient(145deg, var(--bg-primary), var(--bg-secondary))",
+            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+          }}
         >
           <button
-            className="grafana-btn grafana-btn-primary"
+            className="grafana-btn"
             onClick={() => fileInputRef.current?.click()}
             disabled={isLoading}
-            style={{ display: "flex", alignItems: "center", gap: "6px" }}
+            style={{
+              width: "100%",
+              height: "44px",
+              background: "linear-gradient(to bottom, #4f46e5, #4338ca)",
+              color: "#fff",
+              border: "none",
+              borderRadius: "var(--radius-md)",
+              fontSize: "13px",
+              fontWeight: 600,
+              boxShadow: "0 4px 12px rgba(79, 70, 229, 0.3)",
+              transition: "transform 0.1s, box-shadow 0.2s",
+            }}
+            onMouseDown={(e) =>
+              (e.currentTarget.style.transform = "scale(0.98)")
+            }
+            onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
           >
             {isLoading ? (
-              <>
-                <span
-                  style={{
-                    width: "12px",
-                    height: "12px",
-                    border: "2px solid rgba(255,255,255,0.3)",
-                    borderTop: "2px solid #fff",
-                    borderRadius: "50%",
-                    animation: "spin 0.8s linear infinite",
-                    display: "inline-block",
-                  }}
-                />
-                Loading...
-              </>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <span className="spinner-mini" /> Importing...
+              </div>
             ) : (
-              "📦 Import 3D Model"
+              "📂 Import 3D Model"
             )}
           </button>
+
+          {error && (
+            <div
+              style={{
+                marginTop: "12px",
+                padding: "8px 12px",
+                background: "rgba(239, 68, 68, 0.1)",
+                border: "1px solid rgba(239, 68, 68, 0.2)",
+                borderRadius: "var(--radius-sm)",
+                color: "#ef4444",
+                fontSize: "12px",
+              }}
+            >
+              ⚠️ {error}
+            </div>
+          )}
         </div>
 
-        {/* Error message */}
-        {error && (
-          <div
-            style={{
-              padding: "8px 12px",
-              background: "var(--severity-critical-bg)",
-              border: "1px solid var(--severity-critical)",
-              borderRadius: "var(--radius-md)",
-              color: "var(--severity-critical-text)",
-              fontSize: "var(--font-size-sm)",
-            }}
-          >
-            {error}
-          </div>
-        )}
-
-        {/* Imported models list */}
+        {/* Models List Section */}
         {importedModels.length > 0 && (
           <div
             className="grafana-panel"
             style={{
-              padding: "12px",
-              maxHeight: "300px",
-              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              background: "var(--bg-primary)",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+              maxHeight: "260px",
             }}
           >
             <div
               style={{
-                fontSize: "var(--font-size-xs)",
-                fontWeight: 700,
-                color: "var(--text-tertiary)",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                marginBottom: "8px",
+                padding: "12px 16px",
+                borderBottom: "1px solid var(--border-weak)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
               }}
             >
-              Imported Models ({importedModels.length})
-            </div>
-            {importedModels.map((m) => (
-              <div
-                key={m.id}
-                onClick={() => selectModel(m.id)}
+              <span
                 style={{
-                  padding: "6px 8px",
-                  borderRadius: "var(--radius-sm)",
-                  cursor: "pointer",
-                  background:
-                    selectedModelId === m.id
-                      ? "var(--selected-bg)"
-                      : "transparent",
-                  border:
-                    selectedModelId === m.id
-                      ? "1px solid var(--theme-primary)"
-                      : "1px solid transparent",
-                  marginBottom: "4px",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  fontSize: "var(--font-size-sm)",
-                  color: "var(--text-primary)",
-                  transition: "background 0.15s",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  color: "var(--text-tertiary)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
                 }}
               >
-                <span
-                  style={{
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  📦 {m.name}
-                </span>
-                <button
-                  className="grafana-btn grafana-btn-secondary"
-                  style={{
-                    padding: "2px 6px",
-                    fontSize: "11px",
-                    minWidth: "unset",
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    deleteModel(m.id);
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
-            ))}
+                Objects ({importedModels.length})
+              </span>
+            </div>
+
+            <div
+              style={{
+                padding: "8px",
+                overflowY: "auto",
+              }}
+            >
+              {importedModels.map((m) => {
+                const isSelected = selectedModelId === m.id;
+                return (
+                  <div
+                    key={m.id}
+                    onClick={() => selectModel(m.id)}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: "var(--radius-md)",
+                      cursor: "pointer",
+                      background: isSelected
+                        ? "var(--selected-bg)"
+                        : "transparent",
+                      border: "1px solid",
+                      borderColor: isSelected
+                        ? "var(--theme-primary)"
+                        : "transparent",
+                      marginBottom: "4px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "10px",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "8px",
+                        height: "8px",
+                        borderRadius: "50%",
+                        background: isSelected
+                          ? "var(--theme-primary)"
+                          : "var(--text-disabled)",
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: isSelected ? 600 : 400,
+                        color: isSelected
+                          ? "var(--text-primary)"
+                          : "var(--text-secondary)",
+                        flex: 1,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {m.name}
+                    </span>
+                    <div style={{ display: "flex", gap: "4px" }}>
+                      <button
+                        style={{
+                          background: m.isMoveEnabled
+                            ? "rgba(34, 197, 94, 0.1)"
+                            : "rgba(249, 115, 22, 0.08)",
+                          color: m.isMoveEnabled ? "#22c55e" : "#f97316",
+                          border: "1px solid",
+                          borderColor: m.isMoveEnabled
+                            ? "rgba(34, 197, 94, 0.2)"
+                            : "rgba(249, 115, 22, 0.2)",
+                          borderRadius: "4px",
+                          padding: "2px 6px",
+                          fontSize: "10px",
+                          cursor: "pointer",
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleModelMove(m.id);
+                        }}
+                      >
+                        {m.isMoveEnabled ? "🔓" : "🔒"}
+                      </button>
+                      <button
+                        style={{
+                          background: "transparent",
+                          color: "var(--text-tertiary)",
+                          border: "none",
+                          fontSize: "14px",
+                          padding: "0 4px",
+                          cursor: "pointer",
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteModel(m.id);
+                        }}
+                        onMouseOver={(e) =>
+                          (e.currentTarget.style.color = "#ef4444")
+                        }
+                        onMouseOut={(e) =>
+                          (e.currentTarget.style.color = "var(--text-tertiary)")
+                        }
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
 
-        {/* Properties panel for selected model */}
+        {/* Properties Section */}
         {selectedModel && (
           <ModelProperties
             model={selectedModel}
@@ -246,21 +322,19 @@ export const ModelImporter = () => {
         )}
       </div>
 
-      {/* Drag-and-drop overlay */}
+      {/* Drag overlay */}
       <div
         style={{
           position: "fixed",
-          top: 0,
-          left: 0,
-          width: "100%",
-          height: "100%",
-          zIndex: isDragOver ? 999 : -1,
+          inset: 0,
+          zIndex: isDragOver ? 1000 : -1,
           pointerEvents: isDragOver ? "auto" : "none",
-          background: isDragOver ? "rgba(110, 159, 255, 0.12)" : "transparent",
+          background: isDragOver ? "rgba(79, 70, 229, 0.08)" : "transparent",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          transition: "background 0.2s",
+          transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+          backdropFilter: isDragOver ? "blur(4px)" : "none",
         }}
         onDragOver={(e) => {
           e.preventDefault();
@@ -277,52 +351,58 @@ export const ModelImporter = () => {
         {isDragOver && (
           <div
             style={{
-              padding: "40px 60px",
-              borderRadius: "16px",
-              border: "3px dashed var(--theme-primary)",
-              background: "var(--panel-bg)",
-              boxShadow: "var(--elevation-3)",
+              padding: "48px",
+              borderRadius: "24px",
+              border: "2px dashed #4f46e5",
+              background: "var(--bg-primary)",
+              boxShadow: "0 24px 48px rgba(0,0,0,0.15)",
               textAlign: "center",
-              pointerEvents: "none",
+              transform: "scale(1.05)",
+              animation: "pulse 2s infinite",
             }}
           >
-            <div style={{ fontSize: "48px", marginBottom: "12px" }}>📦</div>
+            <div style={{ fontSize: "64px", marginBottom: "16px" }}>📦</div>
             <div
               style={{
-                fontSize: "var(--font-size-lg)",
+                fontSize: "20px",
                 fontWeight: 700,
                 color: "var(--text-primary)",
               }}
             >
-              Drop GLB/GLTF file here
+              Ready to Import
             </div>
             <div
               style={{
-                fontSize: "var(--font-size-sm)",
+                fontSize: "14px",
                 color: "var(--text-secondary)",
-                marginTop: "4px",
+                marginTop: "8px",
               }}
             >
-              Supported: .glb, .gltf
+              Drop your GLB or GLTF file to add it
             </div>
           </div>
         )}
       </div>
 
-      {/* Spinner keyframes */}
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes pulse {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+          100% { transform: scale(1); }
+        }
+        .spinner-mini {
+          width: 14px;
+          height: 14px;
+          border: 2px solid rgba(255,255,255,0.3);
+          border-top: 2px solid #fff;
+          borderRadius: 50%;
+          animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
     </>
   );
 };
-
-// ─── Properties Panel ───
-import type { ImportedModel } from "../types";
-
-interface ModelPropertiesProps {
-  model: ImportedModel;
-  onUpdate: (updates: Partial<Omit<ImportedModel, "id">>) => void;
-  onDelete: () => void;
-}
 
 const ModelProperties = ({
   model,
@@ -335,53 +415,58 @@ const ModelProperties = ({
     onChange: (v: number) => void,
     step = 0.1,
   ) => (
-    <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-      <label
+    <div
+      style={{ flex: 1, display: "flex", flexDirection: "column", gap: "4px" }}
+    >
+      <span
         style={{
-          fontSize: "var(--font-size-xs)",
+          fontSize: "9px",
+          fontWeight: 700,
           color: "var(--text-tertiary)",
-          width: "14px",
           textAlign: "center",
         }}
       >
         {label}
-      </label>
+      </span>
       <input
         type="number"
         value={Number(value.toFixed(3))}
         step={step}
         onChange={(e) => onChange(parseFloat(e.target.value) || 0)}
         style={{
-          width: "64px",
-          padding: "3px 6px",
-          fontSize: "var(--font-size-xs)",
+          width: "100%",
+          padding: "6px 4px",
+          fontSize: "11px",
           background: "var(--bg-secondary)",
           border: "1px solid var(--border-medium)",
           borderRadius: "var(--radius-sm)",
           color: "var(--text-primary)",
+          textAlign: "center",
+          outline: "none",
         }}
       />
     </div>
   );
 
-  const vec3Row = (
+  const vec3Block = (
     label: string,
     values: [number, number, number],
     onChange: (v: [number, number, number]) => void,
     step = 0.1,
   ) => (
-    <div style={{ marginBottom: "8px" }}>
-      <div
+    <div style={{ marginBottom: "16px" }}>
+      <label
         style={{
-          fontSize: "var(--font-size-xs)",
+          display: "block",
+          fontSize: "11px",
           fontWeight: 600,
           color: "var(--text-secondary)",
-          marginBottom: "4px",
+          marginBottom: "8px",
         }}
       >
         {label}
-      </div>
-      <div style={{ display: "flex", gap: "6px" }}>
+      </label>
+      <div style={{ display: "flex", gap: "8px" }}>
         {numInput(
           "X",
           values[0],
@@ -405,51 +490,45 @@ const ModelProperties = ({
   );
 
   return (
-    <div className="grafana-panel" style={{ padding: "12px" }}>
-      <div
-        style={{
-          fontSize: "var(--font-size-xs)",
-          fontWeight: 700,
-          color: "var(--text-tertiary)",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em",
-          marginBottom: "10px",
-        }}
-      >
-        Model Properties
-      </div>
-
-      {/* Name */}
-      <div style={{ marginBottom: "10px" }}>
-        <div
-          style={{
-            fontSize: "var(--font-size-xs)",
-            fontWeight: 600,
-            color: "var(--text-secondary)",
-            marginBottom: "4px",
-          }}
-        >
-          Name
-        </div>
+    <div
+      className="grafana-panel"
+      style={{
+        padding: "20px",
+        background: "var(--bg-primary)",
+        boxShadow: "0 12px 32px rgba(0,0,0,0.12)",
+        border: "1px solid var(--border-weak)",
+        overflowY: "auto",
+      }}
+    >
+      <div style={{ marginBottom: "20px" }}>
         <input
           type="text"
           value={model.name}
           onChange={(e) => onUpdate({ name: e.target.value })}
+          placeholder="Model Name"
           style={{
             width: "100%",
-            padding: "4px 8px",
-            fontSize: "var(--font-size-sm)",
-            background: "var(--bg-secondary)",
-            border: "1px solid var(--border-medium)",
-            borderRadius: "var(--radius-sm)",
+            padding: "8px 0",
+            fontSize: "18px",
+            fontWeight: 700,
+            background: "transparent",
+            border: "none",
+            borderBottom: "2px solid var(--border-weak)",
             color: "var(--text-primary)",
-            boxSizing: "border-box",
+            outline: "none",
+            transition: "border-color 0.2s",
           }}
+          onFocus={(e) =>
+            (e.currentTarget.style.borderBottomColor = "var(--theme-primary)")
+          }
+          onBlur={(e) =>
+            (e.currentTarget.style.borderBottomColor = "var(--border-weak)")
+          }
         />
       </div>
 
-      {vec3Row("Position", model.position, (v) => onUpdate({ position: v }))}
-      {vec3Row(
+      {vec3Block("Position", model.position, (v) => onUpdate({ position: v }))}
+      {vec3Block(
         "Rotation (°)",
         [
           (model.rotation[0] * 180) / Math.PI,
@@ -466,43 +545,90 @@ const ModelProperties = ({
           }),
         15,
       )}
-      {vec3Row("Scale", model.scale, (v) => onUpdate({ scale: v }), 0.1)}
+      {vec3Block("Scale", model.scale, (v) => onUpdate({ scale: v }), 0.1)}
 
-      {/* Actions */}
-      <div style={{ display: "flex", gap: "6px", marginTop: "8px" }}>
+      <div
+        style={{
+          marginTop: "24px",
+          display: "flex",
+          flexDirection: "column",
+          gap: "10px",
+        }}
+      >
         <button
-          className="grafana-btn grafana-btn-secondary"
-          style={{ flex: 1, fontSize: "var(--font-size-xs)" }}
-          onClick={() => {
-            const { addImportedModel } = useStore.getState();
-            addImportedModel({
-              name: model.name + " (copy)",
-              fileName: model.fileName,
-              dataUrl: model.dataUrl,
-              position: [
-                model.position[0] + 1,
-                model.position[1],
-                model.position[2],
-              ],
-              rotation: [...model.rotation],
-              scale: [...model.scale],
-            });
-          }}
-        >
-          Duplicate
-        </button>
-        <button
-          className="grafana-btn grafana-btn-secondary"
+          className="grafana-btn"
           style={{
-            flex: 1,
-            fontSize: "var(--font-size-xs)",
-            color: "var(--severity-critical-text)",
+            width: "100%",
+            height: "36px",
+            fontSize: "12px",
+            fontWeight: 600,
+            background: model.isMoveEnabled
+              ? "rgba(34, 197, 94, 0.1)"
+              : "rgba(249, 115, 22, 0.08)",
+            color: model.isMoveEnabled ? "#16a34a" : "#ea580c",
+            border: "1px solid",
+            borderColor: model.isMoveEnabled
+              ? "rgba(34, 197, 94, 0.3)"
+              : "rgba(249, 115, 22, 0.3)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px",
           }}
-          onClick={onDelete}
+          onClick={() => useStore.getState().toggleModelMove(model.id)}
         >
-          Delete
+          {model.isMoveEnabled ? "🔓 Move Enabled" : "🔒 Move Locked"}
         </button>
+
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            className="grafana-btn"
+            style={{
+              flex: 1,
+              height: "36px",
+              fontSize: "12px",
+              background: "var(--bg-secondary)",
+              border: "1px solid var(--border-medium)",
+              color: "var(--text-primary)",
+            }}
+            onClick={() => {
+              const { addImportedModel } = useStore.getState();
+              const { id, ...modelData } = model;
+              addImportedModel({
+                ...modelData,
+                name: `${modelData.name} (copy)`,
+                position: [
+                  modelData.position[0] + 0.5,
+                  modelData.position[1],
+                  modelData.position[2] + 0.5,
+                ],
+              });
+            }}
+          >
+            Duplicate
+          </button>
+          <button
+            className="grafana-btn"
+            style={{
+              flex: 1,
+              height: "36px",
+              fontSize: "12px",
+              background: "rgba(239, 68, 68, 0.08)",
+              border: "1px solid rgba(239, 68, 68, 0.2)",
+              color: "#ef4444",
+            }}
+            onClick={onDelete}
+          >
+            Delete
+          </button>
+        </div>
       </div>
     </div>
   );
 };
+
+interface ModelPropertiesProps {
+  model: ImportedModel;
+  onUpdate: (updates: Partial<Omit<ImportedModel, "id">>) => void;
+  onDelete: () => void;
+}

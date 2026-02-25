@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useMemo } from "react";
 import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { useGLTF } from "@react-three/drei";
+import { useGLTF, Html, Billboard } from "@react-three/drei";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
 import type { ImportedModel } from "../types";
@@ -18,6 +18,7 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
   const modelDragPosition = useStore((s) => s.modelDragPosition);
   const isSelected = selectedModelId === model.id;
   const isDragging = draggingModelId === model.id;
+  const isMoveEnabled = model.isMoveEnabled ?? false;
 
   const { raycaster, mouse, camera } = useThree();
   const floorPlane = useMemo(
@@ -33,7 +34,6 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
   useEffect(() => {
     if (gltfScene) {
       const clone = gltfScene.clone(true);
-      // Ensure shadows
       clone.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
           child.castShadow = true;
@@ -43,7 +43,6 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
       setClonedScene(clone);
     }
     return () => {
-      // Cleanup on unmount
       if (clonedScene) {
         clonedScene.traverse((child) => {
           if ((child as THREE.Mesh).isMesh) {
@@ -61,9 +60,9 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gltfScene]);
 
-  // Edit-mode drag
+  // Edit-mode drag — only when isMoveEnabled
   useFrame(() => {
-    if (isDragging && isEditMode) {
+    if (isDragging && isEditMode && isMoveEnabled) {
       raycaster.setFromCamera(mouse, camera);
       if (raycaster.ray.intersectPlane(floorPlane, tempPoint)) {
         const snappedX =
@@ -76,21 +75,30 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
   });
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
-    const { isEditMode: editMode, selectRack } = useStore.getState();
+    const {
+      isEditMode: editMode,
+      selectRack,
+      selectModel,
+    } = useStore.getState();
+
     if (!editMode) {
       selectRack(null);
       return;
     }
 
     e.stopPropagation();
-    const { selectModel, setModelDragging } = useStore.getState();
 
+    // Select the model on click (no toggle — lock/unlock is UI-panel only)
     selectModel(model.id);
 
-    raycaster.setFromCamera(mouse, camera);
-    if (raycaster.ray.intersectPlane(floorPlane, tempPoint)) {
-      setModelDragging(model.id, [tempPoint.x, tempPoint.z]);
-      document.body.style.cursor = "grabbing";
+    // Only start drag if model is already move-enabled
+    if (isMoveEnabled) {
+      const { setModelDragging } = useStore.getState();
+      raycaster.setFromCamera(mouse, camera);
+      if (raycaster.ray.intersectPlane(floorPlane, tempPoint)) {
+        setModelDragging(model.id, [tempPoint.x, tempPoint.z]);
+        document.body.style.cursor = "grabbing";
+      }
     }
   };
 
@@ -102,6 +110,10 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
 
   if (!clonedScene) return null;
 
+  // Visual feedback colors
+  const highlightColor = isMoveEnabled ? "#4ade80" : "#f97316"; // green vs orange
+  const highlightOpacity = isMoveEnabled ? 0.5 : 0.35;
+
   return (
     <group
       ref={groupRef}
@@ -109,19 +121,61 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
       rotation={model.rotation}
       scale={model.scale}
       onPointerDown={handlePointerDown}
+      onPointerOver={() => {
+        if (isEditMode) {
+          document.body.style.cursor = isMoveEnabled ? "grab" : "pointer";
+        }
+      }}
+      onPointerOut={() => {
+        if (
+          document.body.style.cursor === "grab" ||
+          document.body.style.cursor === "pointer"
+        ) {
+          document.body.style.cursor = "auto";
+        }
+      }}
     >
       <primitive object={clonedScene} />
-      {/* Selection highlight box */}
+      {/* Selection highlight box — color indicates move state */}
       {isSelected && (
         <mesh>
           <boxGeometry args={[1.1, 1.1, 1.1]} />
           <meshBasicMaterial
-            color="#6e9fff"
+            color={highlightColor}
             wireframe
             transparent
-            opacity={0.5}
+            opacity={highlightOpacity}
           />
         </mesh>
+      )}
+      {/* Lock/Unlock status label */}
+      {isSelected && isEditMode && (
+        <Billboard position={[0, 1.4, 0]}>
+          <Html center zIndexRange={[0, 10]}>
+            <div
+              style={{
+                background: isMoveEnabled
+                  ? "rgba(74, 222, 128, 0.9)"
+                  : "rgba(249, 115, 22, 0.9)",
+                color: "#fff",
+                padding: "3px 10px",
+                borderRadius: "12px",
+                fontSize: "11px",
+                fontWeight: 700,
+                fontFamily: "Inter, system-ui, sans-serif",
+                whiteSpace: "nowrap",
+                pointerEvents: "none",
+                userSelect: "none",
+                display: "flex",
+                alignItems: "center",
+                gap: "4px",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+              }}
+            >
+              {isMoveEnabled ? "🔓 Unlocked" : "🔒 Locked"}
+            </div>
+          </Html>
+        </Billboard>
       )}
     </group>
   );

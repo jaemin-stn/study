@@ -82,34 +82,28 @@ function App() {
           <span className="grafana-toolbar-label">Add Standard:</span>
           <button
             className="grafana-btn grafana-btn-secondary"
-            onClick={() =>
-              addRack(24, [
-                Math.round(Math.random() * 5 * 2) / 4,
-                Math.round(Math.random() * 5 * 2) / 4,
-              ])
-            }
+            onClick={(e) => {
+              e.stopPropagation();
+              addRack(24);
+            }}
           >
             24U
           </button>
           <button
             className="grafana-btn grafana-btn-secondary"
-            onClick={() =>
-              addRack(32, [
-                Math.round(Math.random() * 5 * 2) / 4,
-                Math.round(Math.random() * 5 * 2) / 4,
-              ])
-            }
+            onClick={(e) => {
+              e.stopPropagation();
+              addRack(32);
+            }}
           >
             32U
           </button>
           <button
             className="grafana-btn grafana-btn-secondary"
-            onClick={() =>
-              addRack(48, [
-                Math.round(Math.random() * 5 * 2) / 4,
-                Math.round(Math.random() * 5 * 2) / 4,
-              ])
-            }
+            onClick={(e) => {
+              e.stopPropagation();
+              addRack(48);
+            }}
           >
             48U
           </button>
@@ -122,46 +116,28 @@ function App() {
           </span>
           <button
             className="grafana-btn grafana-btn-secondary"
-            onClick={() =>
-              addRack(
-                24,
-                [
-                  Math.round(Math.random() * 5 * 2) / 4,
-                  Math.round(Math.random() * 5 * 2) / 4,
-                ],
-                1.0,
-              )
-            }
+            onClick={(e) => {
+              e.stopPropagation();
+              addRack(24, undefined, 1.0);
+            }}
           >
             24U
           </button>
           <button
             className="grafana-btn grafana-btn-secondary"
-            onClick={() =>
-              addRack(
-                32,
-                [
-                  Math.round(Math.random() * 5 * 2) / 4,
-                  Math.round(Math.random() * 5 * 2) / 4,
-                ],
-                1.0,
-              )
-            }
+            onClick={(e) => {
+              e.stopPropagation();
+              addRack(32, undefined, 1.0);
+            }}
           >
             32U
           </button>
           <button
             className="grafana-btn grafana-btn-secondary"
-            onClick={() =>
-              addRack(
-                48,
-                [
-                  Math.round(Math.random() * 5 * 2) / 4,
-                  Math.round(Math.random() * 5 * 2) / 4,
-                ],
-                1.0,
-              )
-            }
+            onClick={(e) => {
+              e.stopPropagation();
+              addRack(48, undefined, 1.0);
+            }}
           >
             48U
           </button>

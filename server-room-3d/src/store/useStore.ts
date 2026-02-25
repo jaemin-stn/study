@@ -5,6 +5,7 @@ import {
   RACK_WIDTH_STANDARD,
   RACK_DEPTH,
 } from "../components/constants";
+import * as THREE from "three";
 
 export interface AppState {
   racks: Rack[];
@@ -20,6 +21,10 @@ export interface AppState {
   hoveredRackId: string | null;
   importExportModalRackId: string | null;
 
+  // Camera reference for viewport-center spawning
+  _cameraRef: THREE.Camera | null;
+  _controlsRef: any | null;
+
   // Imported 3D Models
   importedModels: ImportedModel[];
   selectedModelId: string | null;
@@ -27,11 +32,12 @@ export interface AppState {
   modelDragPosition: [number, number] | null;
 
   // Actions
+  setCameraRef: (camera: THREE.Camera, controls: any) => void;
   setHoveredRack: (id: string | null) => void;
   setImportExportModalRackId: (id: string | null) => void;
   addRack: (
     uHeight: 24 | 32 | 48,
-    position: [number, number],
+    position?: [number, number],
     width?: number,
   ) => void;
   moveRack: (id: string, newPosition: [number, number]) => boolean;
@@ -70,6 +76,7 @@ export interface AppState {
   ) => void;
   updateModelDragPosition: (pos: [number, number] | null) => void;
   endModelDrag: (id: string, position: [number, number]) => void;
+  toggleModelMove: (id: string) => void;
 
   // Data Persistence
   loadState: (racks: Rack[], models?: ImportedModel[]) => void;
@@ -270,30 +277,106 @@ export const useStore = create<AppState>((set, get) => ({
   hoveredRackId: null,
   importExportModalRackId: null,
 
+  _cameraRef: null,
+  _controlsRef: null,
+
   importedModels: [],
   selectedModelId: null,
   draggingModelId: null,
   modelDragPosition: null,
 
+  setCameraRef: (camera, controls) =>
+    set({ _cameraRef: camera, _controlsRef: controls }),
   setHoveredRack: (id) => set({ hoveredRackId: id }),
   setImportExportModalRackId: (id) => set({ importExportModalRackId: id }),
   addRack: (uHeight, position, width = RACK_WIDTH_STANDARD) => {
-    const { racks } = get();
-    if (checkCollision(racks, null, position, width)) {
-      console.warn("Collision detected, cannot add rack here");
-      return;
+    const { racks, isEditMode, _cameraRef } = get();
+
+    // Compute spawn position: use provided position, or compute from camera viewport center
+    let spawnPos: [number, number];
+    if (position) {
+      spawnPos = position;
+    } else if (_cameraRef) {
+      // Raycast from NDC (0,0) — viewport center — onto ground plane Y=0
+      const raycaster = new THREE.Raycaster();
+      const center = new THREE.Vector2(0, 0);
+      raycaster.setFromCamera(center, _cameraRef);
+      const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const hitPoint = new THREE.Vector3();
+      if (raycaster.ray.intersectPlane(groundPlane, hitPoint)) {
+        // Convert world coords to grid coords and snap to 0.25
+        const gridX = Math.round((hitPoint.x / GRID_SPACING) * 4) / 4;
+        const gridZ = Math.round((hitPoint.z / GRID_SPACING) * 4) / 4;
+        spawnPos = [gridX, gridZ];
+      } else {
+        // Edge case: camera looking away from ground — use camera forward at default distance
+        const dir = new THREE.Vector3();
+        _cameraRef.getWorldDirection(dir);
+        const fallback = _cameraRef.position.clone().add(dir.multiplyScalar(5));
+        const gridX = Math.round((fallback.x / GRID_SPACING) * 4) / 4;
+        const gridZ = Math.round((fallback.z / GRID_SPACING) * 4) / 4;
+        spawnPos = [gridX, gridZ];
+      }
+    } else {
+      // No camera available, fallback to origin
+      spawnPos = [0, 0];
+    }
+
+    console.log(
+      `[AddRack] Attempting spawn at [${spawnPos[0]}, ${spawnPos[1]}]`,
+    );
+
+    // If collision at spawn point, try nearby positions with increasing offsets
+    let finalPos = spawnPos;
+    if (checkCollision(racks, null, spawnPos, width)) {
+      let found = false;
+      // Spiral search: try offsets in increasing distance
+      for (let radius = 1; radius <= 20; radius++) {
+        for (const dx of [-radius, 0, radius]) {
+          for (const dz of [-radius, 0, radius]) {
+            if (dx === 0 && dz === 0) continue;
+            const candidate: [number, number] = [
+              spawnPos[0] + dx * 0.5,
+              spawnPos[1] + dz * 0.5,
+            ];
+            if (!checkCollision(racks, null, candidate, width)) {
+              finalPos = candidate;
+              found = true;
+              break;
+            }
+          }
+          if (found) break;
+        }
+        if (found) break;
+      }
+      if (!found) {
+        console.warn("[AddRack] No free space found nearby. Placing anyway.");
+        // Still place it — user can move it later
+      }
+      console.log(
+        `[AddRack] Collision avoided, moved to [${finalPos[0]}, ${finalPos[1]}]`,
+      );
     }
 
     const newRack: Rack = {
       id: crypto.randomUUID(),
       uHeight,
       width,
-      position,
+      position: finalPos,
       orientation: 180,
       devices: [],
     };
 
-    set({ racks: [...racks, newRack], selectedRackId: newRack.id });
+    console.log(
+      `[AddRack] Created rack ${newRack.id.slice(0, 8)} at [${finalPos[0]}, ${finalPos[1]}]`,
+    );
+
+    // Focus rules: in Edit Mode, select the new rack. Otherwise, do NOT focus/select.
+    if (isEditMode) {
+      set({ racks: [...racks, newRack], selectedRackId: newRack.id });
+    } else {
+      set({ racks: [...racks, newRack] });
+    }
   },
 
   moveRack: (id, newPosition) => {
@@ -552,7 +635,11 @@ export const useStore = create<AppState>((set, get) => ({
   // Imported Model Actions
   addImportedModel: (modelData) => {
     const newId = crypto.randomUUID();
-    const model: ImportedModel = { ...modelData, id: newId };
+    const model: ImportedModel = {
+      ...modelData,
+      id: newId,
+      isMoveEnabled: modelData.isMoveEnabled ?? false,
+    };
     set((state) => ({ importedModels: [...state.importedModels, model] }));
     return newId;
   },
@@ -593,6 +680,32 @@ export const useStore = create<AppState>((set, get) => ({
       ),
       draggingModelId: null,
       modelDragPosition: null,
+    }));
+  },
+
+  toggleModelMove: (id) => {
+    const state = get();
+    const model = state.importedModels.find((m) => m.id === id);
+    if (!model) return;
+
+    const newEnabled = !model.isMoveEnabled;
+    console.log(
+      `[Model] ${id.slice(0, 8)} move ${newEnabled ? "ENABLED" : "LOCKED"}`,
+    );
+
+    // If toggling OFF while this model is being dragged, cancel the drag
+    if (!newEnabled && state.draggingModelId === id) {
+      set({
+        draggingModelId: null,
+        modelDragPosition: null,
+      });
+      document.body.style.cursor = "auto";
+    }
+
+    set((s) => ({
+      importedModels: s.importedModels.map((m) =>
+        m.id === id ? { ...m, isMoveEnabled: newEnabled } : m,
+      ),
     }));
   },
 }));

@@ -9,6 +9,18 @@ import { GRID_SPACING } from "./constants";
 import { useTheme } from "../contexts/ThemeContext";
 import * as THREE from "three";
 
+/** Syncs camera & controls refs into zustand store for viewport-center spawning */
+const CameraRefSync = () => {
+  const { camera, controls } = useThree();
+  const setCameraRef = useStore((s) => s.setCameraRef);
+
+  useEffect(() => {
+    setCameraRef(camera, controls);
+  }, [camera, controls, setCameraRef]);
+
+  return null;
+};
+
 const DragHandler = () => {
   const isDragging = useStore((state) => state.isDragging);
   const draggingRackId = useStore((state) => state.draggingRackId);
@@ -168,6 +180,7 @@ export const Scene = () => {
         maxPolarAngle={Math.PI / 2.1}
         enabled={!isDragging && !draggingModelId}
       />
+      <CameraRefSync />
       <CameraController />
     </Canvas>
   );

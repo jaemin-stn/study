@@ -34,6 +34,15 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
   useEffect(() => {
     if (gltfScene) {
       const clone = gltfScene.clone(true);
+
+      // Calculate bounding box for auto-centering
+      const box = new THREE.Box3().setFromObject(clone);
+      const center = new THREE.Vector3();
+      box.getCenter(center);
+
+      // Center X, Z and set bottom (min Y) to 0 so it sits on the floor
+      clone.position.set(-center.x, -box.min.y, -center.z);
+
       clone.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
           child.castShadow = true;

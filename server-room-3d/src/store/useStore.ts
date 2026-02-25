@@ -583,13 +583,40 @@ export const useStore = create<AppState>((set, get) => ({
 
   // Imported Model Actions
   addImportedModel: (modelData) => {
+    const { _cameraRef, importedModels } = get();
+    let spawnPos: [number, number, number] = modelData.position;
+
+    // If position is [0,0,0] (default from importer) and we have a camera, spawn at viewport center
+    if (
+      spawnPos[0] === 0 &&
+      spawnPos[1] === 0 &&
+      spawnPos[2] === 0 &&
+      _cameraRef
+    ) {
+      const raycaster = new THREE.Raycaster();
+      const center = new THREE.Vector2(0, 0);
+      raycaster.setFromCamera(center, _cameraRef);
+      const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+      const hitPoint = new THREE.Vector3();
+
+      if (raycaster.ray.intersectPlane(groundPlane, hitPoint)) {
+        // Snap to grid for consistency (0.25 units)
+        const gridX =
+          (Math.round((hitPoint.x / GRID_SPACING) * 4) / 4) * GRID_SPACING;
+        const gridZ =
+          (Math.round((hitPoint.z / GRID_SPACING) * 4) / 4) * GRID_SPACING;
+        spawnPos = [gridX, 0, gridZ];
+      }
+    }
+
     const newId = crypto.randomUUID();
     const model: ImportedModel = {
       ...modelData,
       id: newId,
+      position: spawnPos,
       isMoveEnabled: modelData.isMoveEnabled ?? false,
     };
-    set((state) => ({ importedModels: [...state.importedModels, model] }));
+    set({ importedModels: [...importedModels, model] });
     return newId;
   },
 

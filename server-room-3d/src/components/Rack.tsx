@@ -9,21 +9,7 @@ import { useTheme } from "../contexts/ThemeContext";
 import type { Rack as RackType, Device } from "../types";
 import { ErrorMarker } from "./ErrorMarker";
 import { U_HEIGHT, GRID_SPACING, DEVICE_DEPTH } from "./constants";
-import type { ErrorLevel } from "../types";
-
-const ERROR_COLORS: Record<ErrorLevel, string> = {
-  critical: "#ff0000",
-  major: "#ff8800",
-  minor: "#ffff00",
-  warning: "#0088ff",
-};
-
-const ERROR_PRIORITY: Record<ErrorLevel, number> = {
-  critical: 4,
-  major: 3,
-  minor: 2,
-  warning: 1,
-};
+import { getHighestError } from "../utils/errorHelpers";
 
 // Snapshot of selectedRackId captured inside handlePointerDown BEFORE selectRack()
 // mutates it. Since the Interaction Layer is geometrically closer to the camera,
@@ -441,22 +427,10 @@ const DeviceMesh = ({
   const deviceWidth = rackWidth - 0.06;
 
   const { hasError, errorColor } = useMemo(() => {
-    let maxPriority = 0;
-    let highestLevel: ErrorLevel | null = null;
-
-    device.portStates?.forEach((p) => {
-      if (p.status === "error" && p.errorLevel) {
-        const priority = ERROR_PRIORITY[p.errorLevel] || 0;
-        if (priority > maxPriority) {
-          maxPriority = priority;
-          highestLevel = p.errorLevel;
-        }
-      }
-    });
-
+    const err = getHighestError(device.portStates);
     return {
-      hasError: highestLevel !== null,
-      errorColor: highestLevel ? ERROR_COLORS[highestLevel] : null,
+      hasError: err !== null,
+      errorColor: err?.color ?? null,
     };
   }, [device.portStates]);
 

@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import { useStore } from "../store/useStore";
+import type { Rack } from "../types";
 import type { ExportOptions } from "../utils/storage";
 import {
   saveRackToJSON,
@@ -288,87 +289,52 @@ export const ImportExportModal = () => {
     </div>
   );
 
-  const handleJsonImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      if (isGlobal) {
-        if (
-          window.confirm(
-            "Importing will replace ALL racks and equipment in the room. Continue?",
-          )
-        ) {
-          try {
-            const loadedRacks = await loadFromJSON(e.target.files[0]);
-            loadState(loadedRacks);
-            alert("Room data imported successfully!");
-            setImportExportModalRackId(null);
-          } catch (err) {
-            alert("Import failed: " + (err as Error).message);
-          }
-        }
-      } else if (rack) {
-        if (
-          window.confirm(
-            "Importing will replace all equipment in this rack. Continue?",
-          )
-        ) {
-          try {
-            const importedData = await loadRackFromJSON(e.target.files[0]);
-            updateRack(rack.id, {
-              uHeight: importedData.uHeight,
-              orientation: importedData.orientation,
-              devices: importedData.devices,
-            });
-            alert("Rack data imported successfully!");
-            setImportExportModalRackId(null);
-          } catch (err) {
-            alert("Import failed: " + (err as Error).message);
-          }
-        }
-      }
-      e.target.value = "";
-    }
-  };
+  /** Generic file import handler — eliminates duplication between JSON/Excel import */
+  const handleFileImport =
+    (
+      globalLoader: (f: File) => Promise<Rack[]>,
+      rackLoader: (f: File) => Promise<Rack | Partial<Rack>>,
+    ) =>
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
 
-  const handleExcelImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      if (isGlobal) {
-        if (
-          window.confirm(
-            "Importing will replace ALL racks and equipment in the room. Continue?",
-          )
-        ) {
-          try {
-            const loadedRacks = await loadFromExcel(e.target.files[0]);
-            loadState(loadedRacks);
-            alert("Room data imported successfully!");
-            setImportExportModalRackId(null);
-          } catch (err) {
-            alert("Import failed: " + (err as Error).message);
-          }
-        }
-      } else if (rack) {
-        if (
-          window.confirm(
-            "Importing will replace all equipment in this rack. Continue?",
-          )
-        ) {
-          try {
-            const importedData = await loadRackFromExcel(e.target.files[0]);
-            updateRack(rack.id, {
-              uHeight: importedData.uHeight,
-              orientation: importedData.orientation,
-              devices: importedData.devices as any,
-            });
-            alert("Rack data imported successfully!");
-            setImportExportModalRackId(null);
-          } catch (err) {
-            alert("Import failed: " + (err as Error).message);
-          }
-        }
+      const confirmMsg = isGlobal
+        ? "Importing will replace ALL racks and equipment in the room. Continue?"
+        : "Importing will replace all equipment in this rack. Continue?";
+
+      if (!window.confirm(confirmMsg)) {
+        e.target.value = "";
+        return;
       }
+
+      try {
+        if (isGlobal) {
+          const loadedRacks = await globalLoader(file);
+          loadState(loadedRacks);
+        } else if (rack) {
+          const importedData = await rackLoader(file);
+          updateRack(rack.id, {
+            uHeight: importedData.uHeight,
+            orientation: importedData.orientation,
+            devices: importedData.devices as any,
+          });
+        }
+        alert(
+          isGlobal
+            ? "Room data imported successfully!"
+            : "Rack data imported successfully!",
+        );
+        setImportExportModalRackId(null);
+      } catch (err) {
+        alert("Import failed: " + (err as Error).message);
+      }
+
       e.target.value = "";
-    }
-  };
+    };
+
+  const handleJsonImport = handleFileImport(loadFromJSON, loadRackFromJSON);
+  const handleExcelImport = handleFileImport(loadFromExcel, loadRackFromExcel);
 
   return (
     <div

@@ -1,7 +1,13 @@
 import { useRef, useMemo } from "react";
 import { useFrame } from "@react-three/fiber";
 import { useStore } from "../store/useStore";
-import type { Rack, ErrorLevel } from "../types";
+import type { Rack } from "../types";
+import {
+  ERROR_COLORS,
+  ERROR_PRIORITY,
+  getHighestError,
+} from "../utils/errorHelpers";
+import type { ErrorLevel } from "../types";
 import * as THREE from "three";
 import { Html, Billboard } from "@react-three/drei";
 import { U_HEIGHT, ERROR_MARKER_HEIGHT } from "./constants";
@@ -10,43 +16,25 @@ interface ErrorMarkerProps {
   rack: Rack;
 }
 
-const ERROR_COLORS: Record<ErrorLevel, string> = {
-  critical: "#ff0000",
-  major: "#ff8800",
-  minor: "#ffff00",
-  warning: "#0088ff",
-};
-
-const ERROR_PRIORITY: Record<ErrorLevel, number> = {
-  critical: 4,
-  major: 3,
-  minor: 2,
-  warning: 1,
-};
-
 export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
   const selectRack = useStore((state) => state.selectRack);
   const focusRack = useStore((state) => state.focusRack);
   const markerRef = useRef<THREE.Group>(null);
 
-  // Calculate highest error
-  const highestError = useMemo(() => {
-    let maxPriority = 0;
-    let pError: ErrorLevel | null = null;
+  // Find the highest-severity error across all devices in this rack
+  const highestError = useMemo<ErrorLevel | null>(() => {
+    let bestLevel: ErrorLevel | null = null;
+    let bestPriority = 0;
 
-    rack.devices.forEach((d) => {
-      d.portStates.forEach((p) => {
-        if (p.status === "error" && p.errorLevel) {
-          const priority = ERROR_PRIORITY[p.errorLevel] || 0;
-          if (priority > maxPriority) {
-            maxPriority = priority;
-            pError = p.errorLevel;
-          }
-        }
-      });
-    });
+    for (const d of rack.devices) {
+      const err = getHighestError(d.portStates);
+      if (err && ERROR_PRIORITY[err.level] > bestPriority) {
+        bestPriority = ERROR_PRIORITY[err.level];
+        bestLevel = err.level;
+      }
+    }
 
-    return pError;
+    return bestLevel;
   }, [rack.devices]);
 
   // Animation

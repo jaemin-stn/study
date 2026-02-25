@@ -7,8 +7,11 @@ import {
   GRID_SPACING,
 } from "../components/constants";
 
-export const saveToJSON = (racks: Rack[], options?: ExportOptions) => {
-  const rackRaw = racks.map((r) => ({
+// ─── Data Flattening Helpers ─────────────────────────────────────────────────
+
+/** Flatten rack objects into export-friendly rows */
+const flattenRacks = (racks: Rack[]) =>
+  racks.map((r) => ({
     rackId: r.id,
     uHeight: r.uHeight,
     width: r.width,
@@ -17,12 +20,12 @@ export const saveToJSON = (racks: Rack[], options?: ExportOptions) => {
     orientation: r.orientation,
   }));
 
-  const deviceRaw: Record<string, unknown>[] = [];
-  const portRaw: Record<string, unknown>[] = [];
-
-  racks.forEach((r) => {
-    r.devices.forEach((d) => {
-      deviceRaw.push({
+/** Flatten devices (with parent rackId) into export-friendly rows */
+const flattenDevices = (racks: Rack[]) => {
+  const rows: Record<string, unknown>[] = [];
+  for (const r of racks) {
+    for (const d of r.devices) {
+      rows.push({
         deviceId: d.id,
         rackId: r.id,
         name: d.name,
@@ -31,39 +34,66 @@ export const saveToJSON = (racks: Rack[], options?: ExportOptions) => {
         uPosition: d.uPosition,
         imageUrl: d.imageUrl || "",
       });
+    }
+  }
+  return rows;
+};
 
-      d.portStates.forEach((p) => {
-        portRaw.push({
+/** Flatten port states (with parent deviceId) into export-friendly rows */
+const flattenPorts = (racks: Rack[]) => {
+  const rows: Record<string, unknown>[] = [];
+  for (const r of racks) {
+    for (const d of r.devices) {
+      for (const p of d.portStates) {
+        rows.push({
           portId: p.portId,
           deviceId: d.id,
           status: p.status,
           errorLevel: p.errorLevel || "",
           errorMessage: p.errorMessage || "",
         });
-      });
-    });
-  });
+      }
+    }
+  }
+  return rows;
+};
 
-  const rackData = options ? filterData(rackRaw, options.rack) : rackRaw;
-  const deviceData = options
-    ? filterData(deviceRaw, options.device)
-    : deviceRaw;
-  const portData = options ? filterData(portRaw, options.port) : portRaw;
-
-  const data = {
-    Rack: rackData,
-    Equipment: deviceData,
-    Ports: portData,
-  };
-
-  const json = JSON.stringify(data, null, 2);
-  const blob = new Blob([json], { type: "application/json" });
+/** Trigger a browser download for a Blob */
+const downloadBlob = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `server-room-${Date.now()}.json`;
+  a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+};
+
+// ─── Export Functions ────────────────────────────────────────────────────────
+
+/** Prepare (optionally filtered) rows from a set of racks */
+const prepareExportData = (racks: Rack[], options?: ExportOptions) => {
+  const rackRaw = flattenRacks(racks);
+  const deviceRaw = flattenDevices(racks);
+  const portRaw = flattenPorts(racks);
+
+  return {
+    rackData: options ? filterData(rackRaw, options.rack) : rackRaw,
+    deviceData: options ? filterData(deviceRaw, options.device) : deviceRaw,
+    portData: options ? filterData(portRaw, options.port) : portRaw,
+  };
+};
+
+export const saveToJSON = (racks: Rack[], options?: ExportOptions) => {
+  const { rackData, deviceData, portData } = prepareExportData(racks, options);
+  const json = JSON.stringify(
+    { Rack: rackData, Equipment: deviceData, Ports: portData },
+    null,
+    2,
+  );
+  downloadBlob(
+    new Blob([json], { type: "application/json" }),
+    `server-room-${Date.now()}.json`,
+  );
 };
 
 export const loadFromJSON = (file: File): Promise<Rack[]> => {
@@ -106,62 +136,26 @@ const filterData = (data: any[], selectedFields: string[]) => {
 };
 
 export const saveToExcel = (racks: Rack[], options?: ExportOptions) => {
-  const rackRaw = racks.map((r) => ({
-    rackId: r.id,
-    uHeight: r.uHeight,
-    width: r.width,
-    posX: r.position[0],
-    posZ: r.position[1],
-    orientation: r.orientation,
-  }));
-
-  const deviceRaw: Record<string, unknown>[] = [];
-  const portRaw: Record<string, unknown>[] = [];
-
-  racks.forEach((r) => {
-    r.devices.forEach((d) => {
-      deviceRaw.push({
-        deviceId: d.id,
-        rackId: r.id,
-        name: d.name,
-        type: d.type,
-        uSize: d.uSize,
-        uPosition: d.uPosition,
-        imageUrl: d.imageUrl || "",
-      });
-
-      d.portStates.forEach((p) => {
-        portRaw.push({
-          portId: p.portId,
-          deviceId: d.id,
-          status: p.status,
-          errorLevel: p.errorLevel || "",
-          errorMessage: p.errorMessage || "",
-        });
-      });
-    });
-  });
-
-  const rackData = options ? filterData(rackRaw, options.rack) : rackRaw;
-  const deviceData = options
-    ? filterData(deviceRaw, options.device)
-    : deviceRaw;
-  const portData = options ? filterData(portRaw, options.port) : portRaw;
-
+  const { rackData, deviceData, portData } = prepareExportData(racks, options);
   const wb = XLSX.utils.book_new();
-  if (rackData.length > 0) {
-    const rackSheet = XLSX.utils.json_to_sheet(rackData);
-    XLSX.utils.book_append_sheet(wb, rackSheet, "Rack");
-  }
-  if (deviceData.length > 0) {
-    const deviceSheet = XLSX.utils.json_to_sheet(deviceData);
-    XLSX.utils.book_append_sheet(wb, deviceSheet, "Equipment");
-  }
-  if (portData.length > 0) {
-    const portSheet = XLSX.utils.json_to_sheet(portData);
-    XLSX.utils.book_append_sheet(wb, portSheet, "Ports");
-  }
-
+  if (rackData.length > 0)
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(rackData),
+      "Rack",
+    );
+  if (deviceData.length > 0)
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(deviceData),
+      "Equipment",
+    );
+  if (portData.length > 0)
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(portData),
+      "Ports",
+    );
   XLSX.writeFile(wb, `server-room-${Date.now()}.xlsx`);
 };
 
@@ -235,60 +229,16 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
 };
 
 export const saveRackToJSON = (rack: Rack, options?: ExportOptions) => {
-  const rackRaw = [
-    {
-      rackId: rack.id,
-      uHeight: rack.uHeight,
-      width: rack.width,
-      posX: rack.position[0],
-      posZ: rack.position[1],
-      orientation: rack.orientation,
-    },
-  ];
-
-  const deviceRaw = rack.devices.map((d) => ({
-    deviceId: d.id,
-    rackId: rack.id,
-    name: d.name,
-    type: d.type,
-    uSize: d.uSize,
-    uPosition: d.uPosition,
-    imageUrl: d.imageUrl || "",
-  }));
-
-  const portRaw: any[] = [];
-  rack.devices.forEach((d) => {
-    d.portStates.forEach((p) => {
-      portRaw.push({
-        portId: p.portId,
-        deviceId: d.id,
-        status: p.status,
-        errorLevel: p.errorLevel || "",
-        errorMessage: p.errorMessage || "",
-      });
-    });
-  });
-
-  const rackData = options ? filterData(rackRaw, options.rack) : rackRaw;
-  const deviceData = options
-    ? filterData(deviceRaw, options.device)
-    : deviceRaw;
-  const portData = options ? filterData(portRaw, options.port) : portRaw;
-
-  const data = {
-    Rack: rackData,
-    Equipment: deviceData,
-    Ports: portData,
-  };
-
-  const json = JSON.stringify(data, null, 2);
-  const blob = new Blob([json], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `rack-${rack.id.substring(0, 8)}-${Date.now()}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  const { rackData, deviceData, portData } = prepareExportData([rack], options);
+  const json = JSON.stringify(
+    { Rack: rackData, Equipment: deviceData, Ports: portData },
+    null,
+    2,
+  );
+  downloadBlob(
+    new Blob([json], { type: "application/json" }),
+    `rack-${rack.id.substring(0, 8)}-${Date.now()}.json`,
+  );
 };
 
 export const loadRackFromJSON = (file: File): Promise<Rack> => {
@@ -312,60 +262,26 @@ export const loadRackFromJSON = (file: File): Promise<Rack> => {
 };
 
 export const saveRackToExcel = (rack: Rack, options?: ExportOptions) => {
-  const rackRaw = [
-    {
-      rackId: rack.id,
-      uHeight: rack.uHeight,
-      width: rack.width,
-      posX: rack.position[0],
-      posZ: rack.position[1],
-      orientation: rack.orientation,
-    },
-  ];
-
-  const deviceRaw = rack.devices.map((d) => ({
-    deviceId: d.id,
-    rackId: rack.id,
-    name: d.name,
-    type: d.type,
-    uSize: d.uSize,
-    uPosition: d.uPosition,
-    imageUrl: d.imageUrl || "",
-  }));
-
-  const portRaw: any[] = [];
-  rack.devices.forEach((d) => {
-    d.portStates.forEach((p) => {
-      portRaw.push({
-        portId: p.portId,
-        deviceId: d.id,
-        status: p.status,
-        errorLevel: p.errorLevel || "",
-        errorMessage: p.errorMessage || "",
-      });
-    });
-  });
-
-  const rackData = options ? filterData(rackRaw, options.rack) : rackRaw;
-  const deviceData = options
-    ? filterData(deviceRaw, options.device)
-    : deviceRaw;
-  const portData = options ? filterData(portRaw, options.port) : portRaw;
-
+  const { rackData, deviceData, portData } = prepareExportData([rack], options);
   const wb = XLSX.utils.book_new();
-  if (rackData.length > 0) {
-    const rackSheet = XLSX.utils.json_to_sheet(rackData);
-    XLSX.utils.book_append_sheet(wb, rackSheet, "Rack");
-  }
-  if (deviceData.length > 0) {
-    const deviceSheet = XLSX.utils.json_to_sheet(deviceData);
-    XLSX.utils.book_append_sheet(wb, deviceSheet, "Equipment");
-  }
-  if (portData.length > 0) {
-    const portSheet = XLSX.utils.json_to_sheet(portData);
-    XLSX.utils.book_append_sheet(wb, portSheet, "Ports");
-  }
-
+  if (rackData.length > 0)
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(rackData),
+      "Rack",
+    );
+  if (deviceData.length > 0)
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(deviceData),
+      "Equipment",
+    );
+  if (portData.length > 0)
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(portData),
+      "Ports",
+    );
   XLSX.writeFile(wb, `rack-${rack.id.substring(0, 8)}-${Date.now()}.xlsx`);
 };
 

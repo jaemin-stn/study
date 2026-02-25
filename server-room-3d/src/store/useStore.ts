@@ -1,10 +1,10 @@
 import { create } from "zustand";
 import type { Rack, Device, ImportedModel } from "../types";
+import { GRID_SPACING, RACK_WIDTH_STANDARD } from "../components/constants";
 import {
-  GRID_SPACING,
-  RACK_WIDTH_STANDARD,
-  RACK_DEPTH,
-} from "../components/constants";
+  getFrontDirection,
+  getEffectiveDimensions,
+} from "../utils/rackGeometry";
 import * as THREE from "three";
 
 export interface AppState {
@@ -90,20 +90,20 @@ const checkCollision = (
   width: number,
   orientation: 0 | 90 | 180 | 270 = 180,
 ): boolean => {
-  // We use world units for collision check
-  const isRotated = orientation === 90 || orientation === 270;
-  const w1 = isRotated ? RACK_DEPTH : width;
-  const d1 = isRotated ? width : RACK_DEPTH;
+  const { effectiveWidth: w1, effectiveDepth: d1 } = getEffectiveDimensions(
+    width,
+    orientation,
+  );
   const x1 = pos[0] * GRID_SPACING;
   const z1 = pos[1] * GRID_SPACING;
 
   return racks.some((r) => {
     if (r.id === idToExclude) return false;
 
-    const otherOrientation = r.orientation ?? 180;
-    const otherIsRotated = otherOrientation === 90 || otherOrientation === 270;
-    const w2 = otherIsRotated ? RACK_DEPTH : r.width;
-    const d2 = otherIsRotated ? r.width : RACK_DEPTH;
+    const { effectiveWidth: w2, effectiveDepth: d2 } = getEffectiveDimensions(
+      r.width,
+      r.orientation ?? 180,
+    );
     const x2 = r.position[0] * GRID_SPACING;
     const z2 = r.position[1] * GRID_SPACING;
 
@@ -116,8 +116,8 @@ const checkCollision = (
 };
 
 // Helper to check front clearance violation (combined Rule A + Rule B)
-// Rule A: Any OTHER rack is within 1.0 unit in front of the PLACED rack's front face
-// Rule B: The PLACED rack would be within 1.0 unit in front of any OTHER rack's front face
+// Rule A: Any OTHER rack is within CLEARANCE units in front of the PLACED rack's front face
+// Rule B: The PLACED rack would be within CLEARANCE units in front of any OTHER rack's front face
 export const checkFrontClearanceViolation = (
   racks: Rack[],
   movedRackId: string,
@@ -125,138 +125,87 @@ export const checkFrontClearanceViolation = (
   movedRackOrientation?: 0 | 90 | 180 | 270,
   movedRackWidth?: number,
 ): boolean => {
-  const CLEARANCE = 1.5; // 1.5 unit clearance from front face
+  const CLEARANCE = 1.5;
 
-  // Find the moved rack to get its orientation
   const movedRack = racks.find((r) => r.id === movedRackId);
   const placedOrientation =
     movedRackOrientation ?? movedRack?.orientation ?? 180;
   const placedWidth = movedRackWidth ?? movedRack?.width ?? RACK_WIDTH_STANDARD;
 
-  // Calculate the front direction of the PLACED rack
-  let placedFrontDirX = 0;
-  let placedFrontDirZ = 0;
-  switch (placedOrientation) {
-    case 0:
-      placedFrontDirZ = -1;
-      break;
-    case 90:
-      placedFrontDirX = 1;
-      break;
-    case 180:
-      placedFrontDirZ = 1;
-      break;
-    case 270:
-      placedFrontDirX = -1;
-      break;
-  }
+  const placedFrontDir = getFrontDirection(placedOrientation);
+  const placedDims = getEffectiveDimensions(placedWidth, placedOrientation);
+
+  /** Check if `target` is within clearance in front of `source`'s front face */
+  const isInFront = (
+    frontDir: { x: number; z: number },
+    sourceDims: { effectiveWidth: number; effectiveDepth: number },
+    otherDims: { effectiveWidth: number; effectiveDepth: number },
+    deltaX: number,
+    deltaZ: number,
+  ): boolean => {
+    // Check the axis aligned with the front direction
+    if (frontDir.x !== 0) {
+      const inFront = frontDir.x > 0 ? deltaX > 0 : deltaX < 0;
+      const withinClearance = Math.abs(deltaX) <= CLEARANCE;
+      // Cross-axis alignment: perpendicular overlap
+      const aligned =
+        Math.abs(deltaZ) <
+        (sourceDims.effectiveDepth + otherDims.effectiveWidth) / 2;
+      if (inFront && withinClearance && aligned) return true;
+    }
+    if (frontDir.z !== 0) {
+      const inFront = frontDir.z > 0 ? deltaZ > 0 : deltaZ < 0;
+      const withinClearance = Math.abs(deltaZ) <= CLEARANCE;
+      const aligned =
+        Math.abs(deltaX) <
+        (sourceDims.effectiveWidth + otherDims.effectiveWidth) / 2;
+      if (inFront && withinClearance && aligned) return true;
+    }
+    return false;
+  };
 
   for (const otherRack of racks) {
     if (otherRack.id === movedRackId) continue;
 
-    const otherRackX = otherRack.position[0];
-    const otherRackZ = otherRack.position[1];
     const otherOrientation = otherRack.orientation ?? 180;
+    const otherDims = getEffectiveDimensions(otherRack.width, otherOrientation);
+    const deltaToOtherX = otherRack.position[0] - newPos[0];
+    const deltaToOtherZ = otherRack.position[1] - newPos[1];
 
-    // Delta from placed rack to other rack
-    const deltaToOtherX = otherRackX - newPos[0];
-    const deltaToOtherZ = otherRackZ - newPos[1];
-
-    // ===== Rule A: Check if OTHER rack is in front of PLACED rack's front face =====
-    if (placedFrontDirX !== 0) {
-      const inFront =
-        placedFrontDirX > 0 ? deltaToOtherX > 0 : deltaToOtherX < 0;
-      const withinClearance = Math.abs(deltaToOtherX) <= CLEARANCE;
-
-      // Alignment check (width-aware)
-      const otherWidth = otherRack.width;
-      const otherOrientation = otherRack.orientation ?? 180;
-      const otherIsRotated =
-        otherOrientation === 90 || otherOrientation === 270;
-      const otherEffWidth = otherIsRotated ? RACK_DEPTH : otherWidth;
-      const placedIsRotated =
-        placedOrientation === 90 || placedOrientation === 270;
-      const placedEffDepth = placedIsRotated ? placedWidth : RACK_DEPTH;
-
-      const aligned =
-        Math.abs(deltaToOtherZ) < (placedEffDepth + otherEffWidth) / 2;
-      if (inFront && withinClearance && aligned) {
-        console.warn(
-          `Rule A violation: rack at [${otherRackX}, ${otherRackZ}] is within 1.5 units in front of placed rack at [${newPos[0]}, ${newPos[1]}]`,
-        );
-        return true;
-      }
-    }
-    if (placedFrontDirZ !== 0) {
-      const inFront =
-        placedFrontDirZ > 0 ? deltaToOtherZ > 0 : deltaToOtherZ < 0;
-      const withinClearance = Math.abs(deltaToOtherZ) <= CLEARANCE;
-
-      // Alignment check (width-aware)
-      const otherWidth = otherRack.width;
-      const otherOrientation = otherRack.orientation ?? 180;
-      const otherIsRotated =
-        otherOrientation === 90 || otherOrientation === 270;
-      const otherEffWidth = otherIsRotated ? RACK_DEPTH : otherWidth;
-      const placedIsRotated =
-        placedOrientation === 90 || placedOrientation === 270;
-      const placedEffWidth = placedIsRotated ? RACK_DEPTH : placedWidth;
-
-      const aligned =
-        Math.abs(deltaToOtherX) < (placedEffWidth + otherEffWidth) / 2;
-      if (inFront && withinClearance && aligned) {
-        console.warn(
-          `Rule A violation: rack at [${otherRackX}, ${otherRackZ}] is within 1.5 units in front of placed rack at [${newPos[0]}, ${newPos[1]}]`,
-        );
-        return true;
-      }
+    // Rule A: OTHER rack is in front of PLACED rack
+    if (
+      isInFront(
+        placedFrontDir,
+        placedDims,
+        otherDims,
+        deltaToOtherX,
+        deltaToOtherZ,
+      )
+    ) {
+      console.warn(
+        `Rule A violation: rack at [${otherRack.position[0]}, ${otherRack.position[1]}] is within ${CLEARANCE} units in front of placed rack at [${newPos[0]}, ${newPos[1]}]`,
+      );
+      return true;
     }
 
-    // ===== Rule B: Check if PLACED rack is in front of OTHER rack's front face =====
-    let otherFrontDirX = 0;
-    let otherFrontDirZ = 0;
-    switch (otherOrientation) {
-      case 0:
-        otherFrontDirZ = -1;
-        break;
-      case 90:
-        otherFrontDirX = 1;
-        break;
-      case 180:
-        otherFrontDirZ = 1;
-        break;
-      case 270:
-        otherFrontDirX = -1;
-        break;
-    }
+    // Rule B: PLACED rack is in front of OTHER rack
+    const otherFrontDir = getFrontDirection(otherOrientation);
+    const deltaFromOtherX = newPos[0] - otherRack.position[0];
+    const deltaFromOtherZ = newPos[1] - otherRack.position[1];
 
-    // Delta from other rack to placed rack
-    const deltaFromOtherX = newPos[0] - otherRackX;
-    const deltaFromOtherZ = newPos[1] - otherRackZ;
-
-    if (otherFrontDirX !== 0) {
-      const inFront =
-        otherFrontDirX > 0 ? deltaFromOtherX > 0 : deltaFromOtherX < 0;
-      const withinClearance = Math.abs(deltaFromOtherX) <= CLEARANCE;
-      const aligned = Math.abs(deltaFromOtherZ) < 0.5;
-      if (inFront && withinClearance && aligned) {
-        console.warn(
-          `Rule B violation: placed rack at [${newPos[0]}, ${newPos[1]}] is within 1.5 units in front of rack at [${otherRackX}, ${otherRackZ}]`,
-        );
-        return true;
-      }
-    }
-    if (otherFrontDirZ !== 0) {
-      const inFront =
-        otherFrontDirZ > 0 ? deltaFromOtherZ > 0 : deltaFromOtherZ < 0;
-      const withinClearance = Math.abs(deltaFromOtherZ) <= CLEARANCE;
-      const aligned = Math.abs(deltaFromOtherX) < 0.5;
-      if (inFront && withinClearance && aligned) {
-        console.warn(
-          `Rule B violation: placed rack at [${newPos[0]}, ${newPos[1]}] is within 1.5 units in front of rack at [${otherRackX}, ${otherRackZ}]`,
-        );
-        return true;
-      }
+    if (
+      isInFront(
+        otherFrontDir,
+        otherDims,
+        placedDims,
+        deltaFromOtherX,
+        deltaFromOtherZ,
+      )
+    ) {
+      console.warn(
+        `Rule B violation: placed rack at [${newPos[0]}, ${newPos[1]}] is within ${CLEARANCE} units in front of rack at [${otherRack.position[0]}, ${otherRack.position[1]}]`,
+      );
+      return true;
     }
   }
 

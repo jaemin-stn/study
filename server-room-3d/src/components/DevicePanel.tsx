@@ -3,13 +3,7 @@ import { useStore, checkFrontClearanceViolation } from "../store/useStore";
 import type { DeviceType, ErrorLevel, PortState } from "../types";
 import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
 import type { DeviceTemplate } from "../utils/deviceTemplates";
-
-const ERROR_PRIORITY: Record<ErrorLevel, number> = {
-  critical: 4,
-  major: 3,
-  minor: 2,
-  warning: 1,
-};
+import { getHighestError } from "../utils/errorHelpers";
 
 const IMPORT_EXPORT_STYLE = `
 .btn-import-export {
@@ -153,20 +147,10 @@ export const DevicePanel = () => {
       if (device) {
         const heightPx = device.uSize * 28;
 
-        // Calculate highest severity error
-        let maxPriority = 0;
-        let highestSeverity: ErrorLevel | null = null;
-        device.portStates.forEach((p) => {
-          if (p.status === "error" && p.errorLevel) {
-            const priority = ERROR_PRIORITY[p.errorLevel] || 0;
-            if (priority > maxPriority) {
-              maxPriority = priority;
-              highestSeverity = p.errorLevel;
-            }
-          }
-        });
-
-        const hasError = highestSeverity !== null;
+        // Calculate highest severity error using shared helper
+        const errorInfo = getHighestError(device.portStates);
+        const hasError = errorInfo !== null;
+        const highestSeverity = errorInfo?.level ?? null;
 
         // Unified low-saturation base color vs Error "Lit" state
         const bg = hasError

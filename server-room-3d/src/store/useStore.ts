@@ -30,6 +30,7 @@ export interface AppState {
   selectedModelId: string | null;
   draggingModelId: string | null;
   modelDragPosition: [number, number] | null;
+  modelDragOffset: [number, number] | null;
 
   // Actions
   setCameraRef: (camera: THREE.Camera, controls: any) => void;
@@ -73,6 +74,7 @@ export interface AppState {
   setModelDragging: (
     modelId: string | null,
     pos?: [number, number] | null,
+    offset?: [number, number] | null,
   ) => void;
   updateModelDragPosition: (pos: [number, number] | null) => void;
   endModelDrag: (id: string, position: [number, number]) => void;
@@ -233,6 +235,7 @@ export const useStore = create<AppState>((set, get) => ({
   selectedModelId: null,
   draggingModelId: null,
   modelDragPosition: null,
+  modelDragOffset: null,
 
   setCameraRef: (camera, controls) =>
     set({ _cameraRef: camera, _controlsRef: controls }),
@@ -642,8 +645,12 @@ export const useStore = create<AppState>((set, get) => ({
       ),
     })),
 
-  setModelDragging: (modelId, pos = null) =>
-    set({ draggingModelId: modelId, modelDragPosition: pos }),
+  setModelDragging: (modelId, pos = null, offset = null) =>
+    set({
+      draggingModelId: modelId,
+      modelDragPosition: pos,
+      modelDragOffset: offset,
+    }),
 
   updateModelDragPosition: (pos) => set({ modelDragPosition: pos }),
 
@@ -656,6 +663,7 @@ export const useStore = create<AppState>((set, get) => ({
       ),
       draggingModelId: null,
       modelDragPosition: null,
+      modelDragOffset: null,
     }));
   },
 
@@ -674,6 +682,7 @@ export const useStore = create<AppState>((set, get) => ({
       set({
         draggingModelId: null,
         modelDragPosition: null,
+        modelDragOffset: null,
       });
       document.body.style.cursor = "auto";
     }

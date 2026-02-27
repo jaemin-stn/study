@@ -4,7 +4,6 @@ import { useGLTF, Html, Billboard } from "@react-three/drei";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
 import type { ImportedModel } from "../types";
-import { GRID_SPACING } from "./constants";
 
 interface ImportedModelMeshProps {
   model: ImportedModel;
@@ -70,15 +69,19 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
   }, [gltfScene]);
 
   // Edit-mode drag — only when isMoveEnabled
+  // Uses fixed floorPlane + stored dragOffset for stable, snap-free movement.
+  // Scene geometry (racks) is never used for drag position, preventing jumps.
   useFrame(() => {
     if (isDragging && isEditMode && isMoveEnabled) {
       raycaster.setFromCamera(mouse, camera);
       if (raycaster.ray.intersectPlane(floorPlane, tempPoint)) {
-        const snappedX =
-          (Math.round((tempPoint.x / GRID_SPACING) * 4) / 4) * GRID_SPACING;
-        const snappedZ =
-          (Math.round((tempPoint.z / GRID_SPACING) * 4) / 4) * GRID_SPACING;
-        useStore.getState().updateModelDragPosition([snappedX, snappedZ]);
+        const { modelDragOffset } = useStore.getState();
+        const offsetX = modelDragOffset ? modelDragOffset[0] : 0;
+        const offsetZ = modelDragOffset ? modelDragOffset[1] : 0;
+        // Free movement — no grid snapping
+        const newX = tempPoint.x - offsetX;
+        const newZ = tempPoint.z - offsetZ;
+        useStore.getState().updateModelDragPosition([newX, newZ]);
       }
     }
   });
@@ -105,7 +108,14 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
       const { setModelDragging } = useStore.getState();
       raycaster.setFromCamera(mouse, camera);
       if (raycaster.ray.intersectPlane(floorPlane, tempPoint)) {
-        setModelDragging(model.id, [tempPoint.x, tempPoint.z]);
+        // Store offset = hitPoint - modelPivot so the model doesn't jump to cursor
+        const offsetX = tempPoint.x - model.position[0];
+        const offsetZ = tempPoint.z - model.position[2];
+        setModelDragging(
+          model.id,
+          [model.position[0], model.position[2]],
+          [offsetX, offsetZ],
+        );
         document.body.style.cursor = "grabbing";
       }
     }

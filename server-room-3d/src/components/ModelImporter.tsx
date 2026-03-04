@@ -1,6 +1,8 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useStore } from "../store/useStore";
-import type { ImportedModel } from "../types";
+import type { ImportedModel, WallParams } from "../types";
+import { BUILTIN_MODELS, DEFAULT_WALL_PARAMS } from "../utils/builtinModels";
+import type { BuiltinModelDef } from "../utils/builtinModels";
 
 /** Read a File as a base64 data URL */
 const fileToDataUrl = (file: File): Promise<string> =>
@@ -29,6 +31,37 @@ export const ModelImporter = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+
+  /** Add a built-in default model to the scene */
+  const handleAddBuiltin = useCallback(
+    (def: BuiltinModelDef) => {
+      if (def.type === "Wall") {
+        addImportedModel({
+          name: "Wall",
+          fileName: def.fileName,
+          dataUrl: "",
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1],
+          isMoveEnabled: false,
+          builtinType: "Wall",
+          wallParams: { ...DEFAULT_WALL_PARAMS },
+        });
+      } else {
+        addImportedModel({
+          name: def.label,
+          fileName: def.fileName,
+          dataUrl: def.assetUrl,
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1],
+          isMoveEnabled: false,
+          builtinType: def.type,
+        });
+      }
+    },
+    [addImportedModel],
+  );
 
   const selectedModel = importedModels.find((m) => m.id === selectedModelId);
 
@@ -167,6 +200,70 @@ export const ModelImporter = () => {
               ⚠️ {error}
             </div>
           )}
+        </div>
+
+        {/* Default Models Palette */}
+        <div
+          className="grafana-panel"
+          style={{
+            padding: "12px 16px",
+            background: "var(--bg-primary)",
+            boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "11px",
+              fontWeight: 700,
+              color: "var(--text-tertiary)",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+              display: "block",
+              marginBottom: "10px",
+            }}
+          >
+            Default Models
+          </span>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: "8px",
+            }}
+          >
+            {BUILTIN_MODELS.map((def) => (
+              <button
+                key={def.type}
+                className="grafana-btn"
+                style={{
+                  height: "40px",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  background: "var(--bg-secondary)",
+                  border: "1px solid var(--border-medium)",
+                  color: "var(--text-primary)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "6px",
+                  borderRadius: "var(--radius-md)",
+                  transition: "all 0.15s ease",
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.borderColor = "var(--theme-primary)";
+                  e.currentTarget.style.background = "var(--selected-bg)";
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.borderColor = "var(--border-medium)";
+                  e.currentTarget.style.background = "var(--bg-secondary)";
+                }}
+                onClick={() => handleAddBuiltin(def)}
+              >
+                <span style={{ fontSize: "16px" }}>{def.emoji}</span>
+                {def.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Models List Section */}
@@ -410,6 +507,17 @@ interface ModelPropertiesProps {
   onDelete: () => void;
 }
 
+/** Helper to update a single wall param field */
+const updateWallParam = (
+  model: ImportedModel,
+  onUpdate: ModelPropertiesProps["onUpdate"],
+  field: keyof WallParams,
+  value: number | string,
+) => {
+  const current = model.wallParams ?? DEFAULT_WALL_PARAMS;
+  onUpdate({ wallParams: { ...current, [field]: value } });
+};
+
 const ModelProperties = ({
   model,
   onUpdate,
@@ -552,6 +660,99 @@ const ModelProperties = ({
         15,
       )}
       {vec3Block("Scale", model.scale, (v) => onUpdate({ scale: v }), 0.1)}
+
+      {/* Wall-specific parametric controls */}
+      {model.builtinType === "Wall" &&
+        (() => {
+          const wp = model.wallParams ?? DEFAULT_WALL_PARAMS;
+          return (
+            <div style={{ marginBottom: "16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                }}
+              >
+                Wall Parameters
+              </label>
+              <div style={{ display: "flex", gap: "8px", marginBottom: "8px" }}>
+                {numInput(
+                  "Height",
+                  wp.height,
+                  (v) =>
+                    updateWallParam(
+                      model,
+                      onUpdate,
+                      "height",
+                      Math.max(0.1, v),
+                    ),
+                  0.5,
+                )}
+                {numInput(
+                  "Length",
+                  wp.length,
+                  (v) =>
+                    updateWallParam(
+                      model,
+                      onUpdate,
+                      "length",
+                      Math.max(0.1, v),
+                    ),
+                  0.5,
+                )}
+                {numInput(
+                  "Thick",
+                  wp.thickness,
+                  (v) =>
+                    updateWallParam(
+                      model,
+                      onUpdate,
+                      "thickness",
+                      Math.max(0.01, v),
+                    ),
+                  0.05,
+                )}
+              </div>
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <span
+                  style={{
+                    fontSize: "9px",
+                    fontWeight: 700,
+                    color: "var(--text-tertiary)",
+                  }}
+                >
+                  COLOR
+                </span>
+                <input
+                  type="color"
+                  value={wp.color}
+                  onChange={(e) =>
+                    updateWallParam(model, onUpdate, "color", e.target.value)
+                  }
+                  style={{
+                    width: "32px",
+                    height: "24px",
+                    padding: 0,
+                    border: "1px solid var(--border-medium)",
+                    borderRadius: "var(--radius-sm)",
+                    cursor: "pointer",
+                    background: "transparent",
+                  }}
+                />
+                <span
+                  style={{ fontSize: "11px", color: "var(--text-tertiary)" }}
+                >
+                  {wp.color}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
 
       <div
         style={{

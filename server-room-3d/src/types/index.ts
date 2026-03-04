@@ -40,16 +40,31 @@ export interface DraggedItem {
   type: "rk"; // rack
 }
 
+// Built-in 모델 종류
+export type BuiltinModelType = "Wall" | "Chair" | "Desk" | "Desk2";
+
+// Wall 파라메트릭 파라미터
+export interface WallParams {
+  height: number; // Y축 높이 (미터)
+  length: number; // X축 길이 (미터)
+  thickness: number; // Z축 두께 (미터)
+  color: string; // hex color
+}
+
 // 임포트된 3D 모델
 export interface ImportedModel {
   id: string;
   name: string;
   fileName: string;
-  /** Base64 data URL of the GLB file */
+  /** Base64 data URL of the GLB file, or public URL path for built-in models */
   dataUrl: string;
   position: [number, number, number];
   rotation: [number, number, number]; // Euler angles in radians
   scale: [number, number, number];
   /** Per-model movement toggle: true = movable, false = locked (default: false) */
   isMoveEnabled?: boolean;
+  /** If set, this model is a built-in default model */
+  builtinType?: BuiltinModelType;
+  /** Wall-specific parametric dimensions (only when builtinType === "Wall") */
+  wallParams?: WallParams;
 }

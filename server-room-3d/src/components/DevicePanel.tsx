@@ -5,7 +5,51 @@ import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
 import type { DeviceTemplate } from "../utils/deviceTemplates";
 import { getHighestError } from "../utils/errorHelpers";
 
-const IMPORT_EXPORT_STYLE = `
+/* ---------- Device Tile Image with loading / fallback ---------- */
+const DeviceTileImage = ({ src, alt }: { src: string; alt: string }) => {
+  const [status, setStatus] = useState<"loading" | "loaded" | "error">(
+    "loading",
+  );
+
+  return (
+    <div className="device-tile-img-wrap">
+      {status === "loading" && (
+        <div className="device-tile-img-placeholder">
+          <span className="device-tile-img-spinner" />
+        </div>
+      )}
+      {status === "error" && (
+        <div className="device-tile-img-placeholder">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="var(--text-tertiary)"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" />
+            <circle cx="8.5" cy="8.5" r="1.5" />
+            <path d="M21 15l-5-5L5 21" />
+          </svg>
+        </div>
+      )}
+      <img
+        src={src}
+        alt={alt}
+        className="device-tile-img"
+        style={{ opacity: status === "loaded" ? 1 : 0 }}
+        onLoad={() => setStatus("loaded")}
+        onError={() => setStatus("error")}
+        draggable={false}
+      />
+    </div>
+  );
+};
+
+const PANEL_STYLES = `
 .btn-import-export {
     background: var(--theme-primary) !important;
     color: #ffffff !important;
@@ -29,6 +73,122 @@ const IMPORT_EXPORT_STYLE = `
     cursor: not-allowed;
     box-shadow: none;
     transform: none;
+}
+
+/* ---------- Device Tile ---------- */
+.device-tile {
+    position: relative;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    cursor: pointer;
+    display: flex;
+    align-items: stretch;
+    transition: box-shadow 0.2s, transform 0.15s;
+    margin-bottom: 2px;
+}
+.device-tile:hover {
+    box-shadow: 0 0 0 2px var(--theme-primary), var(--elevation-2);
+    z-index: 2;
+}
+
+/* Image wrapper */
+.device-tile-img-wrap {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    inset: 0;
+}
+.device-tile-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: opacity 0.3s;
+}
+.device-tile-img-placeholder {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-tertiary);
+}
+@keyframes dt-spin {
+    to { transform: rotate(360deg); }
+}
+.device-tile-img-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--border-medium);
+    border-top-color: var(--theme-primary);
+    border-radius: 50%;
+    animation: dt-spin 0.7s linear infinite;
+}
+
+@keyframes dt-error-pulse {
+    0% { box-shadow: 0 0 0 0px var(--severity-critical); }
+    50% { box-shadow: 0 0 12px 2px var(--severity-critical); }
+    100% { box-shadow: 0 0 0 0px var(--severity-critical); }
+}
+.device-tile.has-error {
+    animation: dt-error-pulse 2s infinite;
+    border-color: var(--severity-critical) !important;
+    z-index: 1;
+}
+
+/* Gradient overlay for text legibility */
+.device-tile-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.3) 60%, rgba(0,0,0,0.6) 100%);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    z-index: 1;
+}
+.device-tile-overlay-plain {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    width: 100%;
+    z-index: 1;
+}
+
+/* Delete button */
+.device-tile-delete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255,60,60,0.4);
+    background: rgba(255,100,100,0.1);
+    color: #ff8a8a;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+    opacity: 0.6; /* Partially visible for discoverability */
+}
+.device-tile:hover .device-tile-delete {
+    opacity: 1;
+    background: #ff3c3c;
+    color: #fff;
+    border-color: #ff3c3c;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(255, 60, 60, 0.4);
+}
+.device-tile-delete:active {
+    transform: scale(0.9);
+}
+.device-tile-delete:focus-visible {
+    outline: 2px solid var(--theme-primary);
+    outline-offset: 2px;
+    opacity: 1;
 }
 `;
 
@@ -146,6 +306,7 @@ export const DevicePanel = () => {
 
       if (device) {
         const heightPx = device.uSize * 28;
+        const hasImage = !!device.imageUrl;
 
         // Calculate highest severity error using shared helper
         const errorInfo = getHighestError(device.portStates);
@@ -156,7 +317,11 @@ export const DevicePanel = () => {
         const bg = hasError
           ? `var(--severity-${highestSeverity})`
           : UNIFIED_DEVICE_BG;
-        const textColor = hasError ? "#ffffff" : UNIFIED_DEVICE_TEXT;
+        const textColor = hasImage
+          ? "#ffffff"
+          : hasError
+            ? "#ffffff"
+            : UNIFIED_DEVICE_TEXT;
         const borderColor = hasError
           ? `var(--severity-${highestSeverity})`
           : UNIFIED_DEVICE_BORDER;
@@ -164,53 +329,90 @@ export const DevicePanel = () => {
         rendered.push(
           <div
             key={`dev-${u}`}
+            className={`device-tile ${hasError ? "has-error" : ""}`}
             style={{
               height: `${heightPx}px`,
               backgroundColor: bg,
-              borderRadius: "var(--radius-sm)",
-              border: `1px solid ${borderColor}`,
-              marginBottom: "2px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              padding: "0 10px",
-              color: textColor,
-              fontWeight: hasError ? 700 : 500,
-              fontSize: "var(--font-size-sm)",
-              boxShadow: "var(--elevation-1)",
-              position: "relative",
-              cursor: "pointer",
-              transition: "background-color 0.2s, color 0.2s",
+              border: hasError
+                ? "2px solid var(--severity-critical)"
+                : `1px solid ${borderColor}`,
             }}
             onClick={() => selectDevice(device.id)}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <span>{device.name}</span>
-              <span style={{ opacity: 0.8, fontSize: "var(--font-size-xs)" }}>
-                ({device.uSize}U)
-              </span>
-            </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                removeDevice(rack.id, device.id);
-              }}
+            {/* Device faceplate image */}
+            {hasImage && (
+              <DeviceTileImage src={device.imageUrl!} alt={device.name} />
+            )}
+
+            {/* Content overlay (gradient when image, plain otherwise) */}
+            <div
+              className={
+                hasImage ? "device-tile-overlay" : "device-tile-overlay-plain"
+              }
               style={{
-                background: "rgba(0,0,0,0.2)",
-                border: "none",
-                color: "white",
-                width: "20px",
-                height: "20px",
-                borderRadius: "50%",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontFamily: "var(--font-family)",
+                color: textColor,
+                fontWeight: hasError ? 700 : 500,
+                fontSize: "var(--font-size-sm)",
               }}
             >
-              ×
-            </button>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  minWidth: 0,
+                }}
+              >
+                {/* Error pulse indicator */}
+                {hasError && (
+                  <span
+                    style={{
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      backgroundColor: `var(--severity-${highestSeverity})`,
+                      boxShadow: `0 0 6px var(--severity-${highestSeverity})`,
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
+                <span
+                  style={{
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {device.name}
+                </span>
+                <span
+                  style={{
+                    opacity: 0.75,
+                    fontSize: "var(--font-size-xs)",
+                    flexShrink: 0,
+                  }}
+                >
+                  ({device.uSize}U)
+                </span>
+              </div>
+
+              {/* Delete button – visible on hover */}
+              <button
+                className="device-tile-delete"
+                aria-label={`Delete device ${device.name}`}
+                title="Delete device"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (
+                    window.confirm(`"${device.name}" 장비를 삭제하시겠습니까?`)
+                  ) {
+                    removeDevice(rack.id, device.id);
+                  }
+                }}
+              >
+                ✕
+              </button>
+            </div>
           </div>,
         );
       } else if (!occupied) {
@@ -329,7 +531,7 @@ export const DevicePanel = () => {
 
   return (
     <div className="grafana-side-panel" style={{ width: "400px" }}>
-      <style>{IMPORT_EXPORT_STYLE}</style>
+      <style>{PANEL_STYLES}</style>
 
       <div className="grafana-side-panel-header">
         <div>

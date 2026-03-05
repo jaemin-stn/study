@@ -1,8 +1,20 @@
 import { useRef, useState, useCallback, useEffect } from "react";
 import { useStore } from "../store/useStore";
-import type { ImportedModel, WallParams } from "../types";
-import { BUILTIN_MODELS, DEFAULT_WALL_PARAMS } from "../utils/builtinModels";
+import type { ImportedModel, WallParams, PartitionParams } from "../types";
+import {
+  BUILTIN_MODELS,
+  DEFAULT_WALL_PARAMS,
+  DEFAULT_PARTITION_PARAMS,
+} from "../utils/builtinModels";
 import type { BuiltinModelDef } from "../utils/builtinModels";
+import {
+  exportModels,
+  readModelExportFile,
+  getImportPreview,
+  deserializeModels,
+  type ModelExportPackage,
+  type ImportPreview,
+} from "../utils/modelStorage";
 
 /** Read a File as a base64 data URL */
 const fileToDataUrl = (file: File): Promise<string> =>
@@ -31,6 +43,76 @@ export const ModelImporter = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Model export/import state
+  const modelImportRef = useRef<HTMLInputElement>(null);
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(
+    null,
+  );
+  const [importPkg, setImportPkg] = useState<ModelExportPackage | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+
+  const handleExportModels = useCallback(async () => {
+    if (importedModels.length === 0) {
+      setError("No models to export.");
+      setTimeout(() => setError(null), 3000);
+      return;
+    }
+    try {
+      await exportModels(importedModels);
+      setSuccessMsg(`Exported ${importedModels.length} model(s)`);
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Export failed");
+      setTimeout(() => setError(null), 4000);
+    }
+  }, [importedModels]);
+
+  const handleModelImportFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (modelImportRef.current) modelImportRef.current.value = "";
+      if (!file) return;
+      try {
+        setImportError(null);
+        const pkg = await readModelExportFile(file);
+        const preview = getImportPreview(pkg);
+        setImportPkg(pkg);
+        setImportPreview(preview);
+      } catch (err) {
+        setImportError(err instanceof Error ? err.message : String(err));
+      }
+    },
+    [],
+  );
+
+  const handleConfirmImport = useCallback(() => {
+    if (!importPkg) return;
+    setIsImporting(true);
+    try {
+      const models = deserializeModels(importPkg);
+      for (const m of models) {
+        addImportedModel(m);
+      }
+      setSuccessMsg(`Imported ${models.length} model(s)`);
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Import failed.");
+      setTimeout(() => setError(null), 4000);
+    } finally {
+      setIsImporting(false);
+      setImportPkg(null);
+      setImportPreview(null);
+    }
+  }, [importPkg, addImportedModel]);
+
+  const handleCancelImport = useCallback(() => {
+    setImportPkg(null);
+    setImportPreview(null);
+    setImportError(null);
+  }, []);
 
   /** Add a built-in default model to the scene */
   const handleAddBuiltin = useCallback(
@@ -46,6 +128,18 @@ export const ModelImporter = () => {
           isMoveEnabled: false,
           builtinType: "Wall",
           wallParams: { ...DEFAULT_WALL_PARAMS },
+        });
+      } else if (def.type === "Partition") {
+        addImportedModel({
+          name: "Partition",
+          fileName: def.fileName,
+          dataUrl: "",
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1],
+          isMoveEnabled: false,
+          builtinType: "Partition",
+          partitionParams: { ...DEFAULT_PARTITION_PARAMS },
         });
       } else {
         addImportedModel({
@@ -129,6 +223,13 @@ export const ModelImporter = () => {
         style={{ display: "none" }}
         onChange={handleFileChange}
       />
+      <input
+        ref={modelImportRef}
+        type="file"
+        accept=".json"
+        style={{ display: "none" }}
+        onChange={handleModelImportFile}
+      />
 
       <div
         style={{
@@ -153,53 +254,158 @@ export const ModelImporter = () => {
             boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
           }}
         >
-          <button
-            className="grafana-btn"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isLoading}
-            style={{
-              width: "100%",
-              height: "44px",
-              background: "linear-gradient(to bottom, #4f46e5, #4338ca)",
-              color: "#fff",
-              border: "none",
-              borderRadius: "var(--radius-md)",
-              fontSize: "13px",
-              fontWeight: 600,
-              boxShadow: "0 4px 12px rgba(79, 70, 229, 0.3)",
-              transition: "transform 0.1s, box-shadow 0.2s",
-            }}
-            onMouseDown={(e) =>
-              (e.currentTarget.style.transform = "scale(0.98)")
-            }
-            onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+          <div
+            style={{ display: "flex", flexDirection: "column", gap: "10px" }}
           >
-            {isLoading ? (
-              <div
-                style={{ display: "flex", alignItems: "center", gap: "8px" }}
-              >
-                <span className="spinner-mini" /> Importing...
-              </div>
-            ) : (
-              "📂 Import 3D Model"
-            )}
-          </button>
-
-          {error && (
-            <div
+            <button
+              className="grafana-btn"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isLoading}
               style={{
-                marginTop: "12px",
-                padding: "8px 12px",
-                background: "rgba(239, 68, 68, 0.1)",
-                border: "1px solid rgba(239, 68, 68, 0.2)",
-                borderRadius: "var(--radius-sm)",
-                color: "#ef4444",
-                fontSize: "12px",
+                width: "100%",
+                height: "44px",
+                background: "linear-gradient(135deg, #1f71eb, #014fcc)",
+                color: "#fff",
+                border: "none",
+                borderRadius: "var(--radius-md)",
+                fontSize: "14px",
+                fontWeight: 600,
+                boxShadow: "0 4px 12px rgba(31, 113, 235, 0.25)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "10px",
+                cursor: "pointer",
+                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.transform = "translateY(-1px)";
+                e.currentTarget.style.boxShadow =
+                  "0 6px 16px rgba(31, 113, 235, 0.35)";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = "translateY(0)";
+                e.currentTarget.style.boxShadow =
+                  "0 4px 12px rgba(31, 113, 235, 0.25)";
               }}
             >
-              ⚠️ {error}
+              {isLoading ? (
+                <span className="spinner-mini" />
+              ) : (
+                <span style={{ fontSize: "18px", fontWeight: 400 }}>+</span>
+              )}
+              Add New Asset
+            </button>
+
+            {/* Project Persistence (Save / Load Data) */}
+            <div
+              style={{
+                background: "var(--bg-secondary)",
+                padding: "12px",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-weak)",
+              }}
+            >
+              <span
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  color: "var(--text-tertiary)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  display: "block",
+                  marginBottom: "10px",
+                  opacity: 0.8,
+                }}
+              >
+                Project Data
+              </span>
+              <div style={{ display: "flex", gap: "8px" }}>
+                <button
+                  className="grafana-btn"
+                  style={{
+                    flex: 1,
+                    height: "30px",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    background:
+                      importedModels.length > 0
+                        ? "var(--bg-primary)"
+                        : "transparent",
+                    color:
+                      importedModels.length > 0
+                        ? "var(--text-primary)"
+                        : "var(--text-disabled)",
+                    border: "1px solid",
+                    borderColor:
+                      importedModels.length > 0
+                        ? "var(--border-medium)"
+                        : "var(--border-weak)",
+                    borderRadius: "var(--radius-sm)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                    cursor:
+                      importedModels.length > 0 ? "pointer" : "not-allowed",
+                    transition: "all 0.15s ease",
+                  }}
+                  disabled={importedModels.length === 0}
+                  onClick={handleExportModels}
+                >
+                  💾 Save
+                </button>
+                <button
+                  className="grafana-btn"
+                  style={{
+                    flex: 1,
+                    height: "30px",
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    background: "var(--bg-primary)",
+                    color: "var(--text-primary)",
+                    border: "1px solid var(--border-medium)",
+                    borderRadius: "var(--radius-sm)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                    transition: "all 0.15s ease",
+                  }}
+                  onClick={() => modelImportRef.current?.click()}
+                >
+                  📂 Load
+                </button>
+              </div>
+
+              {(successMsg || error || importError) && (
+                <div
+                  style={{
+                    marginTop: "8px",
+                    fontSize: "10px",
+                    color: error || importError ? "#ef4444" : "#22c55e",
+                    fontWeight: 500,
+                    textAlign: "center",
+                    padding: "6px",
+                    background:
+                      error || importError
+                        ? "rgba(239, 68, 68, 0.05)"
+                        : "rgba(34, 197, 94, 0.05)",
+                    borderRadius: "4px",
+                    border: "1px solid",
+                    borderColor:
+                      error || importError
+                        ? "rgba(239, 68, 68, 0.1)"
+                        : "rgba(34, 197, 94, 0.1)",
+                  }}
+                >
+                  {(error || importError || successMsg)
+                    ?.replace("Exported", "Saved")
+                    .replace("Import", "Load")}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Default Models Palette */}
@@ -281,6 +487,7 @@ export const ModelImporter = () => {
             <div
               style={{
                 padding: "12px 16px",
+                background: "var(--bg-secondary)",
                 borderBottom: "1px solid var(--border-weak)",
                 display: "flex",
                 justifyContent: "space-between",
@@ -289,14 +496,14 @@ export const ModelImporter = () => {
             >
               <span
                 style={{
-                  fontSize: "11px",
+                  fontSize: "10px",
                   fontWeight: 700,
                   color: "var(--text-tertiary)",
                   textTransform: "uppercase",
-                  letterSpacing: "0.05em",
+                  letterSpacing: "0.06em",
                 }}
               >
-                Objects ({importedModels.length})
+                Scene Objects ({importedModels.length})
               </span>
             </div>
 
@@ -311,7 +518,9 @@ export const ModelImporter = () => {
                 return (
                   <div
                     key={m.id}
-                    onClick={() => selectModel(m.id)}
+                    onClick={() =>
+                      selectModel(selectedModelId === m.id ? null : m.id)
+                    }
                     style={{
                       padding: "10px 12px",
                       borderRadius: "var(--radius-md)",
@@ -408,16 +617,28 @@ export const ModelImporter = () => {
             </div>
           </div>
         )}
+      </div>
 
-        {/* Properties Section */}
-        {selectedModel && (
+      {/* Properties Section — positioned right next to the left panel */}
+      {selectedModel && (
+        <div
+          style={{
+            position: "absolute",
+            top: "140px",
+            left: "340px",
+            zIndex: 100,
+            width: "300px",
+            maxHeight: "calc(100vh - 160px)",
+            overflowY: "auto",
+          }}
+        >
           <ModelProperties
             model={selectedModel}
             onUpdate={(updates) => updateModel(selectedModel.id, updates)}
             onDelete={() => deleteModel(selectedModel.id)}
           />
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Drag overlay */}
       <div
@@ -481,6 +702,237 @@ export const ModelImporter = () => {
         )}
       </div>
 
+      {/* Import Preview Modal */}
+      {importPreview && importPkg && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 2000,
+            background: "rgba(0,0,0,0.5)",
+            backdropFilter: "blur(6px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onClick={handleCancelImport}
+        >
+          <div
+            className="grafana-panel"
+            style={{
+              width: "420px",
+              maxHeight: "80vh",
+              padding: "28px",
+              background: "var(--bg-primary)",
+              boxShadow: "0 24px 64px rgba(0,0,0,0.3)",
+              border: "1px solid var(--border-medium)",
+              overflowY: "auto",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3
+              style={{
+                margin: "0 0 20px 0",
+                fontSize: "16px",
+                fontWeight: 700,
+                color: "var(--text-primary)",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+            >
+              📥 Import Preview
+            </h3>
+
+            {/* Summary stats */}
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr",
+                gap: "10px",
+                marginBottom: "20px",
+              }}
+            >
+              {[
+                {
+                  label: "Total",
+                  value: importPreview.totalCount,
+                  color: "#6366f1",
+                },
+                {
+                  label: "Built-in",
+                  value: importPreview.builtinCount + importPreview.wallCount,
+                  color: "#06b6d4",
+                },
+                {
+                  label: "Imported",
+                  value: importPreview.importedCount,
+                  color: "#f59e0b",
+                },
+              ].map((stat) => (
+                <div
+                  key={stat.label}
+                  style={{
+                    padding: "12px",
+                    background: "var(--bg-secondary)",
+                    borderRadius: "var(--radius-md)",
+                    textAlign: "center",
+                    border: "1px solid var(--border-weak)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "22px",
+                      fontWeight: 700,
+                      color: stat.color,
+                    }}
+                  >
+                    {stat.value}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 600,
+                      color: "var(--text-tertiary)",
+                      textTransform: "uppercase",
+                      marginTop: "4px",
+                    }}
+                  >
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Model list */}
+            <div
+              style={{
+                marginBottom: "20px",
+                maxHeight: "200px",
+                overflowY: "auto",
+                padding: "8px 12px",
+                background: "var(--bg-secondary)",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid var(--border-weak)",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  color: "var(--text-tertiary)",
+                  textTransform: "uppercase",
+                  marginBottom: "8px",
+                }}
+              >
+                Models to import
+              </div>
+              {importPreview.modelNames.map((name, idx) => {
+                const m = importPkg.models[idx];
+                const icon =
+                  m.builtinType === "Wall"
+                    ? "🧱"
+                    : m.builtinType === "Partition"
+                      ? "🪟"
+                      : m.builtinType === "Chair"
+                        ? "🪑"
+                        : m.builtinType === "Desk"
+                          ? "🖥️"
+                          : m.builtinType === "Desk2"
+                            ? "📐"
+                            : "📦";
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      padding: "6px 0",
+                      borderBottom:
+                        idx < importPreview.modelNames.length - 1
+                          ? "1px solid var(--border-weak)"
+                          : "none",
+                      fontSize: "12px",
+                      color: "var(--text-secondary)",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                    }}
+                  >
+                    <span>{icon}</span>
+                    <span style={{ flex: 1 }}>{name}</span>
+                    <span
+                      style={{
+                        fontSize: "10px",
+                        padding: "2px 6px",
+                        borderRadius: "4px",
+                        background: m.isMoveEnabled
+                          ? "rgba(34,197,94,0.1)"
+                          : "rgba(249,115,22,0.08)",
+                        color: m.isMoveEnabled ? "#16a34a" : "#f97316",
+                      }}
+                    >
+                      {m.isMoveEnabled ? "Unlocked" : "Locked"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Schema info */}
+            <div
+              style={{
+                fontSize: "11px",
+                color: "var(--text-tertiary)",
+                marginBottom: "20px",
+              }}
+            >
+              Schema v{importPkg.schemaVersion} · exported{" "}
+              {new Date(importPkg.exportedAt).toLocaleString()}
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                className="grafana-btn"
+                style={{
+                  flex: 1,
+                  height: "40px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  background: "linear-gradient(to bottom, #4f46e5, #4338ca)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "var(--radius-md)",
+                  cursor: isImporting ? "wait" : "pointer",
+                  boxShadow: "0 4px 12px rgba(79,70,229,0.3)",
+                }}
+                disabled={isImporting}
+                onClick={handleConfirmImport}
+              >
+                {isImporting
+                  ? "Importing..."
+                  : `Import ${importPreview.totalCount} Model(s)`}
+              </button>
+              <button
+                className="grafana-btn"
+                style={{
+                  height: "40px",
+                  padding: "0 20px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  background: "var(--bg-secondary)",
+                  border: "1px solid var(--border-medium)",
+                  color: "var(--text-primary)",
+                  borderRadius: "var(--radius-md)",
+                }}
+                onClick={handleCancelImport}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes pulse {
           0% { transform: scale(1); }
@@ -516,6 +968,17 @@ const updateWallParam = (
 ) => {
   const current = model.wallParams ?? DEFAULT_WALL_PARAMS;
   onUpdate({ wallParams: { ...current, [field]: value } });
+};
+
+/** Helper to update a single partition param field */
+const updatePartitionParam = (
+  model: ImportedModel,
+  onUpdate: ModelPropertiesProps["onUpdate"],
+  field: keyof PartitionParams,
+  value: any,
+) => {
+  const current = model.partitionParams ?? DEFAULT_PARTITION_PARAMS;
+  onUpdate({ partitionParams: { ...current, [field]: value } });
 };
 
 const ModelProperties = ({
@@ -748,6 +1211,187 @@ const ModelProperties = ({
                   style={{ fontSize: "11px", color: "var(--text-tertiary)" }}
                 >
                   {wp.color}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
+
+      {/* Partition-specific parametric controls */}
+      {model.builtinType === "Partition" &&
+        (() => {
+          const pp = model.partitionParams ?? DEFAULT_PARTITION_PARAMS;
+          const isTransparent = pp.visibilityMode === "transparent";
+
+          return (
+            <div style={{ marginBottom: "16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                }}
+              >
+                Partition Parameters
+              </label>
+              <div
+                style={{ display: "flex", gap: "8px", marginBottom: "12px" }}
+              >
+                {numInput(
+                  "Height",
+                  pp.height,
+                  (v) =>
+                    updatePartitionParam(
+                      model,
+                      onUpdate,
+                      "height",
+                      Math.max(0.1, v),
+                    ),
+                  0.5,
+                )}
+                {numInput(
+                  "Length",
+                  pp.length,
+                  (v) =>
+                    updatePartitionParam(
+                      model,
+                      onUpdate,
+                      "length",
+                      Math.max(0.1, v),
+                    ),
+                  0.5,
+                )}
+                {numInput(
+                  "Thick",
+                  pp.thickness,
+                  (v) =>
+                    updatePartitionParam(
+                      model,
+                      onUpdate,
+                      "thickness",
+                      Math.max(0.01, v),
+                    ),
+                  0.05,
+                )}
+              </div>
+
+              {/* Transparency Toggle */}
+              <div style={{ marginBottom: "12px" }}>
+                <span
+                  style={{
+                    fontSize: "9px",
+                    fontWeight: 700,
+                    color: "var(--text-tertiary)",
+                    textTransform: "uppercase",
+                    display: "block",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Transparency
+                </span>
+                <div style={{ display: "flex", gap: "4px" }}>
+                  <button
+                    onClick={() =>
+                      updatePartitionParam(
+                        model,
+                        onUpdate,
+                        "visibilityMode",
+                        "transparent",
+                      )
+                    }
+                    style={{
+                      flex: 1,
+                      padding: "6px 0",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      background: isTransparent
+                        ? "var(--selected-bg)"
+                        : "var(--bg-secondary)",
+                      color: isTransparent
+                        ? "var(--theme-primary)"
+                        : "var(--text-secondary)",
+                      border: "1px solid",
+                      borderColor: isTransparent
+                        ? "var(--theme-primary)"
+                        : "var(--border-medium)",
+                      borderRadius: "var(--radius-sm)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    반투명
+                  </button>
+                  <button
+                    onClick={() =>
+                      updatePartitionParam(
+                        model,
+                        onUpdate,
+                        "visibilityMode",
+                        "opaque",
+                      )
+                    }
+                    style={{
+                      flex: 1,
+                      padding: "6px 0",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      background: !isTransparent
+                        ? "var(--selected-bg)"
+                        : "var(--bg-secondary)",
+                      color: !isTransparent
+                        ? "var(--theme-primary)"
+                        : "var(--text-secondary)",
+                      border: "1px solid",
+                      borderColor: !isTransparent
+                        ? "var(--theme-primary)"
+                        : "var(--border-medium)",
+                      borderRadius: "var(--radius-sm)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    불투명
+                  </button>
+                </div>
+              </div>
+
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <span
+                  style={{
+                    fontSize: "9px",
+                    fontWeight: 700,
+                    color: "var(--text-tertiary)",
+                  }}
+                >
+                  COLOR
+                </span>
+                <input
+                  type="color"
+                  value={pp.color}
+                  onChange={(e) =>
+                    updatePartitionParam(
+                      model,
+                      onUpdate,
+                      "color",
+                      e.target.value,
+                    )
+                  }
+                  style={{
+                    width: "32px",
+                    height: "24px",
+                    padding: 0,
+                    border: "1px solid var(--border-medium)",
+                    borderRadius: "var(--radius-sm)",
+                    cursor: "pointer",
+                    background: "transparent",
+                  }}
+                />
+                <span
+                  style={{ fontSize: "11px", color: "var(--text-tertiary)" }}
+                >
+                  {pp.color}
                 </span>
               </div>
             </div>

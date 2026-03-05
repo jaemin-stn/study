@@ -4,12 +4,14 @@ import { useGLTF, Html, Billboard } from "@react-three/drei";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
 import type { ImportedModel } from "../types";
-import { DEFAULT_WALL_PARAMS } from "../utils/builtinModels";
+import {
+  DEFAULT_WALL_PARAMS,
+  DEFAULT_PARTITION_PARAMS,
+} from "../utils/builtinModels";
 
 interface ImportedModelMeshProps {
   model: ImportedModel;
 }
-
 /* ------------------------------------------------------------------ */
 /*  Wall mesh — procedural box with parametric dimensions              */
 /* ------------------------------------------------------------------ */
@@ -24,6 +26,143 @@ const WallMesh = ({ model }: { model: ImportedModel }) => {
         metalness={0.05}
       />
     </mesh>
+  );
+};
+
+/* ------------------------------------------------------------------ */
+/*  Partition mesh — framed two-panel divider with base and feet       */
+/* ------------------------------------------------------------------ */
+const PartitionMesh = ({ model }: { model: ImportedModel }) => {
+  const params = model.partitionParams ?? DEFAULT_PARTITION_PARAMS;
+  const isTransparent = params.visibilityMode === "transparent";
+
+  const { height: H, length: L, thickness: T, color } = params;
+
+  // Design constants
+  const frameWidth = 0.04;
+  const feetHeight = 0.04;
+  const feetWidth = 0.08;
+  const baseHeight = 0.22;
+  const dividerHeight = 0.02;
+
+  // Calculate inner panel area
+  const innerStartH = feetHeight + baseHeight;
+  const totalInnerH = H - innerStartH - frameWidth;
+  const topPanelH = totalInnerH * 0.35;
+  const bottomPanelH = totalInnerH * 0.65 - dividerHeight;
+
+  // Colors based on reference
+  const frameColor = "#4a5568"; // Slate gray
+  const topPanelColor = "#2d3748"; // Darker fabric gray
+  const bottomPanelColor = "#718096"; // Lighter fabric gray
+  const baseColor = "#1a202c"; // Darkest gray for plinth
+  const plateColor = "#cbd5e0"; // Light gray for the small label plate
+
+  const panelOpacity = isTransparent ? 0.45 : 1.0;
+
+  return (
+    <group>
+      {/* 1. Feet */}
+      <mesh position={[-L / 2 + feetWidth, feetHeight / 2, 0]}>
+        <boxGeometry args={[feetWidth, feetHeight, T + 0.02]} />
+        <meshStandardMaterial color={frameColor} roughness={0.5} />
+      </mesh>
+      <mesh position={[L / 2 - feetWidth, feetHeight / 2, 0]}>
+        <boxGeometry args={[feetWidth, feetHeight, T + 0.02]} />
+        <meshStandardMaterial color={frameColor} roughness={0.5} />
+      </mesh>
+
+      {/* 2. Base / Plinth */}
+      <mesh
+        position={[0, feetHeight + baseHeight / 2, 0]}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[L, baseHeight, T + 0.01]} />
+        <meshStandardMaterial color={baseColor} roughness={0.7} />
+      </mesh>
+
+      {/* 3. Small label plate on base */}
+      <mesh position={[-L / 4, feetHeight + baseHeight / 2, T / 2 + 0.01]}>
+        <boxGeometry args={[0.1, 0.04, 0.005]} />
+        <meshStandardMaterial color={plateColor} />
+      </mesh>
+
+      {/* 4. Outer Frames (Left, Right, Top) */}
+      {/* Left */}
+      <mesh
+        position={[
+          -L / 2 + frameWidth / 2,
+          innerStartH + (H - innerStartH) / 2,
+          0,
+        ]}
+        castShadow
+      >
+        <boxGeometry args={[frameWidth, H - innerStartH, T]} />
+        <meshStandardMaterial color={frameColor} roughness={0.4} />
+      </mesh>
+      {/* Right */}
+      <mesh
+        position={[
+          L / 2 - frameWidth / 2,
+          innerStartH + (H - innerStartH) / 2,
+          0,
+        ]}
+        castShadow
+      >
+        <boxGeometry args={[frameWidth, H - innerStartH, T]} />
+        <meshStandardMaterial color={frameColor} roughness={0.4} />
+      </mesh>
+      {/* Top */}
+      <mesh position={[0, H - frameWidth / 2, 0]} castShadow>
+        <boxGeometry args={[L, frameWidth, T]} />
+        <meshStandardMaterial color={frameColor} roughness={0.4} />
+      </mesh>
+
+      {/* 5. Panels */}
+      {/* Bottom Panel (Lighter) */}
+      <mesh
+        position={[0, innerStartH + bottomPanelH / 2, 0]}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[L - frameWidth * 2, bottomPanelH, T * 0.8]} />
+        <meshStandardMaterial
+          color={bottomPanelColor}
+          transparent={isTransparent}
+          opacity={panelOpacity}
+          roughness={0.9}
+        />
+      </mesh>
+
+      {/* Divider Rail */}
+      <mesh
+        position={[0, innerStartH + bottomPanelH + dividerHeight / 2, 0]}
+        castShadow
+      >
+        <boxGeometry args={[L - frameWidth * 2, dividerHeight, T * 0.9]} />
+        <meshStandardMaterial color={baseColor} roughness={0.3} />
+      </mesh>
+
+      {/* Top Panel (Darker) */}
+      <mesh
+        position={[
+          0,
+          innerStartH + bottomPanelH + dividerHeight + topPanelH / 2,
+          0,
+        ]}
+        castShadow
+        receiveShadow
+      >
+        <boxGeometry args={[L - frameWidth * 2, topPanelH, T * 0.8]} />
+        <meshStandardMaterial
+          color={topPanelColor}
+          transparent={isTransparent}
+          opacity={panelOpacity}
+          roughness={0.9}
+        />
+      </mesh>
+    </group>
   );
 };
 
@@ -90,6 +229,7 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
   const isMoveEnabled = model.isMoveEnabled ?? false;
 
   const isWall = model.builtinType === "Wall";
+  const isPartition = model.builtinType === "Partition";
 
   const { raycaster, mouse, camera } = useThree();
   const floorPlane = useMemo(
@@ -156,12 +296,19 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
 
   // Highlight box size — use Wall dimensions if applicable
   const wp = model.wallParams ?? DEFAULT_WALL_PARAMS;
+  const pp = model.partitionParams ?? DEFAULT_PARTITION_PARAMS;
+
   const hlArgs: [number, number, number] = isWall
     ? [wp.length + 0.1, wp.height + 0.1, wp.thickness + 0.1]
-    : [1.1, 1.1, 1.1];
+    : isPartition
+      ? [pp.length + 0.1, pp.height + 0.1, pp.thickness + 0.1]
+      : [1.1, 1.1, 1.1];
+
   const hlCenter: [number, number, number] = isWall
     ? [0, wp.height / 2, 0]
-    : [0, 0, 0];
+    : isPartition
+      ? [0, pp.height / 2, 0]
+      : [0, 0, 0];
 
   return (
     <group
@@ -185,7 +332,13 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
       }}
     >
       {/* Render appropriate mesh */}
-      {isWall ? <WallMesh model={model} /> : <GltfMesh url={model.dataUrl} />}
+      {isWall ? (
+        <WallMesh model={model} />
+      ) : isPartition ? (
+        <PartitionMesh model={model} />
+      ) : (
+        <GltfMesh url={model.dataUrl} />
+      )}
 
       {/* Selection highlight box */}
       {isSelected && (
@@ -201,7 +354,13 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
       )}
       {/* Lock/Unlock status label */}
       {isSelected && isEditMode && (
-        <Billboard position={[0, isWall ? wp.height + 0.4 : 1.4, 0]}>
+        <Billboard
+          position={[
+            0,
+            isWall ? wp.height + 0.4 : isPartition ? pp.height + 0.4 : 1.4,
+            0,
+          ]}
+        >
           <Html center zIndexRange={[0, 10]}>
             <div
               style={{

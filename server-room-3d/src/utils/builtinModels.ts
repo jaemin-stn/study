@@ -1,4 +1,4 @@
-import type { BuiltinModelType, WallParams } from "../types";
+import type { BuiltinModelType, WallParams, PartitionParams } from "../types";
 
 export interface BuiltinModelDef {
   type: BuiltinModelType;
@@ -15,6 +15,15 @@ export const DEFAULT_WALL_PARAMS: WallParams = {
   length: 5,
   thickness: 0.15,
   color: "#8a8a8a",
+};
+
+/** Default partition parameters */
+export const DEFAULT_PARTITION_PARAMS: PartitionParams = {
+  height: 2.2,
+  length: 2.5,
+  thickness: 0.08,
+  color: "#a0aec0", // blue-ish gray
+  visibilityMode: "transparent",
 };
 
 /** List of all built-in models available in the palette */
@@ -43,8 +52,15 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
   {
     type: "Desk2",
     label: "Desk 2",
-    emoji: "📐",
+    emoji: "💻",
     assetUrl: "/assets/3D/Desk2.glb",
     fileName: "__builtin_desk2.glb",
+  },
+  {
+    type: "Partition",
+    label: "Partition",
+    emoji: "🪟",
+    assetUrl: "", // procedural
+    fileName: "__builtin_partition",
   },
 ];

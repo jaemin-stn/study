@@ -41,7 +41,24 @@ export interface DraggedItem {
 }
 
 // Built-in 모델 종류
-export type BuiltinModelType = "Wall" | "Chair" | "Desk" | "Desk2";
+export type BuiltinModelType =
+  | "Wall"
+  | "Chair"
+  | "Desk"
+  | "Desk2"
+  | "Partition";
+
+// 가시성 모드 (투명 유리 vs 불투명)
+export type VisibilityMode = "transparent" | "opaque";
+
+// Partition 파라메트릭 파라미터
+export interface PartitionParams {
+  height: number;
+  length: number;
+  thickness: number;
+  color: string;
+  visibilityMode: VisibilityMode;
+}
 
 // Wall 파라메트릭 파라미터
 export interface WallParams {
@@ -67,4 +84,6 @@ export interface ImportedModel {
   builtinType?: BuiltinModelType;
   /** Wall-specific parametric dimensions (only when builtinType === "Wall") */
   wallParams?: WallParams;
+  /** Partition-specific parametric dimensions (only when builtinType === "Partition") */
+  partitionParams?: PartitionParams;
 }

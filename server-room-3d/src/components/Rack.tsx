@@ -53,6 +53,37 @@ export const Rack = ({
   );
   const tempPoint = useMemo(() => new THREE.Vector3(), []);
 
+  // Define perforated metal texture for side ventilation panels only
+  const perforatedTexture = useMemo(() => {
+    const size = 64;
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext("2d");
+    if (ctx) {
+      // Metal part (white in alphaMap means opaque)
+      ctx.fillStyle = "white";
+      ctx.fillRect(0, 0, size, size);
+      // Hole part (black in alphaMap means fully transparent / discarded)
+      ctx.fillStyle = "black";
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size * 0.35, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    // Tiling density matched to the perforated sheet inner opening
+    const density = 40;
+    const panelW = 1.0 - 0.04; // depth - 0.04
+    const panelH = uHeight * U_HEIGHT + 0.1 - 0.06; // height - 0.06
+    const railV = 0.08;
+    const railW = 0.08;
+    const innerW = panelW - railV * 2; // matches planeGeometry width
+    const innerH = panelH - railW * 2; // matches planeGeometry height
+    tex.repeat.set(innerW * density, innerH * density);
+    return tex;
+  }, [uHeight]);
+
   const height = uHeight * U_HEIGHT + 0.1;
   const width = rackWidth;
   const depth = 1.0;
@@ -66,12 +97,6 @@ export const Rack = ({
       ? "#2e313b" // Darker than background
       : "#333333";
   const railColor = isDarkMode ? "#aab0be" : "#888";
-  const interiorColor = isDarkMode ? "#1a1c23" : "#050505";
-  const glassEmissive = isDarkMode
-    ? isSelected
-      ? "#FFFFFF"
-      : "#4d5261"
-    : "#1a73e8";
   const rearPanelColor = isDarkMode ? "#24272e" : "#111";
 
   // Convert orientation to radians with proper mapping:
@@ -146,9 +171,9 @@ export const Rack = ({
     >
       {/* 1. STRUCTURAL FRAME (Main Skeleton) */}
       <group>
-        {/* Main Enclosure (Hollow shell) */}
+        {/* Main Enclosure (Solid frame with better corner joins) */}
         {/* Top */}
-        <mesh position={[0, height / 2 - 0.01, 0]}>
+        <mesh position={[0, height / 2 - 0.015, 0]}>
           <boxGeometry args={[width, 0.03, depth]} />
           <meshStandardMaterial
             color={frameColor}
@@ -157,7 +182,7 @@ export const Rack = ({
           />
         </mesh>
         {/* Bottom */}
-        <mesh position={[0, -height / 2 + 0.01, 0]}>
+        <mesh position={[0, -height / 2 + 0.015, 0]}>
           <boxGeometry args={[width, 0.03, depth]} />
           <meshStandardMaterial
             color={frameColor}
@@ -165,18 +190,34 @@ export const Rack = ({
             metalness={0.9}
           />
         </mesh>
-        {/* Left Side */}
-        <mesh position={[-width / 2 + 0.01, 0, 0]}>
-          <boxGeometry args={[0.02, height - 0.06, depth]} />
+        {/* Left Side – corner posts only (no full-depth wall, so perforated holes reveal interior) */}
+        <mesh position={[-width / 2 + 0.01, 0, depth / 2 - 0.01]}>
+          <boxGeometry args={[0.02, height, 0.02]} />
           <meshStandardMaterial
             color={frameColor}
             roughness={0.6}
             metalness={0.9}
           />
         </mesh>
-        {/* Right Side */}
-        <mesh position={[width / 2 - 0.01, 0, 0]}>
-          <boxGeometry args={[0.02, height - 0.06, depth]} />
+        <mesh position={[-width / 2 + 0.01, 0, -depth / 2 + 0.01]}>
+          <boxGeometry args={[0.02, height, 0.02]} />
+          <meshStandardMaterial
+            color={frameColor}
+            roughness={0.6}
+            metalness={0.9}
+          />
+        </mesh>
+        {/* Right Side – corner posts only */}
+        <mesh position={[width / 2 - 0.01, 0, depth / 2 - 0.01]}>
+          <boxGeometry args={[0.02, height, 0.02]} />
+          <meshStandardMaterial
+            color={frameColor}
+            roughness={0.6}
+            metalness={0.9}
+          />
+        </mesh>
+        <mesh position={[width / 2 - 0.01, 0, -depth / 2 + 0.01]}>
+          <boxGeometry args={[0.02, height, 0.02]} />
           <meshStandardMaterial
             color={frameColor}
             roughness={0.6}
@@ -184,39 +225,163 @@ export const Rack = ({
           />
         </mesh>
 
-        {/* Side Ventilation Slots */}
-        <mesh
-          position={[-width / 2 - 0.005, 0, 0]}
-          rotation={[0, -Math.PI / 2, 0]}
-        >
-          <planeGeometry args={[depth - 0.2, height - 0.4]} />
-          <meshStandardMaterial color="#111" roughness={1} wireframe />
-        </mesh>
-        <mesh
-          position={[width / 2 + 0.005, 0, 0]}
-          rotation={[0, Math.PI / 2, 0]}
-        >
-          <planeGeometry args={[depth - 0.2, height - 0.4]} />
-          <meshStandardMaterial color="#111" roughness={1} wireframe />
-        </mesh>
+        {/* ── LEFT SIDE PANEL (full frame + perforated sheet) ── */}
+        {(() => {
+          // Frame rail dimensions – derived from rack structure
+          const ft = 0.02; // frame thickness (matches rack structure 0.03 top/bottom)
+          const panelW = depth - 0.04; // perforated sheet width (Z-axis of rack)
+          const panelH = height - 0.06; // perforated sheet height
+          const railW = 0.08; // width of top/bottom horizontal rails
+          const railV = 0.08; // width of front/back vertical rails
+          const innerW = panelW - railV * 2; // hole opening width
+          const innerH = panelH - railW * 2; // hole opening height
+          const xOff = -width / 2 - 0.005; // X position (just outside rack edge)
+          const zFront = 0.003; // z-offset to avoid z-fighting with the plane
+          return (
+            <group position={[xOff, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
+              {/* Perforated sheet (inset within the frame opening) */}
+              <mesh>
+                <planeGeometry args={[innerW, innerH]} />
+                <meshStandardMaterial
+                  color={frameColor}
+                  roughness={0.7}
+                  metalness={0.8}
+                  alphaMap={perforatedTexture}
+                  transparent
+                  alphaTest={0.5}
+                  side={THREE.DoubleSide}
+                  depthWrite={false}
+                />
+              </mesh>
+              {/* Frame – Top rail (full width, fills gap to rack top) */}
+              <mesh position={[0, (panelH - railW) / 2, zFront]}>
+                <boxGeometry args={[panelW, railW, ft]} />
+                <meshStandardMaterial
+                  color={frameColor}
+                  roughness={0.6}
+                  metalness={0.9}
+                />
+              </mesh>
+              {/* Frame – Bottom rail */}
+              <mesh position={[0, -(panelH - railW) / 2, zFront]}>
+                <boxGeometry args={[panelW, railW, ft]} />
+                <meshStandardMaterial
+                  color={frameColor}
+                  roughness={0.6}
+                  metalness={0.9}
+                />
+              </mesh>
+              {/* Frame – Front vertical rail (door side, fills to corner post) */}
+              <mesh position={[panelW / 2 - railV / 2, 0, zFront]}>
+                <boxGeometry args={[railV, panelH - railW * 2, ft]} />
+                <meshStandardMaterial
+                  color={frameColor}
+                  roughness={0.6}
+                  metalness={0.9}
+                />
+              </mesh>
+              {/* Frame – Back vertical rail (rear panel side) */}
+              <mesh position={[-panelW / 2 + railV / 2, 0, zFront]}>
+                <boxGeometry args={[railV, panelH - railW * 2, ft]} />
+                <meshStandardMaterial
+                  color={frameColor}
+                  roughness={0.6}
+                  metalness={0.9}
+                />
+              </mesh>
+            </group>
+          );
+        })()}
 
-        <group position={[0, 0, depth / 2 - 0.07]}>
-          <mesh position={[0, 0, -depth + 0.12]}>
-            <boxGeometry args={[width - 0.08, height - 0.08, 0.05]} />
-            <meshStandardMaterial color={interiorColor} roughness={1} />
+        {/* ── RIGHT SIDE PANEL (full frame + perforated sheet) ── */}
+        {(() => {
+          const ft = 0.02;
+          const panelW = depth - 0.04;
+          const panelH = height - 0.06;
+          const railW = 0.08;
+          const railV = 0.08;
+          const innerW = panelW - railV * 2;
+          const innerH = panelH - railW * 2;
+          const xOff = width / 2 + 0.005;
+          const zFront = 0.003;
+          return (
+            <group position={[xOff, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
+              {/* Perforated sheet */}
+              <mesh>
+                <planeGeometry args={[innerW, innerH]} />
+                <meshStandardMaterial
+                  color={frameColor}
+                  roughness={0.7}
+                  metalness={0.8}
+                  alphaMap={perforatedTexture}
+                  transparent
+                  alphaTest={0.5}
+                  side={THREE.DoubleSide}
+                  depthWrite={false}
+                />
+              </mesh>
+              {/* Frame – Top rail */}
+              <mesh position={[0, (panelH - railW) / 2, zFront]}>
+                <boxGeometry args={[panelW, railW, ft]} />
+                <meshStandardMaterial
+                  color={frameColor}
+                  roughness={0.6}
+                  metalness={0.9}
+                />
+              </mesh>
+              {/* Frame – Bottom rail */}
+              <mesh position={[0, -(panelH - railW) / 2, zFront]}>
+                <boxGeometry args={[panelW, railW, ft]} />
+                <meshStandardMaterial
+                  color={frameColor}
+                  roughness={0.6}
+                  metalness={0.9}
+                />
+              </mesh>
+              {/* Frame – Front vertical rail */}
+              <mesh position={[panelW / 2 - railV / 2, 0, zFront]}>
+                <boxGeometry args={[railV, panelH - railW * 2, ft]} />
+                <meshStandardMaterial
+                  color={frameColor}
+                  roughness={0.6}
+                  metalness={0.9}
+                />
+              </mesh>
+              {/* Frame – Back vertical rail */}
+              <mesh position={[-panelW / 2 + railV / 2, 0, zFront]}>
+                <boxGeometry args={[railV, panelH - railW * 2, ft]} />
+                <meshStandardMaterial
+                  color={frameColor}
+                  roughness={0.6}
+                  metalness={0.9}
+                />
+              </mesh>
+            </group>
+          );
+        })()}
+
+        <group position={[0, 0, 0]}>
+          {/* Internal Structural Bracing - Horizontal rails at the back */}
+          <mesh position={[0, height / 2 - 0.15, -depth / 2 + 0.1]}>
+            <boxGeometry args={[width - 0.04, 0.02, 0.02]} />
+            <meshStandardMaterial color={frameColor} roughness={0.8} />
+          </mesh>
+          <mesh position={[0, -height / 2 + 0.15, -depth / 2 + 0.1]}>
+            <boxGeometry args={[width - 0.04, 0.02, 0.02]} />
+            <meshStandardMaterial color={frameColor} roughness={0.8} />
           </mesh>
 
-          {/* Vertical Mounting Rails */}
-          <mesh position={[-width / 2 + 0.08, 0, 0]}>
-            <boxGeometry args={[0.03, height - 0.05, 0.03]} />
+          {/* Vertical Mounting Rails (Front) */}
+          <mesh position={[-width / 2 + 0.06, 0, depth / 2 - 0.12]}>
+            <boxGeometry args={[0.03, height - 0.08, 0.03]} />
             <meshStandardMaterial
               color={railColor}
               metalness={1}
               roughness={0.2}
             />
           </mesh>
-          <mesh position={[width / 2 - 0.08, 0, 0]}>
-            <boxGeometry args={[0.03, height - 0.05, 0.03]} />
+          <mesh position={[width / 2 - 0.06, 0, depth / 2 - 0.12]}>
+            <boxGeometry args={[0.03, height - 0.08, 0.03]} />
             <meshStandardMaterial
               color={railColor}
               metalness={1}
@@ -224,28 +389,36 @@ export const Rack = ({
             />
           </mesh>
 
-          <mesh position={[0, 0, -0.05]}>
-            <boxGeometry args={[width - 0.1, height - 0.1, 0.1]} />
-            <meshStandardMaterial
-              color="#000"
-              transparent
-              opacity={0.5}
-              emissive={glassEmissive}
-              emissiveIntensity={isSelected ? 0.3 : 0.1}
-            />
+          {/* Vertical Support Rails (Back) */}
+          <mesh position={[-width / 2 + 0.06, 0, -depth / 2 + 0.12]}>
+            <boxGeometry args={[0.02, height - 0.08, 0.02]} />
+            <meshStandardMaterial color={railColor} roughness={0.5} />
+          </mesh>
+          <mesh position={[width / 2 - 0.06, 0, -depth / 2 + 0.12]}>
+            <boxGeometry args={[0.02, height - 0.08, 0.02]} />
+            <meshStandardMaterial color={railColor} roughness={0.5} />
           </mesh>
         </group>
       </group>
 
-      {/* 2. REAR PANEL (Vented look) */}
-      <mesh position={[0, 0, -depth / 2 - 0.005]}>
-        <planeGeometry args={[width - 0.05, height - 0.05]} />
-        <meshStandardMaterial
-          color={rearPanelColor}
-          roughness={0.9}
-          wireframe
-        />
-      </mesh>
+      {/* 2. REAR PANEL (Solid opaque plate – no perforation) */}
+      <group position={[0, 0, -depth / 2 + 0.02]}>
+        {/* Panel Bezel / Frame */}
+        <mesh position={[0, 0, -0.005]}>
+          <boxGeometry args={[width - 0.02, height - 0.04, 0.01]} />
+          <meshStandardMaterial color={frameColor} roughness={0.7} />
+        </mesh>
+        {/* Solid Rear Plate */}
+        <mesh position={[0, 0, 0.001]}>
+          <planeGeometry args={[width - 0.08, height - 0.1]} />
+          <meshStandardMaterial
+            color={rearPanelColor}
+            roughness={0.9}
+            metalness={0.6}
+            side={THREE.DoubleSide}
+          />
+        </mesh>
+      </group>
 
       {/* 3. FRONT HINGED DOOR (Hollow Frame + Glass) */}
       <animated.group

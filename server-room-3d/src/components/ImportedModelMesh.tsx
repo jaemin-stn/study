@@ -36,7 +36,7 @@ const PartitionMesh = ({ model }: { model: ImportedModel }) => {
   const params = model.partitionParams ?? DEFAULT_PARTITION_PARAMS;
   const isTransparent = params.visibilityMode === "transparent";
 
-  const { height: H, length: L, thickness: T, color } = params;
+  const { height: H, length: L, thickness: T } = params;
 
   // Design constants
   const frameWidth = 0.04;

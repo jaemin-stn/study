@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useStore } from "../store/useStore";
-import type { Rack } from "../types";
-import type { ExportOptions } from "../utils/storage";
+import type { Rack, GroupName } from "../types";
+import type { ExportOptions, ExportScope } from "../utils/storage";
 import {
   saveRackToJSON,
   loadRackFromJSON,
@@ -11,6 +11,8 @@ import {
   saveToJSON,
   loadFromJSON,
   loadFromExcel,
+  exportGroupWorkbook,
+  importGroupPackage,
 } from "../utils/storage";
 
 const RACK_FIELDS = ["rackId", "uHeight", "posX", "posZ", "orientation"];
@@ -119,15 +121,71 @@ const IMPORT_EXPORT_STYLES = `
 .link-btn:hover {
     text-decoration: underline;
 }
+.scope-selector {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+}
+.scope-btn {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-weak);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-align: center;
+}
+.scope-btn:hover:not(.scope-active) {
+    border-color: var(--border-medium);
+    background: var(--hover-bg);
+}
+.scope-btn.scope-active {
+    border-color: var(--theme-primary);
+    background: var(--selected-bg);
+    color: var(--theme-primary);
+    box-shadow: 0 0 8px rgba(110, 159, 255, 0.15);
+}
+.import-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    background: rgba(255, 169, 64, 0.15);
+    color: #ffa940;
+    border: 1px solid rgba(255, 169, 64, 0.3);
+}
+.import-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 10px 12px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 169, 64, 0.08);
+    border: 1px solid rgba(255, 169, 64, 0.2);
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+    line-height: 1.5;
+}
 `;
 
 export const ImportExportModal = () => {
   const {
     racks,
+    registeredDevices,
     importExportModalRackId,
     setImportExportModalRackId,
     updateRack,
     loadState,
+    replaceGroupData,
+    setActiveGroup,
   } = useStore();
   const [format, setFormat] = useState<"json" | "excel">("excel");
   const [selectedFields, setSelectedFields] = useState<ExportOptions>({
@@ -135,9 +193,13 @@ export const ImportExportModal = () => {
     device: [...DEVICE_FIELDS],
     port: [...PORT_FIELDS],
   });
+  const [exportScope, setExportScope] = useState<ExportScope>("ALL");
+  const [importGroup, setImportGroup] = useState<GroupName>("과천");
+  const [importStatus, setImportStatus] = useState<string | null>(null);
 
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
+  const groupImportRef = useRef<HTMLInputElement>(null);
 
   if (!importExportModalRackId) return null;
 
@@ -153,7 +215,8 @@ export const ImportExportModal = () => {
     selectedFields.device.length +
     selectedFields.port.length;
 
-  const handleExport = () => {
+  // ── Legacy export (individual rack / JSON) ──
+  const handleLegacyExport = () => {
     if (totalSelected === 0) return;
 
     if (format === "json") {
@@ -171,18 +234,87 @@ export const ImportExportModal = () => {
     }
   };
 
-  const toggleField = (group: keyof ExportOptions, field: string) => {
-    // Relationships logic:
-    // If ANY device field selected -> deviceId and rackId must stay
-    // If ANY port field selected -> portId and deviceId must stay
+  // ── Group-scoped export ──
+  const handleGroupExport = () => {
+    exportGroupWorkbook(racks, registeredDevices, exportScope);
+  };
 
+  // ── Group-scoped import ──
+  const handleGroupImportClick = () => {
+    console.log(
+      "[Import] Button clicked. ref exists:",
+      !!groupImportRef.current,
+    );
+    setImportStatus(null);
+    if (groupImportRef.current) {
+      groupImportRef.current.value = ""; // reset to allow re-selecting same file
+      groupImportRef.current.click();
+    } else {
+      setImportStatus("❌ 파일 입력 요소를 찾을 수 없습니다.");
+    }
+  };
+
+  const handleGroupImportFile = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    console.log("[Import] onChange fired");
+    const file = e.target.files?.[0];
+    if (!file) {
+      console.log("[Import] No file selected");
+      return;
+    }
+    console.log("[Import] File selected:", file.name, file.size, "bytes");
+    setImportStatus(`⏳ "${file.name}" 파싱 중...`);
+
+    try {
+      const result = await importGroupPackage(file, importGroup);
+      console.log("[Import] Parsed result:", {
+        racks: result.racks.length,
+        registeredDevices: result.registeredDevices.length,
+        firstRack: result.racks[0],
+      });
+
+      if (result.racks.length === 0) {
+        setImportStatus(
+          `⚠️ 파일에서 "${importGroup}" 그룹의 랙 데이터를 찾지 못했습니다 (0건).`,
+        );
+        e.target.value = "";
+        return;
+      }
+
+      replaceGroupData(
+        importGroup,
+        result.racks,
+        result.registeredDevices.length > 0
+          ? result.registeredDevices
+          : undefined,
+      );
+
+      // Auto-switch to the imported group so data is immediately visible
+      setActiveGroup(importGroup);
+
+      const deviceCount = result.racks.reduce(
+        (sum, r) => sum + r.devices.length,
+        0,
+      );
+      setImportStatus(
+        `✅ ${importGroup} 그룹 Import 완료! 랙 ${result.racks.length}개, 장비 ${deviceCount}개`,
+      );
+    } catch (err) {
+      console.error("[Import] Error:", err);
+      setImportStatus(`❌ Import 실패: ${(err as Error).message}`);
+    }
+
+    e.target.value = "";
+  };
+
+  const toggleField = (group: keyof ExportOptions, field: string) => {
     setSelectedFields((prev) => {
       const current = prev[group];
       const next = current.includes(field)
         ? current.filter((f) => f !== field)
         : [...current, field];
 
-      // Re-apply constraints
       let finalDevice = group === "device" ? next : prev.device;
       let finalPort = group === "port" ? next : prev.port;
 
@@ -218,8 +350,6 @@ export const ImportExportModal = () => {
   };
 
   const handleDeselectAll = (group: keyof ExportOptions) => {
-    // Relationship: IDs are still mandatory if something is selected,
-    // but here we are deselecting ALL, so it's empty.
     setSelectedFields((prev) => ({ ...prev, [group]: [] }));
   };
 
@@ -289,7 +419,7 @@ export const ImportExportModal = () => {
     </div>
   );
 
-  /** Generic file import handler — eliminates duplication between JSON/Excel import */
+  /** Generic file import handler for legacy mode */
   const handleFileImport =
     (
       globalLoader: (f: File) => Promise<Rack[]>,
@@ -336,6 +466,361 @@ export const ImportExportModal = () => {
   const handleJsonImport = handleFileImport(loadFromJSON, loadRackFromJSON);
   const handleExcelImport = handleFileImport(loadFromExcel, loadRackFromExcel);
 
+  // ── Render: Global mode (group-scoped) vs individual rack mode ──
+  const renderGlobalGroupContent = () => (
+    <>
+      {/* ── Export Section ── */}
+      <div className="options-group">
+        <div className="group-header">
+          <div className="group-title">
+            <span>📤</span> Export
+          </div>
+        </div>
+
+        <div
+          style={{
+            fontSize: "12px",
+            color: "var(--text-tertiary)",
+            marginBottom: "8px",
+          }}
+        >
+          내보내기 범위를 선택하세요
+        </div>
+        <div className="scope-selector">
+          {(["ALL", "과천", "대전"] as ExportScope[]).map((scope) => (
+            <button
+              key={scope}
+              className={`scope-btn ${exportScope === scope ? "scope-active" : ""}`}
+              onClick={() => setExportScope(scope)}
+            >
+              {scope === "ALL" ? "🌐 전체" : `📦 ${scope}`}
+            </button>
+          ))}
+        </div>
+
+        <div
+          style={{
+            fontSize: "11px",
+            color: "var(--text-tertiary)",
+            marginBottom: "10px",
+            lineHeight: "1.5",
+          }}
+        >
+          {exportScope === "ALL"
+            ? "전체 master 시트만 생성합니다 (과천 + 대전 데이터 포함)."
+            : `master 시트 + PKG_${exportScope} 패키지 시트를 생성합니다.`}
+        </div>
+
+        <button
+          className="grafana-btn grafana-btn-primary"
+          style={{
+            padding: "10px",
+            width: "100%",
+            fontSize: "var(--font-size-sm)",
+            boxShadow: "0 4px 12px rgba(110, 159, 255, 0.25)",
+          }}
+          onClick={handleGroupExport}
+        >
+          🚀 Export {exportScope === "ALL" ? "전체" : exportScope}
+        </button>
+      </div>
+
+      {/* ── Divider ── */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "12px",
+          margin: "4px 0",
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            height: "1px",
+            background: "var(--border-weak)",
+          }}
+        />
+        <span
+          style={{
+            fontSize: "var(--font-size-xs)",
+            color: "var(--text-tertiary)",
+          }}
+        >
+          OR
+        </span>
+        <div
+          style={{
+            flex: 1,
+            height: "1px",
+            background: "var(--border-weak)",
+          }}
+        />
+      </div>
+
+      {/* ── Import Section ── */}
+      <div className="options-group">
+        <div className="group-header">
+          <div className="group-title">
+            <span>📥</span> Import (REPLACE)
+          </div>
+          <span className="import-mode-badge">🔄 REPLACE</span>
+        </div>
+
+        <div
+          style={{
+            fontSize: "12px",
+            color: "var(--text-tertiary)",
+            marginBottom: "8px",
+          }}
+        >
+          가져올 그룹을 선택하세요
+        </div>
+        <div className="scope-selector">
+          {(["과천", "대전"] as GroupName[]).map((group) => (
+            <button
+              key={group}
+              className={`scope-btn ${importGroup === group ? "scope-active" : ""}`}
+              onClick={() => setImportGroup(group)}
+            >
+              📦 {group}
+            </button>
+          ))}
+        </div>
+
+        <div className="import-warning">
+          <span style={{ fontSize: "14px", flexShrink: 0 }}>⚠️</span>
+          <span>
+            <strong>{importGroup}</strong> 그룹의 기존 Rack, Device, Port
+            데이터가 모두 삭제되고 파일 데이터로 교체됩니다.
+            <br />
+            {importGroup === "과천" ? "대전" : "과천"} 그룹 데이터에는 영향이
+            없습니다.
+          </span>
+        </div>
+
+        <button
+          className="grafana-btn grafana-btn-secondary"
+          style={{
+            padding: "10px",
+            width: "100%",
+            borderStyle: "dashed",
+            borderWidth: "2px",
+          }}
+          onClick={handleGroupImportClick}
+        >
+          📥 Import {importGroup} (REPLACE)
+        </button>
+
+        {importStatus && (
+          <div
+            style={{
+              marginTop: "8px",
+              padding: "10px 12px",
+              borderRadius: "6px",
+              fontSize: "13px",
+              fontWeight: 500,
+              background: importStatus.startsWith("✅")
+                ? "rgba(34,197,94,0.12)"
+                : importStatus.startsWith("❌")
+                  ? "rgba(239,68,68,0.12)"
+                  : importStatus.startsWith("⚠️")
+                    ? "rgba(234,179,8,0.12)"
+                    : "rgba(59,130,246,0.12)",
+              color: importStatus.startsWith("✅")
+                ? "#22c55e"
+                : importStatus.startsWith("❌")
+                  ? "#ef4444"
+                  : importStatus.startsWith("⚠️")
+                    ? "#eab308"
+                    : "#3b82f6",
+              border: `1px solid ${
+                importStatus.startsWith("✅")
+                  ? "rgba(34,197,94,0.3)"
+                  : importStatus.startsWith("❌")
+                    ? "rgba(239,68,68,0.3)"
+                    : importStatus.startsWith("⚠️")
+                      ? "rgba(234,179,8,0.3)"
+                      : "rgba(59,130,246,0.3)"
+              }`,
+            }}
+          >
+            {importStatus}
+          </div>
+        )}
+      </div>
+
+      <input
+        type="file"
+        ref={groupImportRef}
+        style={{ display: "none" }}
+        accept=".xlsx"
+        onChange={handleGroupImportFile}
+      />
+    </>
+  );
+
+  const renderLegacyContent = () => (
+    <>
+      <p style={{ color: "var(--text-secondary)", marginBottom: "16px" }}>
+        {`Configure export fields or import new data for Rack ${rack?.id.substring(0, 8)}.`}
+      </p>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: "12px",
+          marginBottom: "16px",
+        }}
+      >
+        <div
+          onClick={() => setFormat("json")}
+          className={`format-card ${format === "json" ? "active" : ""}`}
+          style={{
+            padding: "16px",
+            borderRadius: "var(--radius-md)",
+            cursor: "pointer",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: "24px", marginBottom: "4px" }}>{"{ }"}</div>
+          <div
+            style={{
+              fontWeight: 600,
+              fontSize: "var(--font-size-sm)",
+              color:
+                format === "json"
+                  ? "var(--text-primary)"
+                  : "var(--text-secondary)",
+            }}
+          >
+            JSON Format
+          </div>
+        </div>
+
+        <div
+          onClick={() => setFormat("excel")}
+          className={`format-card ${format === "excel" ? "active" : ""}`}
+          style={{
+            padding: "16px",
+            borderRadius: "var(--radius-md)",
+            cursor: "pointer",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: "24px", marginBottom: "4px" }}>📊</div>
+          <div
+            style={{
+              fontWeight: 600,
+              fontSize: "var(--font-size-sm)",
+              color:
+                format === "excel"
+                  ? "var(--text-primary)"
+                  : "var(--text-secondary)",
+            }}
+          >
+            Excel Spreadsheet
+          </div>
+        </div>
+      </div>
+
+      <div
+        style={{
+          maxHeight: "300px",
+          overflowY: "auto",
+          marginBottom: "16px",
+          paddingRight: "4px",
+        }}
+      >
+        {renderCheckboxes("rack", RACK_FIELDS, "Rack Sheet", "🏢")}
+        {renderCheckboxes("device", DEVICE_FIELDS, "Device Sheet", "🖥️")}
+        {renderCheckboxes("port", PORT_FIELDS, "Port Sheet", "🔌")}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+        }}
+      >
+        <button
+          className="grafana-btn grafana-btn-primary"
+          style={{
+            padding: "12px",
+            fontSize: "var(--font-size-md)",
+            boxShadow: "0 4px 12px rgba(110, 159, 255, 0.25)",
+            opacity: totalSelected === 0 ? 0.5 : 1,
+          }}
+          onClick={handleLegacyExport}
+          disabled={totalSelected === 0}
+        >
+          {totalSelected === 0
+            ? "⚠️ Select at least one field"
+            : "🚀 Export Rack Data"}
+        </button>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            margin: "4px 0",
+          }}
+        >
+          <div
+            style={{
+              flex: 1,
+              height: "1px",
+              background: "var(--border-weak)",
+            }}
+          />
+          <span
+            style={{
+              fontSize: "var(--font-size-xs)",
+              color: "var(--text-tertiary)",
+            }}
+          >
+            OR
+          </span>
+          <div
+            style={{
+              flex: 1,
+              height: "1px",
+              background: "var(--border-weak)",
+            }}
+          />
+        </div>
+        <button
+          className="grafana-btn grafana-btn-secondary"
+          style={{
+            padding: "10px",
+            borderStyle: "dashed",
+            borderWidth: "2px",
+          }}
+          onClick={handleImportClick}
+        >
+          📥 Import & Overwrite
+        </button>
+      </div>
+
+      <input
+        type="file"
+        ref={jsonInputRef}
+        style={{ display: "none" }}
+        accept=".json"
+        onChange={handleJsonImport}
+      />
+      <input
+        type="file"
+        ref={excelInputRef}
+        style={{ display: "none" }}
+        accept=".xlsx"
+        onChange={handleExcelImport}
+      />
+    </>
+  );
+
   return (
     <div
       className="grafana-modal-overlay"
@@ -345,7 +830,7 @@ export const ImportExportModal = () => {
       <div
         className="grafana-modal"
         style={{
-          width: "500px",
+          width: "520px",
           borderTop: "4px solid var(--theme-primary)",
         }}
         onClick={(e) => e.stopPropagation()}
@@ -354,9 +839,7 @@ export const ImportExportModal = () => {
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span style={{ fontSize: "20px" }}>💾</span>
             <h2 className="grafana-modal-title">
-              {isGlobal
-                ? "Global Room Data Operations"
-                : "Rack Data Operations"}
+              {isGlobal ? "STN Data Import / Export" : "Rack Data Operations"}
             </h2>
           </div>
           <button
@@ -368,170 +851,7 @@ export const ImportExportModal = () => {
         </div>
 
         <div className="grafana-modal-content">
-          <p style={{ color: "var(--text-secondary)", marginBottom: "16px" }}>
-            {isGlobal
-              ? "Configure export fields for ALL racks in the room."
-              : `Configure export fields or import new data for Rack ${rack?.id.substring(0, 8)}.`}
-          </p>
-
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "12px",
-              marginBottom: "16px",
-            }}
-          >
-            <div
-              onClick={() => setFormat("json")}
-              className={`format-card ${format === "json" ? "active" : ""}`}
-              style={{
-                padding: "16px",
-                borderRadius: "var(--radius-md)",
-                cursor: "pointer",
-                textAlign: "center",
-              }}
-            >
-              <div style={{ fontSize: "24px", marginBottom: "4px" }}>
-                {"{ }"}
-              </div>
-              <div
-                style={{
-                  fontWeight: 600,
-                  fontSize: "var(--font-size-sm)",
-                  color:
-                    format === "json"
-                      ? "var(--text-primary)"
-                      : "var(--text-secondary)",
-                }}
-              >
-                JSON Format
-              </div>
-            </div>
-
-            <div
-              onClick={() => setFormat("excel")}
-              className={`format-card ${format === "excel" ? "active" : ""}`}
-              style={{
-                padding: "16px",
-                borderRadius: "var(--radius-md)",
-                cursor: "pointer",
-                textAlign: "center",
-              }}
-            >
-              <div style={{ fontSize: "24px", marginBottom: "4px" }}>📊</div>
-              <div
-                style={{
-                  fontWeight: 600,
-                  fontSize: "var(--font-size-sm)",
-                  color:
-                    format === "excel"
-                      ? "var(--text-primary)"
-                      : "var(--text-secondary)",
-                }}
-              >
-                Excel Spreadsheet
-              </div>
-            </div>
-          </div>
-
-          {(format === "excel" || format === "json") && (
-            <div
-              style={{
-                maxHeight: "300px",
-                overflowY: "auto",
-                marginBottom: "16px",
-                paddingRight: "4px",
-              }}
-            >
-              {renderCheckboxes("rack", RACK_FIELDS, "Rack Sheet", "🏢")}
-              {renderCheckboxes("device", DEVICE_FIELDS, "Device Sheet", "🖥️")}
-              {renderCheckboxes("port", PORT_FIELDS, "Port Sheet", "🔌")}
-            </div>
-          )}
-
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "12px",
-            }}
-          >
-            <button
-              className="grafana-btn grafana-btn-primary"
-              style={{
-                padding: "12px",
-                fontSize: "var(--font-size-md)",
-                boxShadow: "0 4px 12px rgba(110, 159, 255, 0.25)",
-                opacity: totalSelected === 0 ? 0.5 : 1,
-              }}
-              onClick={handleExport}
-              disabled={totalSelected === 0}
-            >
-              {totalSelected === 0
-                ? "⚠️ Select at least one field"
-                : isGlobal
-                  ? "🚀 Export Room Data"
-                  : "🚀 Export Rack Data"}
-            </button>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                margin: "4px 0",
-              }}
-            >
-              <div
-                style={{
-                  flex: 1,
-                  height: "1px",
-                  background: "var(--border-weak)",
-                }}
-              />
-              <span
-                style={{
-                  fontSize: "var(--font-size-xs)",
-                  color: "var(--text-tertiary)",
-                }}
-              >
-                OR
-              </span>
-              <div
-                style={{
-                  flex: 1,
-                  height: "1px",
-                  background: "var(--border-weak)",
-                }}
-              />
-            </div>
-            <button
-              className="grafana-btn grafana-btn-secondary"
-              style={{
-                padding: "10px",
-                borderStyle: "dashed",
-                borderWidth: "2px",
-              }}
-              onClick={handleImportClick}
-            >
-              {isGlobal ? "📥 Import Room Data" : "📥 Import & Overwrite"}
-            </button>
-          </div>
-
-          <input
-            type="file"
-            ref={jsonInputRef}
-            style={{ display: "none" }}
-            accept=".json"
-            onChange={handleJsonImport}
-          />
-          <input
-            type="file"
-            ref={excelInputRef}
-            style={{ display: "none" }}
-            accept=".xlsx"
-            onChange={handleExcelImport}
-          />
+          {isGlobal ? renderGlobalGroupContent() : renderLegacyContent()}
         </div>
       </div>
     </div>

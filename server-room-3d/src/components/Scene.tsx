@@ -58,12 +58,19 @@ const DragHandler = () => {
 
 export const Scene = () => {
   const racks = useStore((state) => state.racks);
+  const activeGroup = useStore((state) => state.activeGroup);
   const isDragging = useStore((state) => state.isDragging);
   const draggingRackId = useStore((state) => state.draggingRackId);
   const dragPosition = useStore((state) => state.dragPosition);
   const importedModels = useStore((state) => state.importedModels);
   const draggingModelId = useStore((state) => state.draggingModelId);
   const { theme } = useTheme();
+
+  // Filter racks by active group for separate floorplans
+  const groupRacks = useMemo(
+    () => racks.filter((r) => r.groupName === activeGroup),
+    [racks, activeGroup],
+  );
 
   // Theme-based colors
   const isDarkMode = theme === "dark";
@@ -155,8 +162,8 @@ export const Scene = () => {
           infiniteGrid
         />
 
-        {/* Racks */}
-        {racks.map((rack) => (
+        {/* Racks (filtered by active group) */}
+        {groupRacks.map((rack) => (
           <Rack
             key={rack.id}
             {...rack}

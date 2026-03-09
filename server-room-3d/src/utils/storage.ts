@@ -1,4 +1,4 @@
-import type { Rack } from "../types";
+import type { Rack, GroupName, RegisteredDevice } from "../types";
 import { DEVICE_TEMPLATES } from "./deviceTemplates";
 import * as XLSX from "xlsx";
 import {
@@ -13,6 +13,7 @@ import {
 const flattenRacks = (racks: Rack[]) =>
   racks.map((r) => ({
     rackId: r.id,
+    groupName: r.groupName,
     uHeight: r.uHeight,
     width: r.width,
     posX: r.position[0],
@@ -33,6 +34,10 @@ const flattenDevices = (racks: Rack[]) => {
         uSize: d.uSize,
         uPosition: d.uPosition,
         imageUrl: d.imageUrl || "",
+        modelName: d.modelName || "",
+        ip: d.ip || "",
+        mac: d.mac || "",
+        vendor: d.vendor || "",
       });
     }
   }
@@ -210,6 +215,7 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
 
           return {
             id: r.rackId as string,
+            groupName: (r.groupName as GroupName) || "과천",
             uHeight: Number(r.uHeight) as 24 | 32 | 48,
             width: Number(r.width || RACK_WIDTH_STANDARD),
             position: [Number(r.posX), Number(r.posZ)],
@@ -352,78 +358,517 @@ export const loadRackFromExcel = (file: File): Promise<Partial<Rack>> => {
   });
 };
 
-export const sampleRacks: Rack[] = Array.from({ length: 40 }).map((_, i) => {
-  const row = Math.floor(i / 10);
-  const col = i % 10;
+// ─── Group ID Mapping ───────────────────────────────────────────────────────
 
-  // Mix standard and wide racks: every 5th rack (index 4 and 9 in row) is wide
-  const isWide = col === 4 || col === 9;
-  const width = isWide ? RACK_WIDTH_WIDE : RACK_WIDTH_STANDARD;
-  const uHeight: 24 | 32 | 48 = i % 3 === 0 ? 24 : i % 3 === 1 ? 32 : 48;
+export const GROUP_ID_MAP: Record<GroupName, string> = {
+  과천: "GW",
+  대전: "DJ",
+};
 
-  // Define exactly 6 rack indexes that will have an error
-  const errorRackIndexes = [3, 12, 19, 24, 31, 37];
-  const hasError = errorRackIndexes.includes(i);
+const GROUP_NAME_MAP: Record<string, GroupName> = {
+  GW: "과천",
+  DJ: "대전",
+};
 
-  const devices = [];
-  let currentUPos = 1;
+const SCHEMA_VERSION = "1.0";
 
-  for (let d = 0; d < 5; d++) {
-    const remainingU = uHeight - currentUPos + 1;
-    const fittingTemplates = DEVICE_TEMPLATES.filter(
-      (t) => t.uSize <= remainingU,
+// ─── Group-Scoped Flattening Helpers ────────────────────────────────────────
+
+/** Flatten racks with groupId column */
+const flattenRacksWithGroup = (racks: Rack[]) =>
+  racks.map((r) => ({
+    rackId: r.id,
+    groupId: GROUP_ID_MAP[r.groupName] || "GW",
+    groupName: r.groupName,
+    uHeight: r.uHeight,
+    width: r.width,
+    posX: r.position[0],
+    posZ: r.position[1],
+    orientation: r.orientation ?? 180,
+  }));
+
+/** Flatten devices with groupId column */
+const flattenDevicesWithGroup = (racks: Rack[]) => {
+  const rows: Record<string, unknown>[] = [];
+  for (const r of racks) {
+    const groupId = GROUP_ID_MAP[r.groupName] || "GW";
+    for (const d of r.devices) {
+      rows.push({
+        deviceId: d.id,
+        rackId: r.id,
+        groupId,
+        groupName: r.groupName,
+        name: d.name,
+        type: d.type,
+        uSize: d.uSize,
+        uPosition: d.uPosition,
+        imageUrl: d.imageUrl || "",
+        modelName: d.modelName || "",
+        ip: d.ip || "",
+        mac: d.mac || "",
+        vendor: d.vendor || "",
+        registeredDeviceId: d.registeredDeviceId || "",
+      });
+    }
+  }
+  return rows;
+};
+
+/** Flatten ports with groupId column */
+const flattenPortsWithGroup = (racks: Rack[]) => {
+  const rows: Record<string, unknown>[] = [];
+  for (const r of racks) {
+    const groupId = GROUP_ID_MAP[r.groupName] || "GW";
+    for (const d of r.devices) {
+      for (const p of d.portStates) {
+        rows.push({
+          portId: p.portId,
+          deviceId: d.id,
+          groupId,
+          status: p.status,
+          errorLevel: p.errorLevel || "",
+          errorMessage: p.errorMessage || "",
+        });
+      }
+    }
+  }
+  return rows;
+};
+
+/** Flatten registered devices */
+const flattenRegisteredDevices = (devices: RegisteredDevice[]) =>
+  devices.map((d) => ({
+    id: d.id,
+    groupId: GROUP_ID_MAP[d.groupName] || "GW",
+    groupName: d.groupName,
+    deviceName: d.deviceName,
+    modelName: d.modelName,
+    type: d.type,
+    uSize: d.uSize,
+    ip: d.ip,
+    mac: d.mac,
+    vendor: d.vendor,
+  }));
+
+// ─── Master Sheet Builders ──────────────────────────────────────────────────
+
+const buildMetaSheet = () =>
+  XLSX.utils.json_to_sheet([
+    { key: "schemaVersion", value: SCHEMA_VERSION },
+    { key: "lastExportAt", value: new Date().toISOString() },
+  ]);
+
+const buildGroupsSheet = () =>
+  XLSX.utils.json_to_sheet(
+    Object.entries(GROUP_ID_MAP).map(([name, id]) => ({
+      groupId: id,
+      groupName: name,
+    })),
+  );
+
+// ─── Group-Scoped Export/Import ─────────────────────────────────────────────
+
+export type ExportScope = "ALL" | GroupName;
+
+/**
+ * Export full workbook with all master sheets.
+ * When scope is a specific group, PKG sheets for that group are also included.
+ */
+export const exportGroupWorkbook = (
+  racks: Rack[],
+  registeredDevices: RegisteredDevice[],
+  scope: ExportScope = "ALL",
+) => {
+  const wb = XLSX.utils.book_new();
+
+  // ── Master sheets (always present) ──
+  XLSX.utils.book_append_sheet(wb, buildMetaSheet(), "_META");
+  XLSX.utils.book_append_sheet(wb, buildGroupsSheet(), "Groups");
+
+  const allRackRows = flattenRacksWithGroup(racks);
+  const allDeviceRows = flattenDevicesWithGroup(racks);
+  const allPortRows = flattenPortsWithGroup(racks);
+  const allRegDevRows = flattenRegisteredDevices(registeredDevices);
+
+  if (allRackRows.length > 0)
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(allRackRows),
+      "Racks",
+    );
+  if (allDeviceRows.length > 0)
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(allDeviceRows),
+      "Devices",
+    );
+  if (allPortRows.length > 0)
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(allPortRows),
+      "Ports",
+    );
+  if (allRegDevRows.length > 0)
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(allRegDevRows),
+      "RegisteredDevices",
     );
 
-    if (fittingTemplates.length === 0) break;
+  // ── PKG sheets (only when exporting a specific group) ──
+  if (scope !== "ALL") {
+    const groupId = GROUP_ID_MAP[scope];
+    const groupRacks = allRackRows.filter((r) => r.groupId === groupId);
+    const groupDevices = allDeviceRows.filter((d) => d.groupId === groupId);
+    const groupPorts = allPortRows.filter((p) => p.groupId === groupId);
 
-    const template =
-      fittingTemplates[Math.floor(Math.random() * fittingTemplates.length)];
+    // PKG metadata sheet (use groupId for sheet names to avoid encoding issues)
+    const pkgMeta = XLSX.utils.json_to_sheet([
+      { key: "packageId", value: crypto.randomUUID() },
+      { key: "groupId", value: groupId },
+      { key: "groupName", value: scope },
+      { key: "exportScope", value: "GROUP_ONLY" },
+      { key: "schemaVersion", value: SCHEMA_VERSION },
+      { key: "exportedAt", value: new Date().toISOString() },
+      { key: "importModeHint", value: "REPLACE" },
+    ]);
+    XLSX.utils.book_append_sheet(wb, pkgMeta, `PKG_${groupId}`);
 
-    // Only add an error to the first device of the designated error racks
-    const shouldAddError = hasError && d === 0;
+    if (groupRacks.length > 0)
+      XLSX.utils.book_append_sheet(
+        wb,
+        XLSX.utils.json_to_sheet(groupRacks),
+        `PKG_${groupId}_Racks`,
+      );
+    if (groupDevices.length > 0)
+      XLSX.utils.book_append_sheet(
+        wb,
+        XLSX.utils.json_to_sheet(groupDevices),
+        `PKG_${groupId}_Devices`,
+      );
+    if (groupPorts.length > 0)
+      XLSX.utils.book_append_sheet(
+        wb,
+        XLSX.utils.json_to_sheet(groupPorts),
+        `PKG_${groupId}_Ports`,
+      );
+  }
 
-    devices.push({
+  const scopeLabel = scope === "ALL" ? "all" : GROUP_ID_MAP[scope] || scope;
+  console.log("[Export] Created workbook with sheets:", wb.SheetNames);
+  XLSX.writeFile(wb, `stn-${scopeLabel}-${Date.now()}.xlsx`);
+};
+
+/**
+ * Import group-scoped data from PKG sheets in a workbook.
+ * Returns reconstructed Rack[] for the target group only.
+ */
+export const importGroupPackage = (
+  file: File,
+  targetGroup: GroupName,
+): Promise<{ racks: Rack[]; registeredDevices: RegisteredDevice[] }> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+
+        const groupId = GROUP_ID_MAP[targetGroup];
+
+        console.log(
+          "[importGroupPackage] Target group:",
+          targetGroup,
+          "groupId:",
+          groupId,
+        );
+        console.log(
+          "[importGroupPackage] Sheet names in workbook:",
+          workbook.SheetNames,
+        );
+
+        // ── Try PKG sheets first (groupId then groupName), then master, then legacy ──
+        const findSheet = (...candidates: string[]) =>
+          candidates.find((name) => workbook.SheetNames.includes(name));
+
+        const rackSheetName = findSheet(
+          `PKG_${groupId}_Racks`, // new format: PKG_GW_Racks
+          `PKG_${targetGroup}_Racks`, // old format: PKG_과천_Racks
+          "Racks",
+          "Rack", // legacy export format
+        );
+        const deviceSheetName = findSheet(
+          `PKG_${groupId}_Devices`,
+          `PKG_${targetGroup}_Devices`,
+          "Devices",
+          "Equipment", // legacy export format
+        );
+        const portSheetName = findSheet(
+          `PKG_${groupId}_Ports`,
+          `PKG_${targetGroup}_Ports`,
+          "Ports",
+        );
+        const regDevSheetName = "RegisteredDevices";
+
+        console.log("[importGroupPackage] Using sheets:", {
+          rackSheetName,
+          deviceSheetName,
+          portSheetName,
+        });
+
+        const rackSheet = rackSheetName
+          ? workbook.Sheets[rackSheetName]
+          : undefined;
+        if (!rackSheet)
+          throw new Error(
+            `Rack sheet not found. Available sheets: ${workbook.SheetNames.join(", ")}`,
+          );
+
+        const racksFlat = XLSX.utils.sheet_to_json(rackSheet) as Record<
+          string,
+          any
+        >[];
+        const devicesFlat =
+          deviceSheetName && workbook.Sheets[deviceSheetName]
+            ? (XLSX.utils.sheet_to_json(
+                workbook.Sheets[deviceSheetName],
+              ) as Record<string, any>[])
+            : [];
+        const portsFlat =
+          portSheetName && workbook.Sheets[portSheetName]
+            ? (XLSX.utils.sheet_to_json(
+                workbook.Sheets[portSheetName],
+              ) as Record<string, any>[])
+            : [];
+        const regDevFlat = workbook.Sheets[regDevSheetName]
+          ? (XLSX.utils.sheet_to_json(
+              workbook.Sheets[regDevSheetName],
+            ) as Record<string, any>[])
+          : [];
+
+        console.log("[importGroupPackage] Raw row counts:", {
+          racks: racksFlat.length,
+          devices: devicesFlat.length,
+          ports: portsFlat.length,
+          regDev: regDevFlat.length,
+        });
+        if (racksFlat.length > 0) {
+          console.log("[importGroupPackage] First rack row:", racksFlat[0]);
+        }
+        if (devicesFlat.length > 0) {
+          console.log("[importGroupPackage] First device row:", devicesFlat[0]);
+        }
+
+        // Filter to target group (in case master sheets are used)
+        const filteredRacks = racksFlat.filter(
+          (r) => r.groupId === groupId || r.groupName === targetGroup,
+        );
+
+        // Build a set of rack IDs for this group (for device filtering)
+        const groupRackIds = new Set(filteredRacks.map((r) => r.rackId));
+
+        // Filter devices: try groupId/groupName first; if none have those fields,
+        // fall back to matching by rackId membership (needed for legacy exports)
+        const hasDeviceGroupField = devicesFlat.some(
+          (d) => d.groupId !== undefined || d.groupName !== undefined,
+        );
+        const filteredDevices = hasDeviceGroupField
+          ? devicesFlat.filter(
+              (d) => d.groupId === groupId || d.groupName === targetGroup,
+            )
+          : devicesFlat.filter((d) => groupRackIds.has(d.rackId));
+
+        console.log("[importGroupPackage] Filtered counts:", {
+          racks: filteredRacks.length,
+          devices: filteredDevices.length,
+          hasDeviceGroupField,
+        });
+
+        // Reconstruct Rack[] from flat rows
+        const racks: Rack[] = filteredRacks.map((r) => {
+          const rackDevices = filteredDevices
+            .filter((d) => d.rackId === r.rackId)
+            .map((d) => {
+              const devicePorts = portsFlat
+                .filter((p) => p.deviceId === d.deviceId)
+                .map((p) => ({
+                  portId: String(p.portId),
+                  status: p.status as "normal" | "error",
+                  errorLevel: p.errorLevel || undefined,
+                  errorMessage: p.errorMessage || undefined,
+                }));
+
+              return {
+                id: String(d.deviceId),
+                name: String(d.name || ""),
+                type: d.type as any,
+                uSize: Number(d.uSize),
+                uPosition: Number(d.uPosition),
+                imageUrl: d.imageUrl || undefined,
+                modelName: d.modelName || undefined,
+                ip: d.ip || undefined,
+                mac: d.mac || undefined,
+                vendor: d.vendor || undefined,
+                registeredDeviceId: d.registeredDeviceId || undefined,
+                portStates: devicePorts,
+              };
+            });
+
+          return {
+            id: String(r.rackId),
+            groupName: targetGroup,
+            uHeight: Number(r.uHeight) as 24 | 32 | 48,
+            width: Number(r.width || RACK_WIDTH_STANDARD),
+            position: [Number(r.posX), Number(r.posZ)] as [number, number],
+            orientation: Number(r.orientation || 180) as 0 | 90 | 180 | 270,
+            devices: rackDevices as any,
+          };
+        });
+
+        // Reconstruct RegisteredDevice[] for the target group
+        const registeredDevices: RegisteredDevice[] = regDevFlat
+          .filter((d) => d.groupId === groupId || d.groupName === targetGroup)
+          .map((d) => ({
+            id: String(d.id),
+            groupName: targetGroup,
+            deviceName: String(d.deviceName || ""),
+            modelName: String(d.modelName || ""),
+            type: d.type as any,
+            uSize: Number(d.uSize),
+            ip: String(d.ip || ""),
+            mac: String(d.mac || ""),
+            vendor: d.vendor as any,
+          }));
+
+        resolve({ racks, registeredDevices });
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+// ─── Sample Registered Devices ──────────────────────────────────────────────
+
+/** Generate sample registered devices for a group using the Nokia 7250 IXR catalog */
+const generateRegisteredDevices = (
+  group: GroupName,
+  count: number,
+  ipBase: string,
+): RegisteredDevice[] =>
+  Array.from({ length: count }).map((_, i) => {
+    const template = DEVICE_TEMPLATES[i % DEVICE_TEMPLATES.length];
+    const ipParts = ipBase.split(".");
+    const lastOctet = parseInt(ipParts[3]) + i;
+    return {
       id: crypto.randomUUID(),
-      name: `${template.name}-${i}-${d}`,
+      groupName: group,
+      deviceName: `${template.modelName}-${group}-${i + 1}`,
+      modelName: template.modelName,
       type: template.type,
       uSize: template.uSize,
-      uPosition: currentUPos,
-      imageUrl: template.imageUrl,
-      portStates: shouldAddError
-        ? [
-            {
-              portId: `p${Math.floor(Math.random() * 24) + 1}`,
-              status: "error" as const,
-              errorLevel: (["warning", "minor", "major", "critical"] as const)[
-                Math.floor(Math.random() * 4)
-              ],
-              errorMessage: "Port link failure",
-            },
-          ]
-        : [],
-    });
-    currentUPos += template.uSize + 1;
-  }
+      ip: `${ipParts[0]}.${ipParts[1]}.${ipParts[2]}.${lastOctet}`,
+      mac: `AA:BB:CC:${group === "과천" ? "01" : "02"}:${String(i).padStart(2, "0")}:${String(
+        Math.floor(Math.random() * 256).toString(16),
+      )
+        .padStart(2, "0")
+        .toUpperCase()}`,
+      vendor: template.vendor,
+    };
+  });
 
-  // Calculate world X by summing widths of previous racks in the same row
-  let worldX = 0;
-  for (let j = 0; j < col; j++) {
-    const prevCol = j;
-    // Same logic as above for width
-    const prevIsWide = prevCol === 4 || prevCol === 9;
-    worldX += prevIsWide ? RACK_WIDTH_WIDE : RACK_WIDTH_STANDARD;
-  }
+export const sampleRegisteredDevices: RegisteredDevice[] = [
+  ...generateRegisteredDevices("과천", 15, "10.1.1.1"),
+  ...generateRegisteredDevices("대전", 10, "10.2.1.1"),
+];
 
-  // Center X in world units = current accumulated width + (current width / 2)
-  // Convert to state units by dividing by GRID_SPACING
-  const stateX = (worldX + width / 2) / GRID_SPACING;
+// ─── Sample Racks ───────────────────────────────────────────────────────────
 
-  return {
-    id: crypto.randomUUID(),
-    uHeight,
-    width,
-    position: [stateX, row * 2.0],
-    orientation: 180,
-    devices,
-  };
-});
+/** Generate racks for a single group, placing registered devices into slots */
+const generateGroupRacks = (
+  count: number,
+  group: GroupName,
+  colsPerRow: number,
+  errorIndexes: number[],
+  regDevices: RegisteredDevice[],
+): Rack[] =>
+  Array.from({ length: count }).map((_, localIdx) => {
+    const row = Math.floor(localIdx / colsPerRow);
+    const col = localIdx % colsPerRow;
+
+    const isWide = col === 4 || col === 9;
+    const width = isWide ? RACK_WIDTH_WIDE : RACK_WIDTH_STANDARD;
+    const uHeight: 24 | 32 | 48 =
+      localIdx % 3 === 0 ? 24 : localIdx % 3 === 1 ? 32 : 48;
+
+    const hasError = errorIndexes.includes(localIdx);
+
+    const devices = [];
+    let currentUPos = 1;
+    for (let d = 0; d < 5; d++) {
+      const remainingU = uHeight - currentUPos + 1;
+      // Pick from registered devices that fit
+      const fittingDevices = regDevices.filter((rd) => rd.uSize <= remainingU);
+      if (fittingDevices.length === 0) break;
+
+      const regDevice =
+        fittingDevices[(localIdx * 7 + d * 3) % fittingDevices.length];
+      const shouldAddError = hasError && d === 0;
+
+      devices.push({
+        id: crypto.randomUUID(),
+        name: regDevice.modelName,
+        type: regDevice.type,
+        uSize: regDevice.uSize,
+        uPosition: currentUPos,
+        modelName: regDevice.modelName,
+        vendor: regDevice.vendor,
+        registeredDeviceId: regDevice.id,
+        portStates: shouldAddError
+          ? [
+              {
+                portId: `p${Math.floor(Math.random() * 24) + 1}`,
+                status: "error" as const,
+                errorLevel: (
+                  ["warning", "minor", "major", "critical"] as const
+                )[Math.floor(Math.random() * 4)],
+                errorMessage: "Port link failure",
+              },
+            ]
+          : [],
+      });
+      currentUPos += regDevice.uSize + 1;
+    }
+
+    // Position: local to this group (starts from 0,0)
+    let worldX = 0;
+    for (let j = 0; j < col; j++) {
+      const prevIsWide = j === 4 || j === 9;
+      worldX += prevIsWide ? RACK_WIDTH_WIDE : RACK_WIDTH_STANDARD;
+    }
+    const stateX = (worldX + width / 2) / GRID_SPACING;
+
+    return {
+      id: crypto.randomUUID(),
+      groupName: group,
+      uHeight,
+      width,
+      position: [stateX, row * 2.0],
+      orientation: 180,
+      devices,
+    };
+  });
+
+const gwacheonDevices = sampleRegisteredDevices.filter(
+  (d) => d.groupName === "과천",
+);
+const daejeonDevices = sampleRegisteredDevices.filter(
+  (d) => d.groupName === "대전",
+);
+
+export const sampleRacks: Rack[] = [
+  ...generateGroupRacks(25, "과천", 5, [3, 12, 19], gwacheonDevices),
+  ...generateGroupRacks(15, "대전", 5, [2, 9, 14], daejeonDevices),
+];

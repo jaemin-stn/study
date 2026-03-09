@@ -1,61 +1,28 @@
-import type { DeviceType } from '../types';
+import type { DeviceType, VendorName } from "../types";
 
 export interface DeviceTemplate {
-    name: string;
-    type: DeviceType;
-    uSize: number;
-    imageUrl: string;
-    portCount: number;
+  modelName: string;
+  type: DeviceType;
+  uSize: number;
+  vendor: VendorName;
 }
 
+/**
+ * Nokia 7250 IXR Model Catalog
+ * Source of truth for available device models and their specs.
+ */
 export const DEVICE_TEMPLATES: DeviceTemplate[] = [
-    {
-        name: '120YD',
-        type: 'Server',
-        uSize: 9,
-        imageUrl: '/assets/120YD.png',
-        portCount: 24
-    },
-    {
-        name: 'AR_1',
-        type: 'Router',
-        uSize: 1,
-        imageUrl: '/assets/AR_1.png',
-        portCount: 8
-    },
-    {
-        name: 'AR_2',
-        type: 'Router',
-        uSize: 1,
-        imageUrl: '/assets/AR_2.png',
-        portCount: 8
-    },
-    {
-        name: 'CR',
-        type: 'Router',
-        uSize: 17,
-        imageUrl: '/assets/CR.png',
-        portCount: 48
-    },
-    {
-        name: 'ER_1',
-        type: 'Router',
-        uSize: 4,
-        imageUrl: '/assets/ER_1.png',
-        portCount: 16
-    },
-    {
-        name: 'OTN_B1',
-        type: 'Switch',
-        uSize: 14,
-        imageUrl: '/assets/OTN_B1.png',
-        portCount: 48
-    },
-    {
-        name: 'OTN_JIJAKSA',
-        type: 'Switch',
-        uSize: 14,
-        imageUrl: '/assets/OTN_JIJAKSA.png',
-        portCount: 48
-    }
+  { modelName: "7250 IXR-e big", type: "Router", uSize: 1, vendor: "Nokia" },
+  { modelName: "7250 IXR-e small", type: "Router", uSize: 1, vendor: "Nokia" },
+  { modelName: "7250 IXR-ec", type: "Router", uSize: 1, vendor: "Nokia" },
+  { modelName: "7250 IXR-s", type: "Router", uSize: 1, vendor: "Nokia" },
+  { modelName: "7250 IXR-X1", type: "Router", uSize: 1, vendor: "Nokia" },
+  { modelName: "7250 IXR-X3", type: "Router", uSize: 1, vendor: "Nokia" },
+  { modelName: "7250 IXR-Xs", type: "Router", uSize: 1, vendor: "Nokia" },
+  { modelName: "7250 IXR-R4", type: "Router", uSize: 2, vendor: "Nokia" },
+  { modelName: "7250 IXR-R6", type: "Router", uSize: 3, vendor: "Nokia" },
+  { modelName: "7250 IXR-R6d", type: "Router", uSize: 4, vendor: "Nokia" },
+  { modelName: "7250 IXR-6", type: "Router", uSize: 7, vendor: "Nokia" },
+  { modelName: "7250 IXR-R6dl", type: "Router", uSize: 7, vendor: "Nokia" },
+  { modelName: "7250 IXR-10", type: "Router", uSize: 13, vendor: "Nokia" },
 ];

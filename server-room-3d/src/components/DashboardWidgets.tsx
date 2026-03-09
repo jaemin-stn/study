@@ -61,6 +61,7 @@ interface SensorData {
 
 export const DashboardWidgets = () => {
   const racks = useStore((state) => state.racks);
+  const activeGroup = useStore((state) => state.activeGroup);
   const selectRack = useStore((state) => state.selectRack);
   const focusRack = useStore((state) => state.focusRack);
   const selectDevice = useStore((state) => state.selectDevice);
@@ -68,10 +69,16 @@ export const DashboardWidgets = () => {
     "critical",
   );
 
-  // Collect all errors from all racks/devices/ports
+  // Filter racks by active group
+  const groupRacks = useMemo(
+    () => racks.filter((r) => r.groupName === activeGroup),
+    [racks, activeGroup],
+  );
+
+  // Collect all errors from group racks only
   const allErrors = useMemo<ErrorItem[]>(() => {
     const errors: ErrorItem[] = [];
-    racks.forEach((rack) => {
+    groupRacks.forEach((rack) => {
       rack.devices.forEach((device) => {
         device.portStates.forEach((port) => {
           if (port.status === "error" && port.errorLevel) {
@@ -88,7 +95,7 @@ export const DashboardWidgets = () => {
       });
     });
     return errors;
-  }, [racks]);
+  }, [groupRacks]);
 
   // Handle error row click
   const handleErrorRowClick = (error: ErrorItem) => {
@@ -121,34 +128,21 @@ export const DashboardWidgets = () => {
     return allErrors.filter((err) => err.severity === selectedSeverity);
   }, [allErrors, selectedSeverity]);
 
-  // Mock sensor data (in real app, this would come from a data source)
+  // Mock sensor data per group
   const sensorData: SensorData = useMemo(() => {
-    // Simulated sensor averages
-    return {
-      temperature: 22.5,
-      humidity: 45.0,
-    };
-  }, []);
+    return activeGroup === "과천"
+      ? { temperature: 22.5, humidity: 45.0 }
+      : { temperature: 23.8, humidity: 42.0 };
+  }, [activeGroup]);
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: "12px",
-        right: "12px",
-        zIndex: 15,
-        display: "flex",
-        flexDirection: "column",
-        gap: "12px",
-        width: "340px",
-      }}
-    >
+    <div className="dashboard-widgets-container">
       {/* Widget 1: Error Summary - Grafana Panel Style */}
       <div className="grafana-panel">
         <div className="grafana-panel-header">
           <h3 className="grafana-panel-title">
             <span style={{ fontSize: "16px" }}>🚨</span>
-            Rack Error Summary
+            {activeGroup} Error Summary
           </h3>
         </div>
         <div className="grafana-panel-content">
@@ -275,7 +269,7 @@ export const DashboardWidgets = () => {
         <div className="grafana-panel-header">
           <h3 className="grafana-panel-title">
             <span style={{ fontSize: "16px" }}>🌡️</span>
-            Server Room Sensors
+            {activeGroup} Sensors
           </h3>
         </div>
         <div

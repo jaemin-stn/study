@@ -6,8 +6,12 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import { FocusCarousel } from "./components/FocusCarousel";
 import { ImportExportModal } from "./components/ImportExportModal";
 import { ModelImporter } from "./components/ModelImporter";
+import { DeviceRegistrationModal } from "./components/DeviceRegistrationModal";
 import { useStore } from "./store/useStore";
-import { sampleRacks } from "./utils/storage";
+import { sampleRacks, sampleRegisteredDevices } from "./utils/storage";
+import type { GroupName } from "./types";
+
+const GROUP_TABS: GroupName[] = ["과천", "대전"];
 
 function App() {
   const {
@@ -17,10 +21,21 @@ function App() {
     isEditMode,
     setEditMode,
     setImportExportModalRackId,
+    setDeviceRegistrationModalOpen,
+    activeGroup,
+    setActiveGroup,
+    deviceRegistrationModalOpen,
+    importExportModalRackId,
+    selectedDeviceId,
   } = useStore();
 
+  const isModalOpen =
+    deviceRegistrationModalOpen ||
+    importExportModalRackId !== null ||
+    selectedDeviceId !== null;
+
   const loadSample = () => {
-    loadState(sampleRacks);
+    loadState(sampleRacks, undefined, sampleRegisteredDevices);
   };
 
   return (
@@ -46,11 +61,54 @@ function App() {
           position: "absolute",
           top: "12px",
           left: "12px",
-          zIndex: 10,
+          zIndex: 1000,
         }}
       >
         {/* Theme Toggle */}
         <ThemeToggle />
+
+        <div className="grafana-toolbar-divider" />
+
+        {/* STN Group Switcher */}
+        <div className="grafana-toolbar-group" style={{ gap: "4px" }}>
+          <span
+            className="grafana-toolbar-label"
+            style={{
+              fontWeight: 700,
+              fontSize: "var(--font-size-sm)",
+              color: "var(--theme-primary)",
+              letterSpacing: "0.05em",
+            }}
+          >
+            STN
+          </span>
+          <span
+            style={{
+              color: "var(--text-tertiary)",
+              fontSize: "var(--font-size-sm)",
+              margin: "0 2px",
+            }}
+          >
+            ›
+          </span>
+          {GROUP_TABS.map((group) => (
+            <button
+              key={group}
+              className={`grafana-btn ${activeGroup === group ? "grafana-btn-primary" : "grafana-btn-secondary"}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveGroup(group);
+              }}
+              style={{
+                fontSize: "var(--font-size-xs)",
+                padding: "4px 12px",
+                minWidth: "48px",
+              }}
+            >
+              {group}
+            </button>
+          ))}
+        </div>
 
         <div className="grafana-toolbar-divider" />
 
@@ -77,71 +135,82 @@ function App() {
 
         <div className="grafana-toolbar-divider" />
 
-        {/* Add Rack */}
-        <div className="grafana-toolbar-group">
-          <span className="grafana-toolbar-label">Add Standard:</span>
-          <button
-            className="grafana-btn grafana-btn-secondary"
-            onClick={(e) => {
-              e.stopPropagation();
-              addRack(24);
-            }}
+        {/* Add Rack Consolidated */}
+        <div className="grafana-toolbar-group" style={{ gap: "4px" }}>
+          <span
+            className="grafana-toolbar-label"
+            style={{ fontSize: "11px", opacity: 0.8 }}
           >
-            24U
+            Std:
+          </span>
+          <button
+            className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+            onClick={() => addRack(24)}
+          >
+            24
           </button>
           <button
-            className="grafana-btn grafana-btn-secondary"
-            onClick={(e) => {
-              e.stopPropagation();
-              addRack(32);
-            }}
+            className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+            onClick={() => addRack(32)}
           >
-            32U
+            32
           </button>
           <button
-            className="grafana-btn grafana-btn-secondary"
-            onClick={(e) => {
-              e.stopPropagation();
-              addRack(48);
-            }}
+            className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+            onClick={() => addRack(48)}
           >
-            48U
+            48
           </button>
+
+          <div
+            style={{
+              width: "1px",
+              height: "16px",
+              background: "rgba(255,255,255,0.1)",
+              margin: "0 6px",
+            }}
+          />
 
           <span
             className="grafana-toolbar-label"
-            style={{ marginLeft: "12px" }}
+            style={{ fontSize: "11px", opacity: 0.8 }}
           >
-            Add Wide:
+            Wide:
           </span>
           <button
-            className="grafana-btn grafana-btn-secondary"
-            onClick={(e) => {
-              e.stopPropagation();
-              addRack(24, undefined, 1.0);
-            }}
+            className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+            onClick={() => addRack(24, undefined, 1.0)}
           >
-            24U
+            24
           </button>
           <button
-            className="grafana-btn grafana-btn-secondary"
-            onClick={(e) => {
-              e.stopPropagation();
-              addRack(32, undefined, 1.0);
-            }}
+            className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+            onClick={() => addRack(32, undefined, 1.0)}
           >
-            32U
+            32
           </button>
           <button
-            className="grafana-btn grafana-btn-secondary"
-            onClick={(e) => {
-              e.stopPropagation();
-              addRack(48, undefined, 1.0);
-            }}
+            className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+            onClick={() => addRack(48, undefined, 1.0)}
           >
-            48U
+            48
           </button>
         </div>
+
+        <div className="grafana-toolbar-divider" />
+
+        {/* Device Registration */}
+        <button
+          className="grafana-btn grafana-btn-primary"
+          onClick={(e) => {
+            e.stopPropagation();
+            setDeviceRegistrationModalOpen(true);
+          }}
+          title="장비 등록"
+          style={{ fontSize: "var(--font-size-sm)" }}
+        >
+          📋 장비 등록
+        </button>
 
         <div className="grafana-toolbar-divider" />
 
@@ -180,8 +249,8 @@ function App() {
         </div>
       </div>
 
-      {/* Dashboard Widgets (shown when no rack is selected) */}
-      {!selectedRackId && <DashboardWidgets />}
+      {/* Dashboard Widgets (shown when no rack is selected and no modal is open) */}
+      {!selectedRackId && !isModalOpen && <DashboardWidgets />}
 
       {/* Side Panel */}
       {selectedRackId && <DevicePanel />}
@@ -191,6 +260,9 @@ function App() {
 
       {/* Global Import/Export Modal */}
       <ImportExportModal />
+
+      {/* Device Registration Modal */}
+      <DeviceRegistrationModal />
 
       {/* 3D Model Importer (Edit Mode only) */}
       <ModelImporter />

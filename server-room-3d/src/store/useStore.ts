@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import type { Rack, Device, ImportedModel } from "../types";
+import type {
+  Rack,
+  Device,
+  ImportedModel,
+  GroupName,
+  RegisteredDevice,
+} from "../types";
 import { GRID_SPACING, RACK_WIDTH_STANDARD } from "../components/constants";
 import {
   getFrontDirection,
@@ -9,6 +15,7 @@ import * as THREE from "three";
 
 export interface AppState {
   racks: Rack[];
+  registeredDevices: RegisteredDevice[];
   selectedRackId: string | null;
   selectedDeviceId: string | null;
   highlightedPortId: string | null;
@@ -20,6 +27,8 @@ export interface AppState {
   isEditMode: boolean;
   hoveredRackId: string | null;
   importExportModalRackId: string | null;
+  deviceRegistrationModalOpen: boolean;
+  activeGroup: GroupName;
 
   // Camera reference for viewport-center spawning
   _cameraRef: THREE.Camera | null;
@@ -35,6 +44,7 @@ export interface AppState {
   // Actions
   setCameraRef: (camera: THREE.Camera, controls: any) => void;
   setHoveredRack: (id: string | null) => void;
+  setActiveGroup: (group: GroupName) => void;
   setImportExportModalRackId: (id: string | null) => void;
   addRack: (
     uHeight: 24 | 32 | 48,
@@ -63,6 +73,11 @@ export interface AppState {
     updates: Partial<Omit<Rack, "id" | "position">>,
   ) => void;
 
+  // Registered Device Management
+  setDeviceRegistrationModalOpen: (open: boolean) => void;
+  addRegisteredDevice: (device: Omit<RegisteredDevice, "id">) => void;
+  removeRegisteredDevice: (id: string) => void;
+
   // Imported Model Actions
   addImportedModel: (model: Omit<ImportedModel, "id">) => string;
   selectModel: (id: string | null) => void;
@@ -81,7 +96,16 @@ export interface AppState {
   toggleModelMove: (id: string) => void;
 
   // Data Persistence
-  loadState: (racks: Rack[], models?: ImportedModel[]) => void;
+  loadState: (
+    racks: Rack[],
+    models?: ImportedModel[],
+    registeredDevices?: RegisteredDevice[],
+  ) => void;
+  replaceGroupData: (
+    groupName: GroupName,
+    newRacks: Rack[],
+    newRegisteredDevices?: RegisteredDevice[],
+  ) => void;
 }
 
 // Helper to check collision using AABB (Axis-Aligned Bounding Box)
@@ -216,6 +240,7 @@ export const checkFrontClearanceViolation = (
 
 export const useStore = create<AppState>((set, get) => ({
   racks: [],
+  registeredDevices: [],
   selectedRackId: null,
   selectedDeviceId: null,
   highlightedPortId: null,
@@ -226,7 +251,9 @@ export const useStore = create<AppState>((set, get) => ({
   dragOffset: null,
   isEditMode: false,
   hoveredRackId: null,
+  activeGroup: "과천" as GroupName,
   importExportModalRackId: null,
+  deviceRegistrationModalOpen: false,
 
   _cameraRef: null,
   _controlsRef: null,
@@ -240,7 +267,38 @@ export const useStore = create<AppState>((set, get) => ({
   setCameraRef: (camera, controls) =>
     set({ _cameraRef: camera, _controlsRef: controls }),
   setHoveredRack: (id) => set({ hoveredRackId: id }),
+  setActiveGroup: (group) =>
+    set({
+      activeGroup: group,
+      selectedRackId: null,
+      focusedRackId: null,
+      selectedDeviceId: null,
+    }),
   setImportExportModalRackId: (id) => set({ importExportModalRackId: id }),
+  setDeviceRegistrationModalOpen: (open) =>
+    set({ deviceRegistrationModalOpen: open }),
+
+  addRegisteredDevice: (deviceData) => {
+    const newDevice: RegisteredDevice = {
+      ...deviceData,
+      id: crypto.randomUUID(),
+    };
+    set((state) => ({
+      registeredDevices: [...state.registeredDevices, newDevice],
+    }));
+  },
+
+  removeRegisteredDevice: (id) => {
+    set((state) => ({
+      registeredDevices: state.registeredDevices.filter((d) => d.id !== id),
+      // Also remove any placed devices that reference this registered device
+      racks: state.racks.map((rack) => ({
+        ...rack,
+        devices: rack.devices.filter((d) => d.registeredDeviceId !== id),
+      })),
+    }));
+  },
+
   addRack: (uHeight, position, width = RACK_WIDTH_STANDARD) => {
     const { racks, isEditMode, _cameraRef } = get();
 
@@ -310,8 +368,10 @@ export const useStore = create<AppState>((set, get) => ({
       );
     }
 
+    const { activeGroup } = get();
     const newRack: Rack = {
       id: crypto.randomUUID(),
+      groupName: activeGroup,
       uHeight,
       width,
       position: finalPos,
@@ -575,14 +635,41 @@ export const useStore = create<AppState>((set, get) => ({
     }));
   },
 
-  loadState: (newRacks, newModels) =>
+  loadState: (newRacks, newModels, newRegisteredDevices) => {
+    // Backward compatibility: migrate legacy racks without groupName
+    const migratedRacks = newRacks.map((r) => ({
+      ...r,
+      groupName: r.groupName || ("과천" as GroupName),
+    }));
     set({
-      racks: newRacks,
+      racks: migratedRacks,
       importedModels: newModels ?? [],
+      registeredDevices: newRegisteredDevices ?? [],
       selectedRackId: null,
       focusedRackId: null,
       selectedModelId: null,
-    }),
+    });
+  },
+
+  replaceGroupData: (groupName, newRacks, newRegisteredDevices) => {
+    set((state) => {
+      // Remove existing racks for the target group, keep others
+      const otherRacks = state.racks.filter((r) => r.groupName !== groupName);
+      // Remove existing registered devices for the target group, keep others
+      const otherRegDevices = state.registeredDevices.filter(
+        (d) => d.groupName !== groupName,
+      );
+      return {
+        racks: [...otherRacks, ...newRacks],
+        registeredDevices: newRegisteredDevices
+          ? [...otherRegDevices, ...newRegisteredDevices]
+          : state.registeredDevices,
+        selectedRackId: null,
+        focusedRackId: null,
+        selectedDeviceId: null,
+      };
+    });
+  },
 
   // Imported Model Actions
   addImportedModel: (modelData) => {

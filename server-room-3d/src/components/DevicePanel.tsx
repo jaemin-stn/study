@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useStore, checkFrontClearanceViolation } from "../store/useStore";
-import type { DeviceType, ErrorLevel, PortState } from "../types";
-import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
-import type { DeviceTemplate } from "../utils/deviceTemplates";
+import type { PortState, RegisteredDevice } from "../types";
 import { getHighestError } from "../utils/errorHelpers";
+import { resolveDeviceImage } from "../utils/deviceAssets";
 
 /* ---------- Device Tile Image with loading / fallback ---------- */
 const DeviceTileImage = ({ src, alt }: { src: string; alt: string }) => {
@@ -61,18 +61,6 @@ const PANEL_STYLES = `
     filter: brightness(1.1);
     box-shadow: 0 0 15px rgba(110, 159, 255, 0.5);
     transform: translateY(-1px);
-}
-.btn-import-export:active {
-    transform: translateY(0);
-    filter: brightness(0.9);
-}
-.btn-import-export:disabled {
-    background: var(--text-disabled) !important;
-    color: var(--text-tertiary) !important;
-    opacity: 0.6;
-    cursor: not-allowed;
-    box-shadow: none;
-    transform: none;
 }
 
 /* ---------- Device Tile ---------- */
@@ -172,7 +160,7 @@ const PANEL_STYLES = `
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     flex-shrink: 0;
-    opacity: 0.6; /* Partially visible for discoverability */
+    opacity: 0.6;
 }
 .device-tile:hover .device-tile-delete {
     opacity: 1;
@@ -185,16 +173,105 @@ const PANEL_STYLES = `
 .device-tile-delete:active {
     transform: scale(0.9);
 }
-.device-tile-delete:focus-visible {
-    outline: 2px solid var(--theme-primary);
-    outline-offset: 2px;
-    opacity: 1;
+
+/* ---------- Add Device Modal ---------- */
+.add-device-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.15s ease-out;
+}
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+.add-device-modal {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--elevation-3);
+    width: 520px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+/* Registered device list in modal */
+.reg-device-list {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--border-weak);
+    border-radius: var(--radius-md);
+}
+.reg-device-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-weak);
+    transition: background 0.15s;
+}
+.reg-device-item:last-child { border-bottom: none; }
+.reg-device-item:hover {
+    background: var(--bg-secondary);
+}
+.reg-device-item.selected {
+    background: rgba(var(--theme-primary-rgb, 110, 159, 255), 0.15);
+    border-left: 3px solid var(--theme-primary);
+}
+.reg-device-item-thumb {
+    width: 48px;
+    height: 32px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    flex-shrink: 0;
+    background: var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.reg-device-item-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.reg-device-item-info {
+    flex: 1;
+    min-width: 0;
+}
+.reg-device-item-model {
+    font-weight: 600;
+    font-size: var(--font-size-sm);
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.reg-device-item-details {
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.reg-device-item-badge {
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-tertiary);
+    font-size: var(--font-size-xs);
+    color: var(--text-secondary);
+    font-weight: 500;
 }
 `;
 
 export const DevicePanel = () => {
   const {
     racks,
+    registeredDevices,
     selectedRackId,
     selectRack,
     addDevice,
@@ -207,41 +284,49 @@ export const DevicePanel = () => {
   } = useStore();
   const rack = racks.find((r) => r.id === selectedRackId);
 
-  const [newName, setNewName] = useState("");
-  const [newType, setNewType] = useState<DeviceType>("Server");
-  const [newUSize, setNewUSize] = useState(1);
-  const [newUPos, setNewUPos] = useState<number | "">("");
-  const [newImageUrl, setNewImageUrl] = useState("");
-  const [simError, setSimError] = useState<ErrorLevel | "none">("none");
+  // Add-device modal state
+  const [addModalSlot, setAddModalSlot] = useState<number | null>(null);
+  const [selectedRegDeviceId, setSelectedRegDeviceId] = useState<string | null>(
+    null,
+  );
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
-  const handleTemplateSelect = (template: DeviceTemplate | "") => {
-    if (template === "") {
-      setNewName("");
-      setNewType("Server");
-      setNewUSize(1);
-      setNewImageUrl("");
-    } else {
-      setNewName(template.name);
-      setNewType(template.type);
-      setNewUSize(template.uSize);
-      setNewImageUrl(template.imageUrl);
-    }
-  };
+  // Registered devices for this rack's group
+  const groupRegDevices = useMemo(
+    () =>
+      rack
+        ? registeredDevices.filter((rd) => rd.groupName === rack.groupName)
+        : [],
+    [registeredDevices, rack?.groupName],
+  );
+
+  // Helper to lookup a registered device by ID
+  const findRegDevice = (id?: string): RegisteredDevice | undefined =>
+    id ? registeredDevices.find((rd) => rd.id === id) : undefined;
 
   if (!rack) return null;
 
+  const openAddModal = (slotU: number) => {
+    setAddModalSlot(slotU);
+    setSelectedRegDeviceId(null);
+  };
+
+  const closeAddModal = () => {
+    setAddModalSlot(null);
+    setSelectedRegDeviceId(null);
+  };
+
   const handleAdd = () => {
-    if (!newUPos) {
-      alert("Please select a position (U)");
-      return;
-    }
+    if (addModalSlot === null || !selectedRegDeviceId) return;
 
-    const start = Number(newUPos);
-    const end = start + newUSize - 1;
+    const regDevice = findRegDevice(selectedRegDeviceId);
+    if (!regDevice) return;
 
-    // Validation
+    const start = addModalSlot;
+    const end = start + regDevice.uSize - 1;
+
     if (start < 1 || end > rack.uHeight) {
-      alert(`Error: Device (${newUSize}U) exceeds rack height.`);
+      alert(`Error: Device (${regDevice.uSize}U) exceeds rack height.`);
       return;
     }
 
@@ -257,39 +342,29 @@ export const DevicePanel = () => {
     }
 
     const device = {
-      type: newType,
-      name: newName || `${newType} ${newUPos}`,
-      uSize: newUSize,
+      type: regDevice.type,
+      name: regDevice.modelName,
+      uSize: regDevice.uSize,
       uPosition: start,
-      imageUrl: newImageUrl || undefined,
+      modelName: regDevice.modelName,
+      vendor: regDevice.vendor,
+      registeredDeviceId: regDevice.id,
       portStates: [] as PortState[],
     };
 
-    if (simError !== "none") {
-      device.portStates.push({
-        portId: "p1",
-        status: "error",
-        errorLevel: simError as ErrorLevel,
-        errorMessage: "Simulated Error",
-      });
-    }
-
     const success = addDevice(rack.id, device);
     if (success) {
-      setNewName("");
-      setNewUPos("");
-      setNewImageUrl("");
+      closeAddModal();
     } else {
       alert("Failed to add device: Unknown error");
     }
   };
 
-  // Device Colors - Unified base color (low-saturation)
+  // Device Colors
   const UNIFIED_DEVICE_BG = "var(--bg-tertiary)";
   const UNIFIED_DEVICE_TEXT = "var(--text-primary)";
   const UNIFIED_DEVICE_BORDER = "var(--border-medium)";
 
-  // Helper to render rack slots
   const renderSlots = () => {
     if (!rack) return null;
     const usedSlots = new Set<number>();
@@ -306,14 +381,19 @@ export const DevicePanel = () => {
 
       if (device) {
         const heightPx = device.uSize * 28;
-        const hasImage = !!device.imageUrl;
+        // Resolve from registered device if available, else fallback
+        const regDev = findRegDevice(device.registeredDeviceId);
+        const displayName =
+          regDev?.modelName ?? device.modelName ?? device.name;
+        const imageSrc = resolveDeviceImage(
+          regDev?.modelName ?? device.modelName,
+        );
+        const hasImage = !!imageSrc;
 
-        // Calculate highest severity error using shared helper
         const errorInfo = getHighestError(device.portStates);
         const hasError = errorInfo !== null;
         const highestSeverity = errorInfo?.level ?? null;
 
-        // Unified low-saturation base color vs Error "Lit" state
         const bg = hasError
           ? `var(--severity-${highestSeverity})`
           : UNIFIED_DEVICE_BG;
@@ -339,12 +419,8 @@ export const DevicePanel = () => {
             }}
             onClick={() => selectDevice(device.id)}
           >
-            {/* Device faceplate image */}
-            {hasImage && (
-              <DeviceTileImage src={device.imageUrl!} alt={device.name} />
-            )}
+            {hasImage && <DeviceTileImage src={imageSrc!} alt={displayName} />}
 
-            {/* Content overlay (gradient when image, plain otherwise) */}
             <div
               className={
                 hasImage ? "device-tile-overlay" : "device-tile-overlay-plain"
@@ -363,7 +439,6 @@ export const DevicePanel = () => {
                   minWidth: 0,
                 }}
               >
-                {/* Error pulse indicator */}
                 {hasError && (
                   <span
                     style={{
@@ -383,7 +458,7 @@ export const DevicePanel = () => {
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {device.name}
+                  {displayName}
                 </span>
                 <span
                   style={{
@@ -396,113 +471,132 @@ export const DevicePanel = () => {
                 </span>
               </div>
 
-              {/* Delete button – visible on hover */}
               <button
                 className="device-tile-delete"
-                aria-label={`Delete device ${device.name}`}
+                aria-label={`Delete device ${displayName}`}
                 title="Delete device"
                 onClick={(e) => {
                   e.stopPropagation();
-                  if (
-                    window.confirm(`"${device.name}" 장비를 삭제하시겠습니까?`)
-                  ) {
-                    removeDevice(rack.id, device.id);
-                  }
+                  e.preventDefault();
+                  setDeleteConfirmId(device.id);
                 }}
               >
                 ✕
               </button>
+
+              {/* Inline delete confirmation */}
+              {deleteConfirmId === device.id && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    background: "rgba(0,0,0,0.82)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    borderRadius: "var(--radius-sm)",
+                    zIndex: 10,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span
+                    style={{
+                      color: "#fff",
+                      fontSize: "var(--font-size-sm)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    삭제?
+                  </span>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      removeDevice(rack.id, device.id);
+                      setDeleteConfirmId(null);
+                    }}
+                    style={{
+                      padding: "4px 14px",
+                      border: "none",
+                      borderRadius: "var(--radius-sm)",
+                      background: "#e03131",
+                      color: "#fff",
+                      fontSize: "var(--font-size-sm)",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                    }}
+                  >
+                    삭제
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDeleteConfirmId(null);
+                    }}
+                    style={{
+                      padding: "4px 14px",
+                      border: "1px solid rgba(255,255,255,0.3)",
+                      borderRadius: "var(--radius-sm)",
+                      background: "transparent",
+                      color: "#fff",
+                      fontSize: "var(--font-size-sm)",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    취소
+                  </button>
+                </div>
+              )}
             </div>
           </div>,
         );
       } else if (!occupied) {
-        const isSelected = newUPos === u;
-
-        // Check availability
-        let canFit = true;
-        if (u + newUSize - 1 > rack.uHeight) {
-          canFit = false;
-        } else {
-          for (let i = 0; i < newUSize; i++) {
-            if (usedSlots.has(u + i)) {
-              canFit = false;
-              break;
-            }
-          }
-        }
-
         rendered.push(
           <div
             key={`empty-${u}`}
-            onClick={() => canFit && setNewUPos(u)}
+            onClick={() => openAddModal(u)}
             style={{
               height: "28px",
               borderBottom: "1px solid var(--border-weak)",
               display: "flex",
               alignItems: "center",
-              cursor: canFit ? "pointer" : "not-allowed",
-              backgroundColor: isSelected
-                ? "var(--selected-bg)"
-                : !canFit
-                  ? "var(--severity-critical-bg)"
-                  : "var(--severity-success-bg)",
+              cursor: "pointer",
+              backgroundColor: "var(--severity-success-bg)",
               transition: "background 0.1s",
               marginBottom: "2px",
-              opacity: canFit ? 1 : 0.6,
               borderRadius: "var(--radius-sm)",
             }}
-            title={
-              !canFit
-                ? "이 위치에는 해당 높이의 장비를 설치할 수 없습니다."
-                : ""
-            }
+            title="Click to add device at this slot"
           >
-            {/* Rail Number Left */}
             <div
               style={{
                 width: "30px",
                 textAlign: "center",
                 fontSize: "var(--font-size-xs)",
-                color: isSelected
-                  ? "var(--theme-primary)"
-                  : canFit
-                    ? "var(--text-secondary)"
-                    : "var(--severity-critical-text)",
+                color: "var(--text-secondary)",
                 borderRight: "1px solid var(--border-weak)",
-                fontWeight: isSelected ? 700 : 400,
               }}
             >
               {u}
             </div>
-            {/* Slot Content */}
             <div
               style={{
                 flex: 1,
                 paddingLeft: "10px",
                 fontSize: "var(--font-size-xs)",
-                color: isSelected
-                  ? "var(--theme-primary)"
-                  : canFit
-                    ? "var(--severity-success-text)"
-                    : "var(--severity-critical-text)",
-                fontWeight: isSelected ? 600 : 400,
+                color: "var(--severity-success-text)",
               }}
             >
-              {isSelected ? "Selected" : canFit ? "Available" : "Unavailable"}
+              + Available
             </div>
-            {/* Rail Number Right */}
             <div
               style={{
                 width: "30px",
                 textAlign: "center",
                 fontSize: "var(--font-size-xs)",
-                color: isSelected
-                  ? "var(--theme-primary)"
-                  : canFit
-                    ? "var(--text-secondary)"
-                    : "var(--severity-critical-text)",
+                color: "var(--text-secondary)",
                 borderLeft: "1px solid var(--border-weak)",
-                fontWeight: isSelected ? 700 : 400,
               }}
             >
               {u}
@@ -511,7 +605,7 @@ export const DevicePanel = () => {
         );
       }
     }
-    // Flex column-reverse to put U=1 at bottom
+
     return (
       <div
         style={{
@@ -527,6 +621,269 @@ export const DevicePanel = () => {
         {rendered}
       </div>
     );
+  };
+
+  // ─── Add Device Modal ─────────────────────────────────────────────────────
+  const renderAddDeviceModal = () => {
+    if (addModalSlot === null) return null;
+
+    const selectedRegDevice = findRegDevice(selectedRegDeviceId ?? undefined);
+
+    // Calculate actual contiguous free space starting from addModalSlot
+    const usedSlots = new Set<number>();
+    rack.devices.forEach((d) => {
+      for (let i = 0; i < d.uSize; i++) usedSlots.add(d.uPosition + i);
+    });
+    let contiguousFreeU = 0;
+    for (let u = addModalSlot; u <= rack.uHeight; u++) {
+      if (usedSlots.has(u)) break;
+      contiguousFreeU++;
+    }
+
+    // Check if a device can be placed at this slot
+    const canPlace = (uSize: number): boolean => uSize <= contiguousFreeU;
+
+    const modalContent = (
+      <div className="add-device-modal-overlay" onClick={closeAddModal}>
+        <div className="add-device-modal" onClick={(e) => e.stopPropagation()}>
+          {/* Modal Header */}
+          <div className="grafana-modal-header">
+            <div>
+              <h2 className="grafana-modal-title">Add New Device</h2>
+              <span
+                style={{
+                  fontSize: "var(--font-size-sm)",
+                  color: "var(--text-secondary)",
+                }}
+              >
+                Position: U{addModalSlot} · {rack.groupName} · 가용 공간{" "}
+                {contiguousFreeU}U
+              </span>
+            </div>
+            <button className="grafana-modal-close" onClick={closeAddModal}>
+              &times;
+            </button>
+          </div>
+
+          {/* Modal Content */}
+          <div className="grafana-modal-content">
+            {/* Registered Device List */}
+            <div className="grafana-field">
+              <label className="grafana-label">등록 장비 선택</label>
+              {groupRegDevices.length === 0 ? (
+                <div
+                  style={{
+                    padding: "20px",
+                    textAlign: "center",
+                    color: "var(--text-tertiary)",
+                    fontSize: "var(--font-size-sm)",
+                  }}
+                >
+                  등록된 장비가 없습니다.
+                </div>
+              ) : (
+                <div className="reg-device-list">
+                  {groupRegDevices.map((rd) => {
+                    const thumb = resolveDeviceImage(rd.modelName);
+                    const isSelected = selectedRegDeviceId === rd.id;
+                    const placeable = canPlace(rd.uSize);
+                    return (
+                      <div
+                        key={rd.id}
+                        className={`reg-device-item ${isSelected ? "selected" : ""} ${!placeable ? "disabled" : ""}`}
+                        onClick={() => {
+                          if (placeable) setSelectedRegDeviceId(rd.id);
+                        }}
+                        style={{
+                          opacity: placeable ? 1 : 0.45,
+                          cursor: placeable ? "pointer" : "not-allowed",
+                          position: "relative",
+                        }}
+                      >
+                        <div className="reg-device-item-thumb">
+                          {thumb ? (
+                            <img
+                              src={thumb}
+                              alt={rd.modelName}
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display =
+                                  "none";
+                              }}
+                            />
+                          ) : (
+                            <span
+                              style={{
+                                fontSize: "10px",
+                                color: "var(--text-tertiary)",
+                              }}
+                            >
+                              No IMG
+                            </span>
+                          )}
+                        </div>
+                        <div className="reg-device-item-info">
+                          <div className="reg-device-item-model">
+                            {rd.modelName}
+                          </div>
+                          <div className="reg-device-item-details">
+                            <span className="reg-device-item-badge">
+                              {rd.uSize}U
+                            </span>
+                            <span className="reg-device-item-badge">
+                              {rd.vendor}
+                            </span>
+                            <span>{rd.ip}</span>
+                          </div>
+                        </div>
+                        {!placeable && (
+                          <span
+                            style={{
+                              fontSize: "var(--font-size-xs)",
+                              color: "#ff6b6b",
+                              fontWeight: 600,
+                              background: "rgba(255, 60, 60, 0.1)",
+                              border: "1px solid rgba(255, 60, 60, 0.3)",
+                              borderRadius: "var(--radius-sm)",
+                              padding: "2px 8px",
+                              whiteSpace: "nowrap",
+                              flexShrink: 0,
+                            }}
+                          >
+                            배치 불가
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Selected device info */}
+            {selectedRegDevice && (
+              <div
+                style={{
+                  marginTop: "12px",
+                  padding: "12px",
+                  background: "var(--bg-secondary)",
+                  borderRadius: "var(--radius-md)",
+                  border: "1px solid var(--border-weak)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "var(--font-size-sm)",
+                    color: "var(--text-secondary)",
+                    marginBottom: "8px",
+                    fontWeight: 600,
+                  }}
+                >
+                  선택된 장비 정보
+                </div>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: "6px",
+                    fontSize: "var(--font-size-xs)",
+                  }}
+                >
+                  <div>
+                    <span style={{ color: "var(--text-tertiary)" }}>
+                      Model:{" "}
+                    </span>
+                    <span
+                      style={{ color: "var(--text-primary)", fontWeight: 500 }}
+                    >
+                      {selectedRegDevice.modelName}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--text-tertiary)" }}>
+                      Size:{" "}
+                    </span>
+                    <span
+                      style={{ color: "var(--text-primary)", fontWeight: 500 }}
+                    >
+                      {selectedRegDevice.uSize}U
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--text-tertiary)" }}>IP: </span>
+                    <span
+                      style={{ color: "var(--text-primary)", fontWeight: 500 }}
+                    >
+                      {selectedRegDevice.ip}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--text-tertiary)" }}>MAC: </span>
+                    <span
+                      style={{ color: "var(--text-primary)", fontWeight: 500 }}
+                    >
+                      {selectedRegDevice.mac}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--text-tertiary)" }}>
+                      Vendor:{" "}
+                    </span>
+                    <span
+                      style={{ color: "var(--text-primary)", fontWeight: 500 }}
+                    >
+                      {selectedRegDevice.vendor}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ color: "var(--text-tertiary)" }}>
+                      Type:{" "}
+                    </span>
+                    <span
+                      style={{ color: "var(--text-primary)", fontWeight: 500 }}
+                    >
+                      {selectedRegDevice.type}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                marginTop: "16px",
+              }}
+            >
+              <button
+                className="grafana-btn grafana-btn-primary"
+                onClick={handleAdd}
+                disabled={!selectedRegDeviceId}
+                style={{
+                  flex: 1,
+                  opacity: selectedRegDeviceId ? 1 : 0.5,
+                  cursor: selectedRegDeviceId ? "pointer" : "not-allowed",
+                }}
+              >
+                {selectedRegDevice
+                  ? `${selectedRegDevice.modelName} 배치 (U${addModalSlot})`
+                  : "장비를 선택하세요"}
+              </button>
+              <button
+                className="grafana-btn grafana-btn-secondary"
+                onClick={closeAddModal}
+                style={{ flex: 0.4 }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+
+    return createPortal(modalContent, document.body);
   };
 
   return (
@@ -552,6 +909,19 @@ export const DevicePanel = () => {
             }}
           >
             {rack.uHeight}U Configuration
+            <span
+              style={{
+                marginLeft: "6px",
+                padding: "2px 8px",
+                borderRadius: "var(--radius-sm)",
+                background: "var(--theme-primary)",
+                color: "#fff",
+                fontSize: "var(--font-size-xs)",
+                fontWeight: 600,
+              }}
+            >
+              {rack.groupName}
+            </span>
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -636,119 +1006,7 @@ export const DevicePanel = () => {
           </div>
         )}
 
-        {/* Form Section */}
-        <div className="grafana-section">
-          <h3 className="grafana-section-title">Add New Device</h3>
-
-          <div className="grafana-field">
-            <label className="grafana-label">Quick Template</label>
-            <select
-              className="grafana-select"
-              onChange={(e) => {
-                const val = e.target.value;
-                if (val === "") handleTemplateSelect("");
-                else {
-                  const template = DEVICE_TEMPLATES.find((t) => t.name === val);
-                  if (template) handleTemplateSelect(template);
-                }
-              }}
-            >
-              <option value="">-- Select Template --</option>
-              {DEVICE_TEMPLATES.map((t) => (
-                <option key={t.name} value={t.name}>
-                  {t.name} ({t.uSize}U)
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="grafana-field">
-            <label className="grafana-label">Device Name</label>
-            <input
-              className="grafana-input"
-              placeholder="e.g. Core Switch 01"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-            />
-          </div>
-
-          <div className="grafana-field-grid">
-            <div className="grafana-field">
-              <label className="grafana-label">Type</label>
-              <select
-                className="grafana-select"
-                value={newType}
-                onChange={(e) => setNewType(e.target.value as DeviceType)}
-              >
-                <option value="Switch">Switch</option>
-                <option value="Router">Router</option>
-                <option value="Server">Server</option>
-              </select>
-            </div>
-            <div className="grafana-field">
-              <label className="grafana-label">Status Sim.</label>
-              <select
-                className="grafana-select"
-                value={simError}
-                onChange={(e) =>
-                  setSimError(e.target.value as ErrorLevel | "none")
-                }
-              >
-                <option value="none">Normal</option>
-                <option value="warning">Warning</option>
-                <option value="minor">Minor</option>
-                <option value="major">Major</option>
-                <option value="critical">Critical</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grafana-field">
-            <label className="grafana-label">Faceplate Image URL</label>
-            <input
-              className="grafana-input"
-              placeholder="https://... or Data URL"
-              value={newImageUrl}
-              onChange={(e) => setNewImageUrl(e.target.value)}
-            />
-          </div>
-
-          <div className="grafana-field-grid">
-            <div className="grafana-field">
-              <label className="grafana-label">Height (U)</label>
-              <input
-                className="grafana-input"
-                type="number"
-                min="1"
-                max="8"
-                value={newUSize}
-                onChange={(e) => setNewUSize(Number(e.target.value))}
-              />
-            </div>
-            <div className="grafana-field">
-              <label className="grafana-label">Position (U)</label>
-              <input
-                className="grafana-input"
-                type="number"
-                min="1"
-                max={rack.uHeight}
-                value={newUPos}
-                onChange={(e) => setNewUPos(Number(e.target.value))}
-                placeholder="Select/Type"
-              />
-            </div>
-          </div>
-
-          <button
-            className="grafana-btn grafana-btn-primary"
-            onClick={handleAdd}
-            style={{ width: "100%" }}
-          >
-            Add Device
-          </button>
-        </div>
-
-        {/* Rack View */}
+        {/* Rack Layout */}
         <div
           className="grafana-section"
           style={{ background: "transparent", border: "none", padding: 0 }}
@@ -761,7 +1019,7 @@ export const DevicePanel = () => {
               marginBottom: "8px",
             }}
           >
-            Click a slot number below to set position.
+            빈 슬롯을 클릭하면 등록 장비를 배치할 수 있습니다.
           </div>
           {renderSlots()}
         </div>
@@ -791,6 +1049,8 @@ export const DevicePanel = () => {
           </button>
         </div>
       </div>
+
+      {renderAddDeviceModal()}
     </div>
   );
 };

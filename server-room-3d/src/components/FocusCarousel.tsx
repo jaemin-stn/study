@@ -4,30 +4,40 @@ import { useStore } from "../store/useStore";
 /**
  * FocusCarousel Component
  * Provides a navigation UI to cycle through focused racks in normal mode.
- * Follows the Grafana-inspired design system.
+ * Scoped to the active group (과천 or 대전).
  */
 export const FocusCarousel: React.FC = () => {
-  const { racks, selectedRackId, selectRack, focusRack, isEditMode } =
-    useStore();
+  const {
+    racks,
+    selectedRackId,
+    selectRack,
+    focusRack,
+    isEditMode,
+    activeGroup,
+  } = useStore();
+
+  // Filter racks by active group
+  const groupRacks = racks.filter((r) => r.groupName === activeGroup);
 
   // Requirements: Only visible in normal mode, when a rack is focused, and if more than one rack exists.
-  if (isEditMode || !selectedRackId || racks.length <= 1) return null;
+  if (isEditMode || !selectedRackId || groupRacks.length <= 1) return null;
 
-  const currentIndex = racks.findIndex((r) => r.id === selectedRackId);
+  const currentIndex = groupRacks.findIndex((r) => r.id === selectedRackId);
   if (currentIndex === -1) return null;
 
   const handlePrev = () => {
     // Requirements: Wrap around to the last rack if at the first.
-    const prevIndex = (currentIndex - 1 + racks.length) % racks.length;
-    const targetId = racks[prevIndex].id;
+    const prevIndex =
+      (currentIndex - 1 + groupRacks.length) % groupRacks.length;
+    const targetId = groupRacks[prevIndex].id;
     selectRack(targetId);
     focusRack(targetId);
   };
 
   const handleNext = () => {
     // Requirements: Wrap around to the first rack if at the last.
-    const nextIndex = (currentIndex + 1) % racks.length;
-    const targetId = racks[nextIndex].id;
+    const nextIndex = (currentIndex + 1) % groupRacks.length;
+    const targetId = groupRacks[nextIndex].id;
     selectRack(targetId);
     focusRack(targetId);
   };
@@ -99,7 +109,7 @@ export const FocusCarousel: React.FC = () => {
             marginBottom: "2px",
           }}
         >
-          Rack Navigator
+          {activeGroup} Rack Navigator
         </span>
         <div style={{ display: "flex", alignItems: "baseline", gap: "4px" }}>
           <span
@@ -117,7 +127,7 @@ export const FocusCarousel: React.FC = () => {
               color: "var(--text-tertiary)",
             }}
           >
-            / {racks.length}
+            / {groupRacks.length}
           </span>
         </div>
       </div>

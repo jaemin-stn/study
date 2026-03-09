@@ -10,6 +10,7 @@ import type { Rack as RackType, Device } from "../types";
 import { ErrorMarker } from "./ErrorMarker";
 import { U_HEIGHT, GRID_SPACING, DEVICE_DEPTH } from "./constants";
 import { getHighestError } from "../utils/errorHelpers";
+import { resolveDeviceImage } from "../utils/deviceAssets";
 
 // Snapshot of selectedRackId captured inside handlePointerDown BEFORE selectRack()
 // mutates it. Since the Interaction Layer is geometrically closer to the camera,
@@ -574,7 +575,16 @@ export const Rack = ({
         ))}
       </group>
 
-      <ErrorMarker rack={{ id, uHeight, position, devices, width }} />
+      <ErrorMarker
+        rack={{
+          id,
+          uHeight,
+          position,
+          devices,
+          width,
+          groupName: useStore.getState().activeGroup,
+        }}
+      />
     </animated.group>
   );
 };
@@ -663,24 +673,32 @@ const DeviceMesh = ({
       </RoundedBox>
 
       <group position={[0, 0, DEVICE_DEPTH / 2 + 0.001]}>
-        {device.imageUrl ? (
-          <ImageFaceplate
-            url={device.imageUrl}
-            width={deviceWidth}
-            height={deviceH - 0.005}
-            ref={faceplateRef}
-            hasError={hasError}
-          />
-        ) : (
-          <DeviceFaceplate
-            type={device.type}
-            width={deviceWidth}
-            height={deviceH - 0.005}
-            ref={faceplateRef}
-            hasError={hasError}
-            errorColor={errorColor}
-          />
-        )}
+        {(() => {
+          // Resolve faceplate image: modelName → asset, fallback to imageUrl
+          const resolvedUrl =
+            resolveDeviceImage(device.modelName) ?? device.imageUrl;
+          if (resolvedUrl) {
+            return (
+              <ImageFaceplate
+                url={resolvedUrl}
+                width={deviceWidth}
+                height={deviceH - 0.005}
+                ref={faceplateRef}
+                hasError={hasError}
+              />
+            );
+          }
+          return (
+            <DeviceFaceplate
+              type={device.type}
+              width={deviceWidth}
+              height={deviceH - 0.005}
+              ref={faceplateRef}
+              hasError={hasError}
+              errorColor={errorColor}
+            />
+          );
+        })()}
       </group>
     </group>
   );

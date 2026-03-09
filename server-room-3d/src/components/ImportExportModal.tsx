@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useStore } from "../store/useStore";
-import type { Rack, GroupName } from "../types";
+import type { Rack } from "../types";
 import type { ExportOptions, ExportScope } from "../utils/storage";
 import {
   saveRackToJSON,

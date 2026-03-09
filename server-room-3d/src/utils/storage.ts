@@ -555,7 +555,6 @@ export const exportGroupWorkbook = (
   }
 
   const scopeLabel = scope === "ALL" ? "all" : GROUP_ID_MAP[scope] || scope;
-  console.log("[Export] Created workbook with sheets:", wb.SheetNames);
   XLSX.writeFile(wb, `stn-${scopeLabel}-${Date.now()}.xlsx`);
 };
 
@@ -576,17 +575,6 @@ export const importGroupPackage = (
 
         const groupId =
           targetGroup === "ALL" ? "ALL" : GROUP_ID_MAP[targetGroup];
-
-        console.log(
-          "[importGroupPackage] Target group:",
-          targetGroup,
-          "groupId:",
-          groupId,
-        );
-        console.log(
-          "[importGroupPackage] Sheet names in workbook:",
-          workbook.SheetNames,
-        );
 
         // ── Try PKG sheets first (groupId then groupName), then master, then legacy ──
         const findSheet = (...candidates: string[]) =>
@@ -620,12 +608,6 @@ export const importGroupPackage = (
               );
         const regDevSheetName = "RegisteredDevices";
 
-        console.log("[importGroupPackage] Using sheets:", {
-          rackSheetName,
-          deviceSheetName,
-          portSheetName,
-        });
-
         const rackSheet = rackSheetName
           ? workbook.Sheets[rackSheetName]
           : undefined;
@@ -656,19 +638,6 @@ export const importGroupPackage = (
             ) as Record<string, any>[])
           : [];
 
-        console.log("[importGroupPackage] Raw row counts:", {
-          racks: racksFlat.length,
-          devices: devicesFlat.length,
-          ports: portsFlat.length,
-          regDev: regDevFlat.length,
-        });
-        if (racksFlat.length > 0) {
-          console.log("[importGroupPackage] First rack row:", racksFlat[0]);
-        }
-        if (devicesFlat.length > 0) {
-          console.log("[importGroupPackage] First device row:", devicesFlat[0]);
-        }
-
         // Filter to target group (in case master sheets are used)
         const filteredRacks =
           targetGroup === "ALL"
@@ -693,12 +662,6 @@ export const importGroupPackage = (
                   (d) => d.groupId === groupId || d.groupName === targetGroup,
                 )
               : devicesFlat.filter((d) => groupRackIds.has(d.rackId));
-
-        console.log("[importGroupPackage] Filtered counts:", {
-          racks: filteredRacks.length,
-          devices: filteredDevices.length,
-          hasDeviceGroupField,
-        });
 
         // Reconstruct Rack[] from flat rows
         const racks: Rack[] = filteredRacks.map((r) => {

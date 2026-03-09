@@ -215,7 +215,6 @@ export const ImportExportModal = () => {
     selectedFields.device.length +
     selectedFields.port.length;
 
-  // ── Legacy export (individual rack / JSON) ──
   const handleLegacyExport = () => {
     if (totalSelected === 0) return;
 
@@ -234,20 +233,14 @@ export const ImportExportModal = () => {
     }
   };
 
-  // ── Group-scoped export ──
   const handleGroupExport = () => {
     exportGroupWorkbook(racks, registeredDevices, exportScope);
   };
 
-  // ── Group-scoped import ──
   const handleGroupImportClick = () => {
-    console.log(
-      "[Import] Button clicked. ref exists:",
-      !!groupImportRef.current,
-    );
     setImportStatus(null);
     if (groupImportRef.current) {
-      groupImportRef.current.value = ""; // reset to allow re-selecting same file
+      groupImportRef.current.value = "";
       groupImportRef.current.click();
     } else {
       setImportStatus("❌ 파일 입력 요소를 찾을 수 없습니다.");
@@ -257,22 +250,14 @@ export const ImportExportModal = () => {
   const handleGroupImportFile = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
-    console.log("[Import] onChange fired");
     const file = e.target.files?.[0];
     if (!file) {
-      console.log("[Import] No file selected");
       return;
     }
-    console.log("[Import] File selected:", file.name, file.size, "bytes");
     setImportStatus(`⏳ "${file.name}" 파싱 중...`);
 
     try {
       const result = await importGroupPackage(file, importGroup);
-      console.log("[Import] Parsed result:", {
-        racks: result.racks.length,
-        registeredDevices: result.registeredDevices.length,
-        firstRack: result.racks[0],
-      });
 
       if (result.racks.length === 0) {
         setImportStatus(
@@ -290,7 +275,6 @@ export const ImportExportModal = () => {
           : undefined,
       );
 
-      // Auto-switch to the imported group so data is immediately visible (or default to "과천" if ALL)
       setActiveGroup(importGroup === "ALL" ? "과천" : importGroup);
 
       const deviceCount = result.racks.reduce(
@@ -301,7 +285,6 @@ export const ImportExportModal = () => {
         `✅ ${importGroup} 그룹 Import 완료! 랙 ${result.racks.length}개, 장비 ${deviceCount}개`,
       );
     } catch (err) {
-      console.error("[Import] Error:", err);
       setImportStatus(`❌ Import 실패: ${(err as Error).message}`);
     }
 
@@ -419,7 +402,6 @@ export const ImportExportModal = () => {
     </div>
   );
 
-  /** Generic file import handler for legacy mode */
   const handleFileImport =
     (
       globalLoader: (f: File) => Promise<Rack[]>,
@@ -450,11 +432,6 @@ export const ImportExportModal = () => {
             devices: importedData.devices as any,
           });
         }
-        alert(
-          isGlobal
-            ? "Room data imported successfully!"
-            : "Rack data imported successfully!",
-        );
         setImportExportModalRackId(null);
       } catch (err) {
         alert("Import failed: " + (err as Error).message);
@@ -466,10 +443,8 @@ export const ImportExportModal = () => {
   const handleJsonImport = handleFileImport(loadFromJSON, loadRackFromJSON);
   const handleExcelImport = handleFileImport(loadFromExcel, loadRackFromExcel);
 
-  // ── Render: Global mode (group-scoped) vs individual rack mode ──
   const renderGlobalGroupContent = () => (
     <>
-      {/* ── Export Section ── */}
       <div className="options-group">
         <div className="group-header">
           <div className="group-title">
@@ -525,7 +500,6 @@ export const ImportExportModal = () => {
         </button>
       </div>
 
-      {/* ── Divider ── */}
       <div
         style={{
           display: "flex",
@@ -558,7 +532,6 @@ export const ImportExportModal = () => {
         />
       </div>
 
-      {/* ── Import Section ── */}
       <div className="options-group">
         <div className="group-header">
           <div className="group-title">

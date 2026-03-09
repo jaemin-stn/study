@@ -93,8 +93,6 @@ export const Scene = () => {
           // Snap to 0.25 for both X and Z
           const gridX = Math.round((dragPos[0] / GRID_SPACING) * 4) / 4;
           const gridZ = Math.round((dragPos[1] / GRID_SPACING) * 4) / 4;
-
-          console.log(`[Drop] Rack: ${rackId} -> Grid: [${gridX}, ${gridZ}]`);
           state.endDrag(rackId, [gridX, gridZ]);
         } else {
           state.setDragging(false, null);

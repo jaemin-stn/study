@@ -142,8 +142,6 @@ const checkCollision = (
 };
 
 // Helper to check front clearance violation (combined Rule A + Rule B)
-// Rule A: Any OTHER rack is within CLEARANCE units in front of the PLACED rack's front face
-// Rule B: The PLACED rack would be within CLEARANCE units in front of any OTHER rack's front face
 export const checkFrontClearanceViolation = (
   racks: Rack[],
   movedRackId: string,
@@ -161,7 +159,6 @@ export const checkFrontClearanceViolation = (
   const placedFrontDir = getFrontDirection(placedOrientation);
   const placedDims = getEffectiveDimensions(placedWidth, placedOrientation);
 
-  /** Check if `target` is within clearance in front of `source`'s front face */
   const isInFront = (
     frontDir: { x: number; z: number },
     sourceDims: { effectiveWidth: number; effectiveDepth: number },
@@ -169,11 +166,9 @@ export const checkFrontClearanceViolation = (
     deltaX: number,
     deltaZ: number,
   ): boolean => {
-    // Check the axis aligned with the front direction
     if (frontDir.x !== 0) {
       const inFront = frontDir.x > 0 ? deltaX > 0 : deltaX < 0;
       const withinClearance = Math.abs(deltaX) <= CLEARANCE;
-      // Cross-axis alignment: perpendicular overlap
       const aligned =
         Math.abs(deltaZ) <
         (sourceDims.effectiveDepth + otherDims.effectiveWidth) / 2;
@@ -198,7 +193,6 @@ export const checkFrontClearanceViolation = (
     const deltaToOtherX = otherRack.position[0] - newPos[0];
     const deltaToOtherZ = otherRack.position[1] - newPos[1];
 
-    // Rule A: OTHER rack is in front of PLACED rack
     if (
       isInFront(
         placedFrontDir,
@@ -208,13 +202,9 @@ export const checkFrontClearanceViolation = (
         deltaToOtherZ,
       )
     ) {
-      console.warn(
-        `Rule A violation: rack at [${otherRack.position[0]}, ${otherRack.position[1]}] is within ${CLEARANCE} units in front of placed rack at [${newPos[0]}, ${newPos[1]}]`,
-      );
       return true;
     }
 
-    // Rule B: PLACED rack is in front of OTHER rack
     const otherFrontDir = getFrontDirection(otherOrientation);
     const deltaFromOtherX = newPos[0] - otherRack.position[0];
     const deltaFromOtherZ = newPos[1] - otherRack.position[1];
@@ -228,9 +218,6 @@ export const checkFrontClearanceViolation = (
         deltaFromOtherZ,
       )
     ) {
-      console.warn(
-        `Rule B violation: placed rack at [${newPos[0]}, ${newPos[1]}] is within ${CLEARANCE} units in front of rack at [${otherRack.position[0]}, ${otherRack.position[1]}]`,
-      );
       return true;
     }
   }
@@ -291,7 +278,6 @@ export const useStore = create<AppState>((set, get) => ({
   removeRegisteredDevice: (id) => {
     set((state) => ({
       registeredDevices: state.registeredDevices.filter((d) => d.id !== id),
-      // Also remove any placed devices that reference this registered device
       racks: state.racks.map((rack) => ({
         ...rack,
         devices: rack.devices.filter((d) => d.registeredDeviceId !== id),
@@ -302,24 +288,20 @@ export const useStore = create<AppState>((set, get) => ({
   addRack: (uHeight, position, width = RACK_WIDTH_STANDARD) => {
     const { racks, isEditMode, _cameraRef } = get();
 
-    // Compute spawn position: use provided position, or compute from camera viewport center
     let spawnPos: [number, number];
     if (position) {
       spawnPos = position;
     } else if (_cameraRef) {
-      // Raycast from NDC (0,0) — viewport center — onto ground plane Y=0
       const raycaster = new THREE.Raycaster();
       const center = new THREE.Vector2(0, 0);
       raycaster.setFromCamera(center, _cameraRef);
       const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
       const hitPoint = new THREE.Vector3();
       if (raycaster.ray.intersectPlane(groundPlane, hitPoint)) {
-        // Convert world coords to grid coords and snap to 0.25
         const gridX = Math.round((hitPoint.x / GRID_SPACING) * 4) / 4;
         const gridZ = Math.round((hitPoint.z / GRID_SPACING) * 4) / 4;
         spawnPos = [gridX, gridZ];
       } else {
-        // Edge case: camera looking away from ground — use camera forward at default distance
         const dir = new THREE.Vector3();
         _cameraRef.getWorldDirection(dir);
         const fallback = _cameraRef.position.clone().add(dir.multiplyScalar(5));
@@ -328,19 +310,12 @@ export const useStore = create<AppState>((set, get) => ({
         spawnPos = [gridX, gridZ];
       }
     } else {
-      // No camera available, fallback to origin
       spawnPos = [0, 0];
     }
 
-    console.log(
-      `[AddRack] Attempting spawn at [${spawnPos[0]}, ${spawnPos[1]}]`,
-    );
-
-    // If collision at spawn point, try nearby positions with increasing offsets
     let finalPos = spawnPos;
     if (checkCollision(racks, null, spawnPos, width)) {
       let found = false;
-      // Spiral search: try offsets in increasing distance
       for (let radius = 1; radius <= 20; radius++) {
         for (const dx of [-radius, 0, radius]) {
           for (const dz of [-radius, 0, radius]) {
@@ -359,13 +334,6 @@ export const useStore = create<AppState>((set, get) => ({
         }
         if (found) break;
       }
-      if (!found) {
-        console.warn("[AddRack] No free space found nearby. Placing anyway.");
-        // Still place it — user can move it later
-      }
-      console.log(
-        `[AddRack] Collision avoided, moved to [${finalPos[0]}, ${finalPos[1]}]`,
-      );
     }
 
     const { activeGroup } = get();
@@ -379,11 +347,6 @@ export const useStore = create<AppState>((set, get) => ({
       devices: [],
     };
 
-    console.log(
-      `[AddRack] Created rack ${newRack.id.slice(0, 8)} at [${finalPos[0]}, ${finalPos[1]}]`,
-    );
-
-    // Focus rules: in Edit Mode, select the new rack. Otherwise, do NOT focus/select.
     if (isEditMode) {
       set({ racks: [...racks, newRack], selectedRackId: newRack.id });
     } else {
@@ -418,7 +381,6 @@ export const useStore = create<AppState>((set, get) => ({
 
   selectRack: (id) => {
     const state = get();
-    // If we are dragging, ensure we stop and save the position before changing selection
     if (state.isDragging && state.draggingRackId && state.dragPosition) {
       const gridX = Math.round((state.dragPosition[0] / GRID_SPACING) * 2) / 2;
       const gridZ = Math.round((state.dragPosition[1] / GRID_SPACING) * 2) / 2;
@@ -432,8 +394,6 @@ export const useStore = create<AppState>((set, get) => ({
       });
     }
 
-    // If clicking the same rack that is already selected AND we have a focus,
-    // do not clear focusedRackId to satisfy "Clicking on the focused rack itself should NOT clear focus".
     if (id && id === state.selectedRackId && state.focusedRackId) {
       return;
     }
@@ -461,28 +421,24 @@ export const useStore = create<AppState>((set, get) => ({
     const rack = racks.find((r) => r.id === id);
     if (!rack) return false;
 
-    // Edge-to-edge snapping logic:
-    // If we are close to another rack horizontally, snap to its edge.
     let finalPosition = [...newPosition] as [number, number];
-    const SNAP_THRESHOLD = 0.5; // Snap if within 0.5m
+    const SNAP_THRESHOLD = 0.5;
 
     const worldX = newPosition[0] * GRID_SPACING;
 
     for (const other of racks) {
       if (other.id === id) continue;
-      if (Math.abs(other.position[1] - newPosition[1]) > 0.1) continue; // Must be in same row roughly
+      if (Math.abs(other.position[1] - newPosition[1]) > 0.1) continue;
 
       const otherWorldX = other.position[0] * GRID_SPACING;
       const gap =
         Math.abs(worldX - otherWorldX) - (rack.width + other.width) / 2;
 
       if (gap >= -0.1 && gap < SNAP_THRESHOLD) {
-        // Snap!
         const direction = worldX > otherWorldX ? 1 : -1;
         const snappedWorldX =
           otherWorldX + (direction * (other.width + rack.width)) / 2;
         finalPosition[0] = snappedWorldX / GRID_SPACING;
-        console.log(`Snapped edge-to-edge with rack ${other.id.slice(0, 4)}`);
         break;
       }
     }
@@ -503,12 +459,6 @@ export const useStore = create<AppState>((set, get) => ({
     );
 
     if (colliding || frontClearanceViolation) {
-      if (colliding) {
-        console.warn(
-          `Collision at [${newPosition[0]}, ${newPosition[1]}], reverting.`,
-        );
-      }
-      // Revert: do not update position, just reset drag state
       set({
         isDragging: false,
         draggingRackId: null,
@@ -520,9 +470,6 @@ export const useStore = create<AppState>((set, get) => ({
 
     const newRacks = racks.map((r) =>
       r.id === id ? { ...r, position: finalPosition } : r,
-    );
-    console.log(
-      `State updated. Rack ${id} position is now [${finalPosition[0]}, ${finalPosition[1]}]`,
     );
 
     set({
@@ -540,7 +487,6 @@ export const useStore = create<AppState>((set, get) => ({
     const rack = racks.find((r) => r.id === id);
     if (!rack) return;
 
-    // Validate rotation: check if any rack is within 1 unit in front after rotation
     const frontClearanceViolation = checkFrontClearanceViolation(
       racks,
       id,
@@ -550,10 +496,7 @@ export const useStore = create<AppState>((set, get) => ({
     );
 
     if (frontClearanceViolation) {
-      console.warn(
-        `Rotation blocked: another rack is within 1.0 unit in front at orientation ${orientation}°`,
-      );
-      return; // Rollback: do not apply rotation
+      return;
     }
 
     set((state) => ({
@@ -564,13 +507,9 @@ export const useStore = create<AppState>((set, get) => ({
   setEditMode: (enabled) => {
     const { isDragging, draggingRackId, dragPosition, endDrag } = get();
 
-    // If disabling edit mode while dragging, finalize the position
     if (!enabled && isDragging && draggingRackId && dragPosition) {
       const gridX = Math.round((dragPosition[0] / GRID_SPACING) * 2) / 2;
       const gridZ = Math.round((dragPosition[1] / GRID_SPACING) * 2) / 2;
-      console.log(
-        `Mode toggled OFF while dragging. Finalizing to [${gridX}, ${gridZ}]`,
-      );
       endDrag(draggingRackId, [gridX, gridZ]);
     }
 
@@ -582,16 +521,13 @@ export const useStore = create<AppState>((set, get) => ({
     const rack = racks.find((r) => r.id === rackId);
     if (!rack) return false;
 
-    // Check bounds
     if (
       deviceData.uPosition < 1 ||
       deviceData.uPosition + deviceData.uSize - 1 > rack.uHeight
     ) {
-      console.warn("Device out of rack bounds");
       return false;
     }
 
-    // Check overlap
     const collision = rack.devices.some((d) => {
       const dStart = d.uPosition;
       const dEnd = d.uPosition + d.uSize - 1;
@@ -601,7 +537,6 @@ export const useStore = create<AppState>((set, get) => ({
     });
 
     if (collision) {
-      console.warn("Device collision in rack");
       return false;
     }
 
@@ -636,7 +571,6 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   loadState: (newRacks, newModels, newRegisteredDevices) => {
-    // Backward compatibility: migrate legacy racks without groupName
     const migratedRacks = newRacks.map((r) => ({
       ...r,
       groupName: r.groupName || ("과천" as GroupName),
@@ -662,9 +596,7 @@ export const useStore = create<AppState>((set, get) => ({
           selectedDeviceId: null,
         };
       }
-      // Remove existing racks for the target group, keep others
       const otherRacks = state.racks.filter((r) => r.groupName !== groupName);
-      // Remove existing registered devices for the target group, keep others
       const otherRegDevices = state.registeredDevices.filter(
         (d) => d.groupName !== groupName,
       );
@@ -685,7 +617,6 @@ export const useStore = create<AppState>((set, get) => ({
     const { _cameraRef, importedModels } = get();
     let spawnPos: [number, number, number] = modelData.position;
 
-    // If position is [0,0,0] (default from importer) and we have a camera, spawn at viewport center
     if (
       spawnPos[0] === 0 &&
       spawnPos[1] === 0 &&
@@ -699,7 +630,6 @@ export const useStore = create<AppState>((set, get) => ({
       const hitPoint = new THREE.Vector3();
 
       if (raycaster.ray.intersectPlane(groundPlane, hitPoint)) {
-        // Snap to grid for consistency (0.25 units)
         const gridX =
           (Math.round((hitPoint.x / GRID_SPACING) * 4) / 4) * GRID_SPACING;
         const gridZ =
@@ -769,11 +699,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (!model) return;
 
     const newEnabled = !model.isMoveEnabled;
-    console.log(
-      `[Model] ${id.slice(0, 8)} move ${newEnabled ? "ENABLED" : "LOCKED"}`,
-    );
 
-    // If toggling OFF while this model is being dragged, cancel the drag
     if (!newEnabled && state.draggingModelId === id) {
       set({
         draggingModelId: null,

@@ -194,7 +194,7 @@ export const ImportExportModal = () => {
     port: [...PORT_FIELDS],
   });
   const [exportScope, setExportScope] = useState<ExportScope>("ALL");
-  const [importGroup, setImportGroup] = useState<GroupName>("과천");
+  const [importGroup, setImportGroup] = useState<ExportScope>("과천");
   const [importStatus, setImportStatus] = useState<string | null>(null);
 
   const jsonInputRef = useRef<HTMLInputElement>(null);
@@ -290,8 +290,8 @@ export const ImportExportModal = () => {
           : undefined,
       );
 
-      // Auto-switch to the imported group so data is immediately visible
-      setActiveGroup(importGroup);
+      // Auto-switch to the imported group so data is immediately visible (or default to "과천" if ALL)
+      setActiveGroup(importGroup === "ALL" ? "과천" : importGroup);
 
       const deviceCount = result.racks.reduce(
         (sum, r) => sum + r.devices.length,
@@ -577,13 +577,13 @@ export const ImportExportModal = () => {
           가져올 그룹을 선택하세요
         </div>
         <div className="scope-selector">
-          {(["과천", "대전"] as GroupName[]).map((group) => (
+          {(["ALL", "과천", "대전"] as ExportScope[]).map((scope) => (
             <button
-              key={group}
-              className={`scope-btn ${importGroup === group ? "scope-active" : ""}`}
-              onClick={() => setImportGroup(group)}
+              key={scope}
+              className={`scope-btn ${importGroup === scope ? "scope-active" : ""}`}
+              onClick={() => setImportGroup(scope)}
             >
-              📦 {group}
+              {scope === "ALL" ? "🌐 전체" : `📦 ${scope}`}
             </button>
           ))}
         </div>
@@ -591,11 +591,22 @@ export const ImportExportModal = () => {
         <div className="import-warning">
           <span style={{ fontSize: "14px", flexShrink: 0 }}>⚠️</span>
           <span>
-            <strong>{importGroup}</strong> 그룹의 기존 Rack, Device, Port
-            데이터가 모두 삭제되고 파일 데이터로 교체됩니다.
-            <br />
-            {importGroup === "과천" ? "대전" : "과천"} 그룹 데이터에는 영향이
-            없습니다.
+            {importGroup === "ALL" ? (
+              <>
+                <strong>전체(모든 그룹)</strong>의 기존 Rack, Device, Port
+                데이터가 모두 삭제되고 파일 데이터로 교체됩니다.
+                <br />
+                모든 랙 배치가 파일 기준으로 재설정됩니다.
+              </>
+            ) : (
+              <>
+                <strong>{importGroup}</strong> 그룹의 기존 Rack, Device, Port
+                데이터가 모두 삭제되고 파일 데이터로 교체됩니다.
+                <br />
+                {importGroup === "과천" ? "대전" : "과천"} 그룹 데이터에는
+                영향이 없습니다.
+              </>
+            )}
           </span>
         </div>
 

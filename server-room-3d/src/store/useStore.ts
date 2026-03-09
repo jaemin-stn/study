@@ -102,7 +102,7 @@ export interface AppState {
     registeredDevices?: RegisteredDevice[],
   ) => void;
   replaceGroupData: (
-    groupName: GroupName,
+    groupName: GroupName | "ALL",
     newRacks: Rack[],
     newRegisteredDevices?: RegisteredDevice[],
   ) => void;
@@ -653,6 +653,15 @@ export const useStore = create<AppState>((set, get) => ({
 
   replaceGroupData: (groupName, newRacks, newRegisteredDevices) => {
     set((state) => {
+      if (groupName === "ALL") {
+        return {
+          racks: newRacks,
+          registeredDevices: newRegisteredDevices || [],
+          selectedRackId: null,
+          focusedRackId: null,
+          selectedDeviceId: null,
+        };
+      }
       // Remove existing racks for the target group, keep others
       const otherRacks = state.racks.filter((r) => r.groupName !== groupName);
       // Remove existing registered devices for the target group, keep others

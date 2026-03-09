@@ -367,6 +367,11 @@ export const DevicePanel = () => {
 
   const renderSlots = () => {
     if (!rack) return null;
+
+    const SLOT_HEIGHT = 22;
+    const SLOT_MARGIN = 2;
+    const TOTAL_SLOT_HEIGHT = SLOT_HEIGHT + SLOT_MARGIN;
+
     const usedSlots = new Set<number>();
     rack.devices.forEach((d) => {
       for (let i = 0; i < d.uSize; i++) {
@@ -380,7 +385,7 @@ export const DevicePanel = () => {
       const occupied = usedSlots.has(u);
 
       if (device) {
-        const heightPx = device.uSize * 28;
+        const heightPx = device.uSize * TOTAL_SLOT_HEIGHT - SLOT_MARGIN;
         // Resolve from registered device if available, else fallback
         const regDev = findRegDevice(device.registeredDeviceId);
         const displayName =
@@ -557,7 +562,7 @@ export const DevicePanel = () => {
             key={`empty-${u}`}
             onClick={() => openAddModal(u)}
             style={{
-              height: "28px",
+              height: `${SLOT_HEIGHT}px`,
               borderBottom: "1px solid var(--border-weak)",
               display: "flex",
               alignItems: "center",

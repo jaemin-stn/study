@@ -494,7 +494,7 @@ export const Rack = ({
 
       {isHovered && (
         <Billboard position={[0, height / 2 + 0.4, 0]}>
-          <Html center zIndexRange={[0, 10]}>
+          <Html center zIndexRange={[0, 10]} style={{ pointerEvents: "none" }}>
             <div
               style={{
                 background: isDarkMode

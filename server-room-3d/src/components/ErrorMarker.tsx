@@ -46,11 +46,13 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
     }
   });
 
+  const isDraggingRack = useStore((state) => state.isDragging);
+  const draggingModelId = useStore((state) => state.draggingModelId);
+  const isDragging = isDraggingRack || draggingModelId !== null;
+
   if (!highestError) return null;
 
   // Calculate position relative to rack center
-  // Rack base is at -height / 2. We want marker at ERROR_MARKER_HEIGHT (abs)
-  // Since rack center is at world Y = height / 2, marker rel Y = ERROR_MARKER_HEIGHT - height / 2
   const actualRackHeight = rack.uHeight * U_HEIGHT + 0.1;
   const position: [number, number, number] = [
     0,
@@ -66,6 +68,7 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
         <group
           ref={markerRef}
           onClick={(e) => {
+            if (isDragging) return;
             e.stopPropagation();
             selectRack(rack.id);
             focusRack(rack.id);
@@ -76,6 +79,7 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
             position={[0, 0, 0]}
             rotation={[Math.PI, 0, 0]}
             renderOrder={1000}
+            raycast={isDragging ? () => null : undefined}
           >
             <coneGeometry args={[0.2, 0.4, 32]} />
             <meshStandardMaterial
@@ -89,7 +93,14 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
           </mesh>
 
           {/* Error Label UI */}
-          <Html position={[0, 0.5, 0]} center transform={false}>
+          <Html
+            position={[0, 0.5, 0]}
+            center
+            transform={false}
+            style={{
+              pointerEvents: "none",
+            }}
+          >
             <div
               style={{
                 background: "rgba(0, 0, 0, 0.85)",
@@ -101,10 +112,12 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
                 border: `2px solid ${color}`,
                 whiteSpace: "nowrap",
                 boxShadow: `0 0 15px ${color}88`,
-                cursor: "pointer",
-                pointerEvents: "auto",
+                cursor: isDragging ? "default" : "pointer",
+                pointerEvents: isDragging ? "none" : "auto",
+                userSelect: "none",
               }}
               onClick={(e) => {
+                if (isDragging) return;
                 e.stopPropagation();
                 selectRack(rack.id);
                 focusRack(rack.id);

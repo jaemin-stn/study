@@ -361,7 +361,7 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
             0,
           ]}
         >
-          <Html center zIndexRange={[0, 10]}>
+          <Html center zIndexRange={[0, 10]} style={{ pointerEvents: "none" }}>
             <div
               style={{
                 background: isMoveEnabled

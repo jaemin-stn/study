@@ -65,13 +65,48 @@ const flattenPorts = (racks: Rack[]) => {
 
 /** Trigger a browser download for a Blob */
 const downloadBlob = (blob: Blob, filename: string) => {
-  const url = URL.createObjectURL(blob);
+  if (typeof window === "undefined") return;
+  const url = window.URL.createObjectURL(blob);
   const a = document.createElement("a");
+  a.style.display = "none";
   a.href = url;
   a.download = filename;
+  document.body.appendChild(a);
   a.click();
-  URL.revokeObjectURL(url);
+  // Use a longer timeout to ensure the browser registers the download with the filename
+  setTimeout(() => {
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  }, 2000);
 };
+
+/** UUID fallback helper */
+const generateUUID = () => {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+  return (
+    Math.random().toString(36).substring(2, 12) +
+    Math.random().toString(36).substring(2, 12)
+  );
+};
+
+/** Formatted date for filenames: YYYYMMDD_HHMM */
+const getFormattedDate = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  const hh = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  return `${y}${m}${d}_${hh}${mm}`;
+};
+
+const EXCEL_MIME =
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 // ─── Export Functions ────────────────────────────────────────────────────────
 
@@ -161,7 +196,14 @@ export const saveToExcel = (racks: Rack[], options?: ExportOptions) => {
       XLSX.utils.json_to_sheet(portData),
       "Ports",
     );
-  XLSX.writeFile(wb, `server-room-${Date.now()}.xlsx`);
+  try {
+    const u8 = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([u8], { type: EXCEL_MIME });
+    downloadBlob(blob, `STN_Full_Export_${getFormattedDate()}.xlsx`);
+  } catch (err) {
+    console.error("Export failed:", err);
+    alert("내보내기에 실패했습니다. 콘솔을 확인해주세요.");
+  }
 };
 
 export const loadFromExcel = (file: File): Promise<Rack[]> => {
@@ -288,7 +330,17 @@ export const saveRackToExcel = (rack: Rack, options?: ExportOptions) => {
       XLSX.utils.json_to_sheet(portData),
       "Ports",
     );
-  XLSX.writeFile(wb, `rack-${rack.id.substring(0, 8)}-${Date.now()}.xlsx`);
+  try {
+    const u8 = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([u8], { type: EXCEL_MIME });
+    downloadBlob(
+      blob,
+      `Rack_${rack.id.substring(0, 8)}_${getFormattedDate()}.xlsx`,
+    );
+  } catch (err) {
+    console.error("Export failed:", err);
+    alert("내보내기에 실패했습니다. 콘솔을 확인해주세요.");
+  }
 };
 
 export const loadRackFromExcel = (file: File): Promise<Partial<Rack>> => {
@@ -331,7 +383,7 @@ export const loadRackFromExcel = (file: File): Promise<Partial<Rack>> => {
             }));
 
           return {
-            id: d.deviceId || crypto.randomUUID(),
+            id: d.deviceId || generateUUID(),
             name: d.name,
             type: d.type,
             uSize: Number(d.uSize),
@@ -524,7 +576,7 @@ export const exportGroupWorkbook = (
 
     // PKG metadata sheet (use groupId for sheet names to avoid encoding issues)
     const pkgMeta = XLSX.utils.json_to_sheet([
-      { key: "packageId", value: crypto.randomUUID() },
+      { key: "packageId", value: generateUUID() },
       { key: "groupId", value: groupId },
       { key: "groupName", value: scope },
       { key: "exportScope", value: "GROUP_ONLY" },
@@ -554,8 +606,15 @@ export const exportGroupWorkbook = (
       );
   }
 
-  const scopeLabel = scope === "ALL" ? "all" : GROUP_ID_MAP[scope] || scope;
-  XLSX.writeFile(wb, `stn-${scopeLabel}-${Date.now()}.xlsx`);
+  const scopeLabel = scope === "ALL" ? "Full" : GROUP_ID_MAP[scope] || scope;
+  try {
+    const u8 = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([u8], { type: EXCEL_MIME });
+    downloadBlob(blob, `STN_${scopeLabel}_${getFormattedDate()}.xlsx`);
+  } catch (err) {
+    console.error("Export failed:", err);
+    alert("내보내기에 실패했습니다. 콘솔을 확인해주세요.");
+  }
 };
 
 /**
@@ -743,9 +802,8 @@ export const importGroupPackage = (
   });
 };
 
-// ─── Sample Registered Devices ──────────────────────────────────────────────
+// ─── Sample Data Generation ─────────────────────────────────────────────────
 
-/** Generate sample registered devices for a group using the Nokia 7250 IXR catalog */
 const generateRegisteredDevices = (
   group: GroupName,
   count: number,
@@ -756,28 +814,27 @@ const generateRegisteredDevices = (
     const ipParts = ipBase.split(".");
     const lastOctet = parseInt(ipParts[3]) + i;
     return {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       groupName: group,
       deviceName: `${template.modelName}-${group}-${i + 1}`,
       modelName: template.modelName,
       type: template.type,
       uSize: template.uSize,
       ip: `${ipParts[0]}.${ipParts[1]}.${ipParts[2]}.${lastOctet}`,
-      mac: `AA:BB:CC:${group === "과천" ? "01" : "02"}:${String(i).padStart(2, "0")}:${String(
-        Math.floor(Math.random() * 256).toString(16),
-      )
-        .padStart(2, "0")
-        .toUpperCase()}`,
-      vendor: template.vendor,
+      mac: `00:00:5e:00:53:${localIdxToMac(i)}`,
+      vendor: "Nokia",
     };
   });
 
-export const sampleRegisteredDevices: RegisteredDevice[] = [
-  ...generateRegisteredDevices("과천", 15, "10.1.1.1"),
-  ...generateRegisteredDevices("대전", 10, "10.2.1.1"),
-];
+const localIdxToMac = (idx: number) => {
+  const hex = idx.toString(16).padStart(2, "0");
+  return hex;
+};
 
-// ─── Sample Racks ───────────────────────────────────────────────────────────
+export const sampleRegisteredDevices: RegisteredDevice[] = [
+  ...generateRegisteredDevices("과천", 50, "10.10.1.1"),
+  ...generateRegisteredDevices("대전", 30, "10.20.1.1"),
+];
 
 /** Generate racks for a single group, placing registered devices into slots */
 const generateGroupRacks = (
@@ -811,7 +868,7 @@ const generateGroupRacks = (
       const shouldAddError = hasError && d === 0;
 
       devices.push({
-        id: crypto.randomUUID(),
+        id: generateUUID(),
         name: regDevice.modelName,
         type: regDevice.type,
         uSize: regDevice.uSize,
@@ -844,7 +901,7 @@ const generateGroupRacks = (
     const stateX = (worldX + width / 2) / GRID_SPACING;
 
     return {
-      id: crypto.randomUUID(),
+      id: generateUUID(),
       groupName: group,
       uHeight,
       width,

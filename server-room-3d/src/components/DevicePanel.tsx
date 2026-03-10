@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useStore, checkFrontClearanceViolation } from "../store/useStore";
 import type { PortState, RegisteredDevice } from "../types";
@@ -267,6 +267,8 @@ const PANEL_STYLES = `
     font-weight: 500;
 }
 `;
+
+const PanelStyles = React.memo(() => <style>{PANEL_STYLES}</style>);
 
 export const DevicePanel = () => {
   const {
@@ -893,7 +895,7 @@ export const DevicePanel = () => {
 
   return (
     <div className="grafana-side-panel" style={{ width: "400px" }}>
-      <style>{PANEL_STYLES}</style>
+      <PanelStyles />
 
       <div className="grafana-side-panel-header">
         <div>

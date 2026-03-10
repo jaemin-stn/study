@@ -77,6 +77,10 @@ export interface AppState {
   setDeviceRegistrationModalOpen: (open: boolean) => void;
   addRegisteredDevice: (device: Omit<RegisteredDevice, "id">) => void;
   removeRegisteredDevice: (id: string) => void;
+  upsertRegisteredDevices: (devices: Omit<RegisteredDevice, "id">[]) => {
+    added: number;
+    updated: number;
+  };
 
   // Imported Model Actions
   addImportedModel: (model: Omit<ImportedModel, "id">) => string;
@@ -283,6 +287,34 @@ export const useStore = create<AppState>((set, get) => ({
         devices: rack.devices.filter((d) => d.registeredDeviceId !== id),
       })),
     }));
+  },
+
+  upsertRegisteredDevices: (devices) => {
+    let added = 0;
+    let updated = 0;
+
+    set((state) => {
+      const existing = [...state.registeredDevices];
+      devices.forEach((newDev) => {
+        // try to find by MAC (preferred) or deviceName+IP
+        const matchIdx = existing.findIndex(
+          (ex) =>
+            ex.mac === newDev.mac ||
+            (ex.deviceName === newDev.deviceName && ex.ip === newDev.ip),
+        );
+
+        if (matchIdx >= 0) {
+          existing[matchIdx] = { ...existing[matchIdx], ...newDev };
+          updated++;
+        } else {
+          existing.push({ ...newDev, id: crypto.randomUUID() });
+          added++;
+        }
+      });
+      return { registeredDevices: existing };
+    });
+
+    return { added, updated };
   },
 
   addRack: (uHeight, position, width = RACK_WIDTH_STANDARD) => {

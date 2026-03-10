@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { useStore } from "../store/useStore";
 import type { Rack } from "../types";
 import type { ExportOptions, ExportScope } from "../utils/storage";
@@ -175,6 +175,8 @@ const IMPORT_EXPORT_STYLES = `
     line-height: 1.5;
 }
 `;
+
+const ModalStyles = React.memo(() => <style>{IMPORT_EXPORT_STYLES}</style>);
 
 export const ImportExportModal = () => {
   const {
@@ -810,7 +812,7 @@ export const ImportExportModal = () => {
       className="grafana-modal-overlay"
       onClick={() => setImportExportModalRackId(null)}
     >
-      <style>{IMPORT_EXPORT_STYLES}</style>
+      <ModalStyles />
       <div
         className="grafana-modal"
         style={{

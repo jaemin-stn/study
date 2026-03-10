@@ -618,6 +618,106 @@ export const exportGroupWorkbook = (
 };
 
 /**
+ * Export selected registered devices to Excel
+ */
+export const exportRegisteredDevicesToExcel = (
+  devices: RegisteredDevice[],
+  scope: string, // "ALL" | "과천" | "대전" | "SELECTED"
+) => {
+  const wb = XLSX.utils.book_new();
+  const rows = flattenRegisteredDevices(devices);
+
+  if (rows.length > 0) {
+    XLSX.utils.book_append_sheet(
+      wb,
+      XLSX.utils.json_to_sheet(rows),
+      "RegisteredDevices",
+    );
+  }
+
+  try {
+    const u8 = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([u8], { type: EXCEL_MIME });
+    downloadBlob(
+      blob,
+      `STN_registered_devices_${scope}_${getFormattedDate()}.xlsx`,
+    );
+  } catch (err) {
+    console.error("Export failed:", err);
+    alert("내보내기에 실패했습니다. 콘솔을 확인해주세요.");
+  }
+};
+
+/**
+ * Import registered devices from a standalone Excel file
+ */
+export const parseRegisteredDevicesFromExcel = (
+  file: File,
+): Promise<Omit<RegisteredDevice, "id">[]> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = new Uint8Array(e.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+
+        const sheetName = workbook.SheetNames.includes("RegisteredDevices")
+          ? "RegisteredDevices"
+          : workbook.SheetNames.includes("Devices")
+            ? "Devices"
+            : workbook.SheetNames[0];
+
+        const sheet = workbook.Sheets[sheetName];
+        if (!sheet) throw new Error("No sheets found in Excel file.");
+
+        const rows = XLSX.utils.sheet_to_json(sheet) as Record<string, any>[];
+
+        const parsed: Omit<RegisteredDevice, "id">[] = rows
+          .map((r): Omit<RegisteredDevice, "id"> | null => {
+            const grp = r.groupName || GROUP_NAME_MAP[r.groupId] || "과천";
+            const mac = String(r.mac || "")
+              .trim()
+              .toUpperCase();
+            const ip = String(r.ip || "").trim();
+            const modelName = String(r.modelName || "").trim();
+            const deviceName = String(r.deviceName || "").trim();
+            const vendor = String(r.vendor || "Nokia").trim() as any;
+
+            if (!modelName || !mac || !ip) return null;
+
+            // find template to fill missing type / uSize if not correctly provided
+            const template = DEVICE_TEMPLATES.find(
+              (t) => t.modelName === modelName,
+            );
+            const type = (r.type ||
+              template?.type ||
+              "network") as RegisteredDevice["type"];
+            const uSize = Number(r.uSize) || template?.uSize || 1;
+
+            return {
+              groupName: grp as GroupName,
+              modelName,
+              deviceName,
+              ip,
+              mac,
+              vendor,
+              type,
+              uSize,
+            };
+          })
+          .filter((d): d is Omit<RegisteredDevice, "id"> => d !== null);
+
+        resolve(parsed);
+      } catch (err) {
+        reject(err);
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsArrayBuffer(file);
+  });
+};
+
+/**
  * Import group-scoped data from PKG sheets in a workbook.
  * Returns reconstructed Rack[] for the target group only.
  */

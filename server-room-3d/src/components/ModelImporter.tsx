@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import { useStore } from "../store/useStore";
 import type { ImportedModel, WallParams, PartitionParams } from "../types";
 import {
@@ -29,6 +29,25 @@ const isValidExtension = (name: string): boolean => {
   const lower = name.toLowerCase();
   return lower.endsWith(".glb") || lower.endsWith(".gltf");
 };
+
+const ModelImporterStyles = React.memo(() => (
+  <style>{`
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+    .spinner-mini {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top: 2px solid #fff;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  `}</style>
+));
 
 export const ModelImporter = () => {
   const isEditMode = useStore((s) => s.isEditMode);
@@ -933,22 +952,7 @@ export const ModelImporter = () => {
         </div>
       )}
 
-      <style>{`
-        @keyframes pulse {
-          0% { transform: scale(1); }
-          50% { transform: scale(1.05); }
-          100% { transform: scale(1); }
-        }
-        .spinner-mini {
-          width: 14px;
-          height: 14px;
-          border: 2px solid rgba(255,255,255,0.3);
-          border-top: 2px solid #fff;
-          border-radius: 50%;
-          animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-      `}</style>
+      <ModelImporterStyles />
     </>
   );
 };

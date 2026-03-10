@@ -1,7 +1,11 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { useStore } from "../store/useStore";
 import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
 import type { GroupName, VendorName } from "../types";
+import {
+  exportRegisteredDevicesToExcel,
+  parseRegisteredDevicesFromExcel,
+} from "../utils/storage";
 
 const GROUPS: GroupName[] = ["과천", "대전"];
 const VENDORS: VendorName[] = [
@@ -26,13 +30,13 @@ const MODAL_STYLES = `
 .drm-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: drm-fade-in 0.2s ease-out;
+  animation: drm-fade-in 0.25s ease-out;
 }
 @keyframes drm-fade-in {
   from { opacity: 0; }
@@ -40,82 +44,87 @@ const MODAL_STYLES = `
 }
 .drm-modal {
   background: var(--modal-bg);
-  border: 1px solid var(--border-weak);
-  border-radius: 20px;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
-  width: 960px;
+  border: 1px solid var(--border-medium);
+  border-radius: 24px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  width: 1000px;
   max-width: 95vw;
   max-height: 85vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: drm-zoom-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: drm-zoom-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes drm-zoom-in {
-  from { transform: scale(0.95) translateY(10px); opacity: 0; }
+  from { transform: scale(0.96) translateY(20px); opacity: 0; }
   to { transform: scale(1) translateY(0); opacity: 1; }
 }
 .drm-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24px 32px;
-  background: linear-gradient(to bottom, rgba(255,255,255,0.02), transparent);
+  padding: 16px 24px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
+  border-bottom: 1px solid var(--border-weak);
 }
 .drm-header h2 {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--text-primary);
   margin: 0;
   display: flex;
   align-items: center;
-  gap: 12px;
-  letter-spacing: -0.02em;
+  gap: 16px;
+  letter-spacing: -0.01em;
 }
 .drm-header h2 .icon-wrap {
-  width: 32px;
-  height: 32px;
-  background: var(--theme-primary);
-  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  background: linear-gradient(135deg, var(--theme-primary), #4872d8);
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 12px rgba(110, 159, 255, 0.3);
-  font-size: 16px;
+  box-shadow: 0 6px 16px rgba(110, 159, 255, 0.25);
+  font-size: 18px;
+  color: white;
 }
 .drm-close {
   background: var(--bg-tertiary);
-  border: none;
+  border: 1px solid var(--border-medium);
   color: var(--text-secondary);
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   border-radius: 50%;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  font-size: 18px;
 }
 .drm-close:hover {
   background: var(--severity-critical);
   color: #fff;
+  border-color: var(--severity-critical);
   transform: rotate(90deg);
 }
 .drm-body {
   flex: 1;
   overflow-y: auto;
-  padding: 0 32px 32px 32px;
+  padding: 20px 24px;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 20px;
 }
 
 /* Card-like Sections */
 .drm-section-card {
-  background: rgba(255, 255, 255, 0.02);
+  background: rgba(255, 255, 255, 0.015);
   border: 1px solid var(--border-weak);
-  border-radius: 16px;
-  padding: 24px;
+  border-radius: 20px;
+  padding: 20px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
 }
 
 /* Form section */
@@ -123,85 +132,133 @@ const MODAL_STYLES = `
   font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 20px;
+  margin-bottom: 16px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+}
+.drm-form-title .icon {
+  font-size: 20px;
 }
 .drm-form-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
+  gap: 16px;
 }
 .drm-field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 .drm-field label {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.02em;
 }
 .drm-field label .drm-required {
   color: var(--severity-critical);
-  margin-left: 2px;
+  margin-left: 4px;
 }
 .drm-field input,
 .drm-field select {
-  height: 40px;
+  height: 38px;
   padding: 0 12px;
   border: 1px solid var(--border-medium);
   border-radius: 10px;
-  font-size: 14px;
-  background: var(--bg-primary);
+  font-size: 13px;
+  background: var(--bg-tertiary);
   color: var(--text-primary);
-  font-family: var(--font-family);
-  transition: all 0.2s;
+  font-family: inherit;
+  transition: all 0.2s ease;
 }
 .drm-field input:focus,
 .drm-field select:focus {
   outline: none;
   border-color: var(--theme-primary);
-  box-shadow: 0 0 0 3px rgba(110, 159, 255, 0.15);
+  box-shadow: 0 0 0 4px rgba(110, 159, 255, 0.1);
   background: var(--bg-primary);
 }
 .drm-field .drm-error-hint {
   font-size: 12px;
   color: var(--severity-critical-text);
   margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 .drm-form-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 24px;
+  margin-top: 16px;
 }
 .drm-submit-btn {
-  height: 42px;
-  padding: 0 32px;
-  background: var(--theme-primary);
+  height: 38px;
+  padding: 0 24px;
+  background: linear-gradient(135deg, var(--theme-primary), #4872d8);
   color: white;
   border: none;
   border-radius: 10px;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
-  box-shadow: 0 4px 12px rgba(110, 159, 255, 0.3);
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(110, 159, 255, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 .drm-submit-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(110, 159, 255, 0.4);
+  box-shadow: 0 8px 20px rgba(110, 159, 255, 0.35);
+  filter: brightness(1.1);
 }
 
 /* Table section */
-.drm-table-toolbar {
+.drm-table-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.drm-table-title-group {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-bottom: 20px;
+}
+.drm-badge {
+  padding: 4px 10px;
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--border-weak);
+}
+.drm-badge.highlight {
+  background: rgba(110, 159, 255, 0.15);
+  color: var(--theme-primary);
+  border-color: rgba(110, 159, 255, 0.3);
+}
+.drm-table-actions {
+  display: flex;
+  gap: 12px;
+}
+.drm-table-actions .grafana-btn {
+  height: 36px;
+  border-radius: 8px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drm-table-filters {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
 }
 .drm-search-wrap {
   flex: 1;
@@ -209,115 +266,232 @@ const MODAL_STYLES = `
 }
 .drm-search-input {
   width: 100%;
-  height: 40px;
+  height: 38px;
   padding: 0 12px 0 40px;
   border: 1px solid var(--border-medium);
   border-radius: 10px;
-  font-size: 14px;
-  background: var(--bg-primary);
+  font-size: 13px;
+  background: var(--bg-tertiary);
   color: var(--text-primary);
-  transition: all 0.2s;
+  transition: all 0.2s ease;
 }
-.drm-search-wrap::before {
-  content: '🔍';
+.drm-search-input:focus {
+  background: var(--bg-primary);
+  border-color: var(--theme-primary);
+  box-shadow: 0 0 0 4px rgba(110, 159, 255, 0.1);
+  outline: none;
+}
+.drm-search-icon {
   position: absolute;
-  left: 14px;
+  left: 16px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 14px;
-  opacity: 0.5;
+  font-size: 16px;
+  color: var(--text-tertiary);
+  pointer-events: none;
 }
 .drm-group-filter {
-  height: 40px;
-  padding: 0 12px;
+  height: 38px;
+  padding: 0 16px;
   border: 1px solid var(--border-medium);
   border-radius: 10px;
-  font-size: 14px;
-  background: var(--bg-primary);
+  font-size: 13px;
+  background: var(--bg-tertiary);
   color: var(--text-primary);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
+.drm-group-filter:focus {
+  outline: none;
+  border-color: var(--theme-primary);
+  box-shadow: 0 0 0 4px rgba(110, 159, 255, 0.1);
+}
+
 .drm-table-container {
   border: 1px solid var(--border-weak);
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
   background: var(--bg-primary);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
 }
 .drm-table-scroll {
-  max-height: 300px;
+  max-height: 420px;
   overflow-y: auto;
 }
 .drm-table {
   width: 100%;
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
 }
 .drm-table th {
   background: var(--bg-tertiary);
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-weight: 600;
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  padding: 12px 16px;
+  letter-spacing: 0.05em;
+  padding: 10px 16px;
   text-align: left;
-  border-bottom: 1px solid var(--border-weak);
   position: sticky;
   top: 0;
+  z-index: 10;
+  border-bottom: 1px solid var(--border-weak);
+  backdrop-filter: blur(8px);
 }
 .drm-table td {
-  padding: 12px 16px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--border-weak);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+.drm-table tr:last-child td {
+  border-bottom: none;
+}
+.drm-table tr {
+  transition: background 0.15s;
 }
 .drm-table tr:hover {
-  background: rgba(110, 159, 255, 0.05);
+  background: rgba(255, 255, 255, 0.03);
 }
+/* Checkbox styling */
+.drm-table th input[type="checkbox"],
+.drm-table td input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--theme-primary);
+}
+
+.drm-group-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+.drm-group-tag.group-gwacheon {
+  background: rgba(16, 185, 129, 0.1);
+  color: #10b981;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+.drm-group-tag.group-daejeon {
+  background: rgba(139, 92, 246, 0.1);
+  color: #8b5cf6;
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
 .drm-vendor-tag {
   display: inline-flex;
   align-items: center;
-  padding: 2px 8px;
-  background: rgba(110, 159, 255, 0.1);
-  color: var(--theme-primary);
-  border-radius: 6px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  color: var(--text-primary);
+  border-radius: 8px;
   font-size: 12px;
   font-weight: 600;
 }
 .drm-delete-btn {
-  width: 32px;
-  height: 32px;
-  background: transparent;
+  width: 36px;
+  height: 36px;
+  background: rgba(255, 100, 100, 0.05);
   border: 1px solid rgba(255, 100, 100, 0.2);
   color: var(--severity-critical);
-  border-radius: 8px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  font-size: 16px;
 }
 .drm-delete-btn:hover {
   background: var(--severity-critical);
   color: white;
   border-color: var(--severity-critical);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(255, 60, 60, 0.3);
 }
 
-/* Toast notification */
-.drm-toast {
+/* Toast notification (Centered Illustration) */
+.drm-toast-wrapper {
   position: fixed;
-  top: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2000;
-  padding: 12px 24px;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 600;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-  animation: drm-toast-in 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  inset: 0;
+  z-index: 2200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  animation: drm-toast-fade-in 0.3s ease-out;
 }
-@keyframes drm-toast-in {
-  from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
-  to { transform: translateX(-50%) translateY(0); opacity: 1; }
+@keyframes drm-toast-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.drm-toast {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  padding: 32px 40px;
+  border-radius: 32px;
+  width: 400px;
+  max-width: 90vw;
+  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  text-align: center;
+  animation: drm-toast-zoom-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: all 0.3s ease;
+}
+.drm-toast.compact {
+  padding: 24px 32px;
+  width: auto;
+  min-width: 280px;
+  border-radius: 20px;
+  gap: 12px;
+}
+@keyframes drm-toast-zoom-in {
+  from { transform: scale(0.9) translateY(20px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.drm-toast-image {
+  width: 160px;
+  height: 160px;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.1));
+}
+
+.drm-toast-content h3 {
+  font-size: 20px;
+  font-weight: 800;
+  color: #222;
+  margin: 0 0 10px 0;
+  letter-spacing: -0.02em;
+}
+.drm-toast-content p {
+  font-size: 15px;
+  font-weight: 500;
+  color: #555;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.drm-toast-success {
+  border-top: 6px solid var(--severity-success);
+}
+.drm-toast-error {
+  border-top: 6px solid var(--severity-critical);
 }
 
 /* Delete confirm popover */
@@ -326,40 +500,47 @@ const MODAL_STYLES = `
   z-index: 1501;
   background: var(--modal-bg);
   border: 1px solid var(--border-medium);
-  border-radius: 16px;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
-  padding: 20px;
-  width: 300px;
-  animation: drm-pop-in 0.2s ease-out;
+  border-radius: 20px;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.05);
+  padding: 24px;
+  width: 320px;
+  animation: drm-pop-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 @keyframes drm-pop-in {
-  from { transform: scale(0.9); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
+  from { transform: scale(0.9) translateY(10px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
 }
 .drm-confirm-popover p {
-  margin: 0 0 12px 0;
-  font-size: var(--font-size-sm);
+  margin: 0 0 16px 0;
+  font-size: 15px;
   color: var(--text-primary);
   line-height: 1.5;
 }
 .drm-confirm-popover .drm-placement-warn {
-  font-size: var(--font-size-xs);
+  font-size: 13px;
   color: var(--severity-major-text);
   background: var(--severity-major-bg);
-  padding: 6px 8px;
-  border-radius: var(--radius-sm);
-  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  border-left: 3px solid var(--severity-major);
 }
 .drm-confirm-actions {
   display: flex;
   justify-content: flex-end;
-  gap: var(--spacing-sm);
+  gap: 12px;
+}
+.drm-confirm-actions button {
+  height: 38px;
+  border-radius: 10px;
+  font-weight: 600;
 }
 `;
 
 interface ToastState {
   message: string;
   type: "success" | "error";
+  action?: "export" | "import" | "add" | "delete";
 }
 
 interface DeleteConfirm {
@@ -369,6 +550,8 @@ interface DeleteConfirm {
   rect: DOMRect;
 }
 
+const ModalStyles = React.memo(() => <style>{MODAL_STYLES}</style>);
+
 export const DeviceRegistrationModal = () => {
   const isOpen = useStore((s) => s.deviceRegistrationModalOpen);
   const setOpen = useStore((s) => s.setDeviceRegistrationModalOpen);
@@ -376,6 +559,7 @@ export const DeviceRegistrationModal = () => {
   const racks = useStore((s) => s.racks);
   const addRegisteredDevice = useStore((s) => s.addRegisteredDevice);
   const removeRegisteredDevice = useStore((s) => s.removeRegisteredDevice);
+  const upsertRegisteredDevices = useStore((s) => s.upsertRegisteredDevices);
   const activeGroup = useStore((s) => s.activeGroup);
 
   // Form state
@@ -389,6 +573,7 @@ export const DeviceRegistrationModal = () => {
   // Table state
   const [search, setSearch] = useState("");
   const [groupFilter, setGroupFilter] = useState<GroupName | "all">("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // UI state
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -419,13 +604,85 @@ export const DeviceRegistrationModal = () => {
     return list;
   }, [registeredDevices, groupFilter, search]);
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   if (!isOpen) return null;
 
   const selectedTemplate = DEVICE_TEMPLATES[selectedModelIdx];
 
-  const showToast = (message: string, type: "success" | "error") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 2500);
+  const showToast = (
+    message: string,
+    type: "success" | "error",
+    action?: ToastState["action"],
+  ) => {
+    setToast({ message, type, action });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(new Set(filteredDevices.map((d) => d.id)));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectRow = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const isAllSelected =
+    filteredDevices.length > 0 &&
+    filteredDevices.every((d) => selectedIds.has(d.id));
+
+  const handleImportExcel = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const parsed = await parseRegisteredDevicesFromExcel(file);
+      if (parsed.length === 0) {
+        showToast(
+          "파일에서 유효한 장비를 찾을 수 없습니다.",
+          "error",
+          "import",
+        );
+        return;
+      }
+      const { added, updated } = upsertRegisteredDevices(parsed);
+      showToast(
+        `일괄 등록 완료! (신규: ${added}건, 갱신: ${updated}건)`,
+        "success",
+        "import",
+      );
+    } catch (err: any) {
+      console.error(err);
+      showToast(`일괄 등록 실패: ${err.message}`, "error", "import");
+    }
+  };
+
+  const handleExportExcel = () => {
+    if (selectedIds.size === 0) {
+      showToast("내보낼 장비를 선택하세요.", "error", "export");
+      return;
+    }
+    const selectedDevices = registeredDevices.filter((d) =>
+      selectedIds.has(d.id),
+    );
+    const scope = groupFilter === "all" ? "SELECTED" : groupFilter;
+    exportRegisteredDevicesToExcel(selectedDevices, scope);
+    showToast("선택한 장비 데이터가 내보내졌습니다.", "success", "export");
   };
 
   const validate = (): boolean => {
@@ -453,7 +710,11 @@ export const DeviceRegistrationModal = () => {
       vendor,
     });
 
-    showToast(`장비 "${deviceName.trim()}" 이(가) 등록되었습니다.`, "success");
+    showToast(
+      `장비 "${deviceName.trim()}" 이(가) 등록되었습니다.`,
+      "success",
+      "add",
+    );
     // Reset form
     setDeviceName("");
     setIp("");
@@ -487,20 +748,62 @@ export const DeviceRegistrationModal = () => {
     showToast(
       `장비 "${deleteConfirm.deviceName}" 이(가) 삭제되었습니다.`,
       "success",
+      "delete",
     );
     setDeleteConfirm(null);
   };
 
   return (
     <>
-      <style>{MODAL_STYLES}</style>
+      <ModalStyles />
 
-      {/* Toast */}
+      {/* Toast (Centered Popup) */}
       {toast && (
-        <div
-          className={`drm-toast ${toast.type === "success" ? "drm-toast-success" : "drm-toast-error"}`}
-        >
-          {toast.message}
+        <div className="drm-toast-wrapper" onClick={() => setToast(null)}>
+          <div
+            className={`drm-toast ${toast.type === "success" ? "drm-toast-success" : "drm-toast-error"} ${toast.action === "add" || toast.action === "delete" ? "compact" : ""}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {toast.action !== "add" && toast.action !== "delete" && (
+              <img
+                src={
+                  toast.action === "export"
+                    ? toast.type === "success"
+                      ? "/assets/export_success.png"
+                      : "/assets/export_error.png"
+                    : toast.action === "import"
+                      ? toast.type === "success"
+                        ? "/assets/import_success.png"
+                        : "/assets/import_error.png"
+                      : toast.type === "success"
+                        ? "/assets/success_popup.png"
+                        : "/assets/error_popup.png"
+                }
+                alt="status illustration"
+                className="drm-toast-image"
+              />
+            )}
+            <div className="drm-toast-content">
+              <h3>
+                {toast.type === "success"
+                  ? toast.action === "export"
+                    ? "내보내기 완료"
+                    : toast.action === "import"
+                      ? "가져오기 완료"
+                      : toast.action === "add"
+                        ? "등록 성공"
+                        : toast.action === "delete"
+                          ? "삭제 완료"
+                          : "완료되었습니다"
+                  : toast.action === "export"
+                    ? "내보내기 실패"
+                    : toast.action === "import"
+                      ? "가져오기 실패"
+                      : "확인이 필요합니다"}
+              </h3>
+              <p>{toast.message}</p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -570,7 +873,7 @@ export const DeviceRegistrationModal = () => {
             {/* Part A: Registration Form */}
             <div className="drm-section-card">
               <div className="drm-form-title">
-                <span>➕</span> 새 장비 등록
+                <span className="icon">➕</span> 새 장비 등록
               </div>
               <div className="drm-form-grid">
                 {/* Group */}
@@ -687,29 +990,51 @@ export const DeviceRegistrationModal = () => {
 
               <div className="drm-form-actions">
                 <button className="drm-submit-btn" onClick={handleSubmit}>
-                  등록하기
+                  <span>✨</span> 등록하기
                 </button>
               </div>
             </div>
 
             {/* Part B: Device Table */}
             <div className="drm-section-card">
-              <div className="drm-form-title">
-                <span>📦</span> 등록 장비 목록
-                <span
-                  style={{
-                    fontSize: "12px",
-                    color: "var(--text-tertiary)",
-                    marginLeft: "8px",
-                    fontWeight: 400,
-                  }}
-                >
-                  ({filteredDevices.length}건)
-                </span>
+              <div className="drm-table-topbar">
+                <div className="drm-table-title-group">
+                  <div className="drm-form-title" style={{ marginBottom: 0 }}>
+                    <span className="icon">📦</span> 등록 장비 목록
+                  </div>
+                  <div className="drm-badge">{filteredDevices.length}건</div>
+                  {selectedIds.size > 0 && (
+                    <div className="drm-badge highlight">
+                      {selectedIds.size}개 선택됨
+                    </div>
+                  )}
+                </div>
+                <div className="drm-table-actions">
+                  <input
+                    type="file"
+                    accept=".xlsx"
+                    ref={fileInputRef}
+                    style={{ display: "none" }}
+                    onChange={handleFileChange}
+                  />
+                  <button
+                    className="grafana-btn grafana-btn-secondary"
+                    onClick={handleExportExcel}
+                  >
+                    <span>📥</span> 선택 장비 내보내기
+                  </button>
+                  <button
+                    className="grafana-btn grafana-btn-primary"
+                    onClick={handleImportExcel}
+                  >
+                    <span>📤</span> 일괄 등록 (Excel)
+                  </button>
+                </div>
               </div>
 
-              <div className="drm-table-toolbar">
+              <div className="drm-table-filters">
                 <div className="drm-search-wrap">
+                  <span className="drm-search-icon">🔍</span>
                   <input
                     className="drm-search-input"
                     type="text"
@@ -740,6 +1065,15 @@ export const DeviceRegistrationModal = () => {
                     <table className="drm-table">
                       <thead>
                         <tr>
+                          <th style={{ width: 40, textAlign: "center" }}>
+                            <input
+                              type="checkbox"
+                              checked={isAllSelected}
+                              onChange={(e) =>
+                                handleSelectAll(e.target.checked)
+                              }
+                            />
+                          </th>
                           <th>그룹</th>
                           <th>장비명</th>
                           <th>모델명</th>
@@ -754,8 +1088,23 @@ export const DeviceRegistrationModal = () => {
                       <tbody>
                         {filteredDevices.map((device) => (
                           <tr key={device.id}>
+                            <td style={{ textAlign: "center" }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedIds.has(device.id)}
+                                onChange={(e) =>
+                                  handleSelectRow(device.id, e.target.checked)
+                                }
+                              />
+                            </td>
                             <td>
-                              <span className="grafana-badge grafana-badge-success">
+                              <span
+                                className={`drm-group-tag ${
+                                  device.groupName === "과천"
+                                    ? "group-gwacheon"
+                                    : "group-daejeon"
+                                }`}
+                              >
                                 {device.groupName}
                               </span>
                             </td>

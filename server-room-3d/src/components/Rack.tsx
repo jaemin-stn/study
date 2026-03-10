@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, forwardRef } from "react";
+import { useEffect, useMemo, useRef, forwardRef, Suspense } from "react";
 import { RoundedBox, useTexture, Billboard, Html } from "@react-three/drei";
 import { animated, useSpring } from "@react-spring/three";
 import { type ThreeEvent, useThree, useFrame } from "@react-three/fiber";
@@ -658,48 +658,54 @@ const DeviceMesh = ({
         onSelect();
       }}
     >
-      <RoundedBox
-        ref={meshRef}
-        args={[deviceWidth, deviceH - 0.005, DEVICE_DEPTH]}
-        radius={0.005}
-        smoothness={2}
-      >
-        <meshStandardMaterial
-          color="#222222"
-          roughness={0.4}
-          metalness={0.7}
-          transparent={hasError}
-        />
-      </RoundedBox>
+      {(() => {
+        const resolvedUrl =
+          resolveDeviceImage(device.modelName) ?? device.imageUrl;
 
-      <group position={[0, 0, DEVICE_DEPTH / 2 + 0.001]}>
-        {(() => {
-          // Resolve faceplate image: modelName → asset, fallback to imageUrl
-          const resolvedUrl =
-            resolveDeviceImage(device.modelName) ?? device.imageUrl;
-          if (resolvedUrl) {
-            return (
-              <ImageFaceplate
-                url={resolvedUrl}
-                width={deviceWidth}
-                height={deviceH - 0.005}
-                ref={faceplateRef}
-                hasError={hasError}
+        const content = (
+          <>
+            <RoundedBox
+              ref={meshRef}
+              args={[deviceWidth, deviceH - 0.005, DEVICE_DEPTH]}
+              radius={0.005}
+              smoothness={2}
+            >
+              <meshStandardMaterial
+                color="#222222"
+                roughness={0.4}
+                metalness={0.7}
+                transparent={hasError}
               />
-            );
-          }
-          return (
-            <DeviceFaceplate
-              type={device.type}
-              width={deviceWidth}
-              height={deviceH - 0.005}
-              ref={faceplateRef}
-              hasError={hasError}
-              errorColor={errorColor}
-            />
-          );
-        })()}
-      </group>
+            </RoundedBox>
+
+            <group position={[0, 0, DEVICE_DEPTH / 2 + 0.001]}>
+              {resolvedUrl ? (
+                <ImageFaceplate
+                  url={resolvedUrl}
+                  width={deviceWidth}
+                  height={deviceH - 0.005}
+                  ref={faceplateRef}
+                  hasError={hasError}
+                />
+              ) : (
+                <DeviceFaceplate
+                  type={device.type}
+                  width={deviceWidth}
+                  height={deviceH - 0.005}
+                  ref={faceplateRef}
+                  hasError={hasError}
+                  errorColor={errorColor}
+                />
+              )}
+            </group>
+          </>
+        );
+
+        if (resolvedUrl) {
+          return <Suspense fallback={null}>{content}</Suspense>;
+        }
+        return content;
+      })()}
     </group>
   );
 };

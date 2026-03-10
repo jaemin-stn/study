@@ -6,6 +6,17 @@ import { useStore } from "../store/useStore";
  * Provides a navigation UI to cycle through focused racks in normal mode.
  * Scoped to the active group (과천 or 대전).
  */
+const CarouselStyles = React.memo(() => (
+  <style>
+    {`
+      @keyframes slideUp {
+        from { transform: translate(-50%, 20px); opacity: 0; }
+        to { transform: translate(-50%, 0); opacity: 1; }
+      }
+    `}
+  </style>
+));
+
 export const FocusCarousel: React.FC = () => {
   const {
     racks,
@@ -62,14 +73,7 @@ export const FocusCarousel: React.FC = () => {
         animation: "slideUp 0.3s ease-out",
       }}
     >
-      <style>
-        {`
-          @keyframes slideUp {
-            from { transform: translate(-50%, 20px); opacity: 0; }
-            to { transform: translate(-50%, 0); opacity: 1; }
-          }
-        `}
-      </style>
+      <CarouselStyles />
 
       {/* Previous Button */}
       <button

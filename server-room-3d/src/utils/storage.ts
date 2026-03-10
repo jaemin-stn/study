@@ -199,7 +199,7 @@ export const saveToExcel = (racks: Rack[], options?: ExportOptions) => {
   try {
     const u8 = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([u8], { type: EXCEL_MIME });
-    downloadBlob(blob, `STN_Full_Export_${getFormattedDate()}.xlsx`);
+    downloadBlob(blob, `STN_ALL_${getFormattedDate()}.xlsx`);
   } catch (err) {
     console.error("Export failed:", err);
     alert("내보내기에 실패했습니다. 콘솔을 확인해주세요.");
@@ -606,7 +606,7 @@ export const exportGroupWorkbook = (
       );
   }
 
-  const scopeLabel = scope === "ALL" ? "Full" : GROUP_ID_MAP[scope] || scope;
+  const scopeLabel = scope === "ALL" ? "ALL" : scope;
   try {
     const u8 = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([u8], { type: EXCEL_MIME });

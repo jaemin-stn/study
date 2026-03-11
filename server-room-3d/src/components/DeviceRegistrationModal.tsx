@@ -31,7 +31,6 @@ const MODAL_STYLES = `
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -95,19 +94,24 @@ const MODAL_STYLES = `
   color: var(--text-secondary);
   width: 36px;
   height: 36px;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
+  padding: 0;
   cursor: pointer;
   border-radius: 50%;
   transition: all 0.2s ease;
-  font-size: 18px;
+  line-height: 0;
+  outline: none;
+  margin: 0;
 }
-.drm-close:hover {
+.drm-close:hover,
+.drm-close:focus {
   background: var(--severity-critical);
   color: #fff;
   border-color: var(--severity-critical);
   transform: rotate(90deg);
+  box-shadow: 0 4px 12px rgba(255, 60, 60, 0.3);
 }
 .drm-body {
   flex: 1;
@@ -167,17 +171,27 @@ const MODAL_STYLES = `
   border: 1px solid var(--border-medium);
   border-radius: 10px;
   font-size: 13px;
-  background: var(--bg-tertiary);
+  background-color: var(--bg-tertiary);
   color: var(--text-primary);
   font-family: inherit;
   transition: all 0.2s ease;
+}
+.drm-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  padding-right: 36px;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
 }
 .drm-field input:focus,
 .drm-field select:focus {
   outline: none;
   border-color: var(--theme-primary);
   box-shadow: 0 0 0 4px rgba(110, 159, 255, 0.1);
-  background: var(--bg-primary);
+  background-color: var(--bg-primary);
 }
 .drm-field .drm-error-hint {
   font-size: 12px;
@@ -292,20 +306,28 @@ const MODAL_STYLES = `
 }
 .drm-group-filter {
   height: 38px;
-  padding: 0 16px;
+  padding: 0 36px 0 16px;
   border: 1px solid var(--border-medium);
   border-radius: 10px;
   font-size: 13px;
-  background: var(--bg-tertiary);
+  background-color: var(--bg-tertiary);
   color: var(--text-primary);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 16px;
 }
 .drm-group-filter:focus {
   outline: none;
   border-color: var(--theme-primary);
   box-shadow: 0 0 0 4px rgba(110, 159, 255, 0.1);
+  background-color: var(--bg-primary);
 }
 
 .drm-table-container {
@@ -337,7 +359,7 @@ const MODAL_STYLES = `
   top: 0;
   z-index: 10;
   border-bottom: 1px solid var(--border-weak);
-  backdrop-filter: blur(8px);
+  /* Removed backdrop-filter to prevent CSS stacking context bugs with fixed modal overlays */
 }
 .drm-table td {
   padding: 8px 16px;
@@ -426,8 +448,8 @@ const MODAL_STYLES = `
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(12px);
+  background: transparent;
+  pointer-events: none; /* Let clicks pass through if needed, though they shouldn't with standard alerts */
   animation: drm-toast-fade-in 0.3s ease-out;
 }
 @keyframes drm-toast-fade-in {
@@ -436,23 +458,34 @@ const MODAL_STYLES = `
 }
 
 .drm-toast {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  pointer-events: auto; /* Re-enable pointer events for the toast itself */
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.6) 0%,
+    rgba(255, 255, 255, 0.15) 100%
+  );
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
   border: 1px solid rgba(255, 255, 255, 0.4);
-  padding: 32px 40px;
-  border-radius: 32px;
-  width: 400px;
+  border-top: 1px solid rgba(255, 255, 255, 0.8);
+  border-left: 1px solid rgba(255, 255, 255, 0.6);
+  padding: 32px 32px;
+  border-radius: 36px; 
+  width: 320px;
   max-width: 90vw;
-  box-shadow: 0 40px 100px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 16px 40px rgba(0, 0, 0, 0.15), 
+    inset 0 4px 6px -2px rgba(255, 255, 255, 0.6); 
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 20px;
+  gap: 16px;
   text-align: center;
   animation: drm-toast-zoom-in 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   transition: all 0.3s ease;
+  position: relative;
 }
+
 .drm-toast.compact {
   padding: 24px 32px;
   width: auto;
@@ -466,8 +499,8 @@ const MODAL_STYLES = `
 }
 
 .drm-toast-image {
-  width: 160px;
-  height: 160px;
+  width: 120px;
+  height: 120px;
   object-fit: contain;
   filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.1));
 }
@@ -475,23 +508,21 @@ const MODAL_STYLES = `
 .drm-toast-content h3 {
   font-size: 20px;
   font-weight: 800;
-  color: #222;
+  color: #1a1b1e;
   margin: 0 0 10px 0;
   letter-spacing: -0.02em;
 }
 .drm-toast-content p {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
-  color: #555;
+  color: #5c5f66;
   margin: 0;
   line-height: 1.5;
 }
 
 .drm-toast-success {
-  border-top: 6px solid var(--severity-success);
 }
 .drm-toast-error {
-  border-top: 6px solid var(--severity-critical);
 }
 
 /* Delete confirm popover */
@@ -757,56 +788,6 @@ export const DeviceRegistrationModal = () => {
     <>
       <ModalStyles />
 
-      {/* Toast (Centered Popup) */}
-      {toast && (
-        <div className="drm-toast-wrapper" onClick={() => setToast(null)}>
-          <div
-            className={`drm-toast ${toast.type === "success" ? "drm-toast-success" : "drm-toast-error"} ${toast.action === "add" || toast.action === "delete" ? "compact" : ""}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {toast.action !== "add" && toast.action !== "delete" && (
-              <img
-                src={
-                  toast.action === "export"
-                    ? toast.type === "success"
-                      ? "/assets/export_success.png"
-                      : "/assets/export_error.png"
-                    : toast.action === "import"
-                      ? toast.type === "success"
-                        ? "/assets/import_success.png"
-                        : "/assets/import_error.png"
-                      : toast.type === "success"
-                        ? "/assets/success_popup.png"
-                        : "/assets/error_popup.png"
-                }
-                alt="status illustration"
-                className="drm-toast-image"
-              />
-            )}
-            <div className="drm-toast-content">
-              <h3>
-                {toast.type === "success"
-                  ? toast.action === "export"
-                    ? "내보내기 완료"
-                    : toast.action === "import"
-                      ? "가져오기 완료"
-                      : toast.action === "add"
-                        ? "등록 성공"
-                        : toast.action === "delete"
-                          ? "삭제 완료"
-                          : "완료되었습니다"
-                  : toast.action === "export"
-                    ? "내보내기 실패"
-                    : toast.action === "import"
-                      ? "가져오기 실패"
-                      : "확인이 필요합니다"}
-              </h3>
-              <p>{toast.message}</p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Delete confirmation popover */}
       {deleteConfirm && (
         <>
@@ -863,8 +844,24 @@ export const DeviceRegistrationModal = () => {
               <div className="icon-wrap">📋</div>
               장비 등록
             </h2>
-            <button className="drm-close" onClick={() => setOpen(false)}>
-              &times;
+            <button
+              className="drm-close"
+              onClick={() => setOpen(false)}
+              aria-label="Close"
+            >
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
             </button>
           </div>
 
@@ -1168,6 +1165,56 @@ export const DeviceRegistrationModal = () => {
           </div>
         </div>
       </div>
+
+      {/* Toast (Centered Popup) - Rendered last to fix backdrop-filter stacking context bug */}
+      {toast && (
+        <div className="drm-toast-wrapper" onClick={() => setToast(null)}>
+          <div
+            className={`drm-toast ${toast.type === "success" ? "drm-toast-success" : "drm-toast-error"} ${toast.action === "add" || toast.action === "delete" ? "compact" : ""}`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {toast.action !== "add" && toast.action !== "delete" && (
+              <img
+                src={
+                  toast.action === "export"
+                    ? toast.type === "success"
+                      ? "/assets/export_success.png"
+                      : "/assets/export_error.png"
+                    : toast.action === "import"
+                      ? toast.type === "success"
+                        ? "/assets/import_success.png"
+                        : "/assets/import_error.png"
+                      : toast.type === "success"
+                        ? "/assets/success_popup.png"
+                        : "/assets/error_popup.png"
+                }
+                alt="status illustration"
+                className="drm-toast-image"
+              />
+            )}
+            <div className="drm-toast-content">
+              <h3>
+                {toast.type === "success"
+                  ? toast.action === "export"
+                    ? "내보내기 완료"
+                    : toast.action === "import"
+                      ? "가져오기 완료"
+                      : toast.action === "add"
+                        ? "등록 성공"
+                        : toast.action === "delete"
+                          ? "삭제 완료"
+                          : "완료되었습니다"
+                  : toast.action === "export"
+                    ? "내보내기 실패"
+                    : toast.action === "import"
+                      ? "가져오기 실패"
+                      : "확인이 필요합니다"}
+              </h3>
+              <p>{toast.message}</p>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

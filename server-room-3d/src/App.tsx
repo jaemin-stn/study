@@ -133,120 +133,124 @@ function App() {
           </span>
         </div>
 
-        <div className="grafana-toolbar-divider" />
+        {isEditMode && (
+          <>
+            <div className="grafana-toolbar-divider" />
 
-        {/* Add Rack Consolidated */}
-        <div className="grafana-toolbar-group" style={{ gap: "4px" }}>
-          <span
-            className="grafana-toolbar-label"
-            style={{ fontSize: "11px", opacity: 0.8 }}
-          >
-            Std:
-          </span>
-          <button
-            className="grafana-btn grafana-btn-secondary grafana-btn-compact"
-            onClick={() => addRack(24)}
-          >
-            24
-          </button>
-          <button
-            className="grafana-btn grafana-btn-secondary grafana-btn-compact"
-            onClick={() => addRack(32)}
-          >
-            32
-          </button>
-          <button
-            className="grafana-btn grafana-btn-secondary grafana-btn-compact"
-            onClick={() => addRack(48)}
-          >
-            48
-          </button>
+            {/* Add Rack Consolidated */}
+            <div className="grafana-toolbar-group" style={{ gap: "4px" }}>
+              <span
+                className="grafana-toolbar-label"
+                style={{ fontSize: "11px", opacity: 0.8 }}
+              >
+                Std:
+              </span>
+              <button
+                className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+                onClick={() => addRack(24)}
+              >
+                24
+              </button>
+              <button
+                className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+                onClick={() => addRack(32)}
+              >
+                32
+              </button>
+              <button
+                className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+                onClick={() => addRack(48)}
+              >
+                48
+              </button>
 
-          <div
-            style={{
-              width: "1px",
-              height: "16px",
-              background: "rgba(255,255,255,0.1)",
-              margin: "0 6px",
-            }}
-          />
+              <div
+                style={{
+                  width: "1px",
+                  height: "16px",
+                  background: "rgba(255,255,255,0.1)",
+                  margin: "0 6px",
+                }}
+              />
 
-          <span
-            className="grafana-toolbar-label"
-            style={{ fontSize: "11px", opacity: 0.8 }}
-          >
-            Wide:
-          </span>
-          <button
-            className="grafana-btn grafana-btn-secondary grafana-btn-compact"
-            onClick={() => addRack(24, undefined, 1.0)}
-          >
-            24
-          </button>
-          <button
-            className="grafana-btn grafana-btn-secondary grafana-btn-compact"
-            onClick={() => addRack(32, undefined, 1.0)}
-          >
-            32
-          </button>
-          <button
-            className="grafana-btn grafana-btn-secondary grafana-btn-compact"
-            onClick={() => addRack(48, undefined, 1.0)}
-          >
-            48
-          </button>
-        </div>
+              <span
+                className="grafana-toolbar-label"
+                style={{ fontSize: "11px", opacity: 0.8 }}
+              >
+                Wide:
+              </span>
+              <button
+                className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+                onClick={() => addRack(24, undefined, 1.0)}
+              >
+                24
+              </button>
+              <button
+                className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+                onClick={() => addRack(32, undefined, 1.0)}
+              >
+                32
+              </button>
+              <button
+                className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+                onClick={() => addRack(48, undefined, 1.0)}
+              >
+                48
+              </button>
+            </div>
 
-        <div className="grafana-toolbar-divider" />
+            <div className="grafana-toolbar-divider" />
 
-        {/* Device Registration */}
-        <button
-          className="grafana-btn grafana-btn-primary"
-          onClick={(e) => {
-            e.stopPropagation();
-            setDeviceRegistrationModalOpen(true);
-          }}
-          title="장비 등록"
-          style={{ fontSize: "var(--font-size-sm)" }}
-        >
-          📋 장비 등록
-        </button>
+            {/* Device Registration */}
+            <button
+              className="grafana-btn grafana-btn-primary"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeviceRegistrationModalOpen(true);
+              }}
+              title="장비 등록"
+              style={{ fontSize: "var(--font-size-sm)" }}
+            >
+              📋 장비 등록
+            </button>
 
-        <div className="grafana-toolbar-divider" />
+            <div className="grafana-toolbar-divider" />
 
-        {/* Unified Room Operations */}
-        <div className="grafana-toolbar-group">
-          <button
-            className="grafana-btn grafana-btn-primary"
-            onClick={() => setImportExportModalRackId("all")}
-            title="Export Room Data"
-          >
-            Export
-          </button>
-          <button
-            className="grafana-btn grafana-btn-secondary"
-            onClick={() => setImportExportModalRackId("all")}
-            title="Import Room Data"
-          >
-            Import
-          </button>
+            {/* Unified Room Operations */}
+            <div className="grafana-toolbar-group">
+              <button
+                className="grafana-btn grafana-btn-primary"
+                onClick={() => setImportExportModalRackId("all")}
+                title="Export Room Data"
+              >
+                Export
+              </button>
+              <button
+                className="grafana-btn grafana-btn-secondary"
+                onClick={() => setImportExportModalRackId("all")}
+                title="Import Room Data"
+              >
+                Import
+              </button>
 
-          <div
-            style={{
-              width: "1px",
-              height: "20px",
-              background: "rgba(255,255,255,0.1)",
-              margin: "0 8px",
-            }}
-          />
+              <div
+                style={{
+                  width: "1px",
+                  height: "20px",
+                  background: "rgba(255,255,255,0.1)",
+                  margin: "0 8px",
+                }}
+              />
 
-          <button
-            className="grafana-btn grafana-btn-secondary"
-            onClick={loadSample}
-          >
-            Sample
-          </button>
-        </div>
+              <button
+                className="grafana-btn grafana-btn-secondary"
+                onClick={loadSample}
+              >
+                Sample
+              </button>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Dashboard Widgets (shown when no rack is selected and no modal is open) */}

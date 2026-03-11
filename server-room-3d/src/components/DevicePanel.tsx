@@ -752,10 +752,24 @@ export const DevicePanel = () => {
                           )}
                         </div>
                         <div className="reg-device-item-info">
-                          <div className="reg-device-item-model">
-                            {rd.modelName}
+                          <div 
+                            className="reg-device-item-model"
+                            style={{ marginBottom: "2px" }}
+                          >
+                            {rd.deviceName || rd.modelName}
                           </div>
                           <div className="reg-device-item-details">
+                            {rd.deviceName && rd.deviceName !== rd.modelName && (
+                              <span 
+                                className="reg-device-item-badge"
+                                style={{ 
+                                  background: "var(--bg-primary)",
+                                  border: "1px solid var(--border-weak)"
+                                }}
+                              >
+                                {rd.modelName}
+                              </span>
+                            )}
                             <span className="reg-device-item-badge">
                               {rd.uSize}U
                             </span>
@@ -897,7 +911,7 @@ export const DevicePanel = () => {
                 }}
               >
                 {selectedRegDevice
-                  ? `${selectedRegDevice.modelName} 배치 (U${addModalSlot})`
+                  ? `${selectedRegDevice.deviceName || selectedRegDevice.modelName} 배치 (U${addModalSlot})`
                   : "장비를 선택하세요"}
               </button>
               <button

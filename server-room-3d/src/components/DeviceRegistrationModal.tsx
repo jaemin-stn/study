@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useStore } from "../store/useStore";
 import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
 import type { GroupName, VendorName } from "../types";
@@ -541,6 +542,12 @@ const MODAL_STYLES = `
   from { transform: scale(0.9) translateY(10px); opacity: 0; }
   to { transform: scale(1) translateY(0); opacity: 1; }
 }
+.drm-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1500;
+  background: transparent;
+}
 .drm-confirm-popover p {
   margin: 0 0 16px 0;
   font-size: 15px;
@@ -789,7 +796,7 @@ export const DeviceRegistrationModal = () => {
       <ModalStyles />
 
       {/* Delete confirmation popover */}
-      {deleteConfirm && (
+      {deleteConfirm && typeof document !== 'undefined' && createPortal(
         <>
           <div
             className="drm-confirm-overlay"
@@ -832,7 +839,8 @@ export const DeviceRegistrationModal = () => {
               </button>
             </div>
           </div>
-        </>
+        </>,
+        document.body
       )}
 
       {/* Modal */}
@@ -1167,7 +1175,7 @@ export const DeviceRegistrationModal = () => {
       </div>
 
       {/* Toast (Centered Popup) - Rendered last to fix backdrop-filter stacking context bug */}
-      {toast && (
+      {toast && typeof document !== 'undefined' && createPortal(
         <div className="drm-toast-wrapper" onClick={() => setToast(null)}>
           <div
             className={`drm-toast ${toast.type === "success" ? "drm-toast-success" : "drm-toast-error"} ${toast.action === "add" || toast.action === "delete" ? "compact" : ""}`}
@@ -1213,7 +1221,8 @@ export const DeviceRegistrationModal = () => {
               <p>{toast.message}</p>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

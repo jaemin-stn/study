@@ -84,7 +84,7 @@ export const DashboardWidgets = () => {
           if (port.status === "error" && port.errorLevel) {
             errors.push({
               rackId: rack.id,
-              rackName: `${rack.uHeight}U-${rack.id.slice(0, 4)}`,
+              rackName: rack.displayName || `Rack ${rack.id.slice(0, 4)}`,
               deviceId: device.id,
               deviceName: device.name,
               portNumber: port.portId,

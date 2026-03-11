@@ -649,7 +649,7 @@ export const ImportExportModal = () => {
   const renderLegacyContent = () => (
     <>
       <p style={{ color: "var(--text-secondary)", marginBottom: "16px" }}>
-        {`Configure export fields or import new data for Rack ${rack?.id.substring(0, 8)}.`}
+        {`Configure export fields or import new data for Rack ${rack?.displayName || rack?.id.substring(0, 8)}.`}
       </p>
 
       <div

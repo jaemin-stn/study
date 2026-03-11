@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useStore, checkFrontClearanceViolation } from "../store/useStore";
 import type { PortState, RegisteredDevice } from "../types";
@@ -283,8 +283,14 @@ export const DevicePanel = () => {
     isEditMode,
     updateRackOrientation,
     setImportExportModalRackId,
+    updateRack,
   } = useStore();
   const rack = racks.find((r) => r.id === selectedRackId);
+
+  // Rack UI name edit state
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState("");
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   // Add-device modal state
   const [addModalSlot, setAddModalSlot] = useState<number | null>(null);
@@ -292,6 +298,23 @@ export const DevicePanel = () => {
     null,
   );
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditingName && editInputRef.current) {
+      editInputRef.current.focus();
+      editInputRef.current.select();
+    }
+  }, [isEditingName]);
+
+  const handleNameSubmit = () => {
+    if (!rack) return;
+    const newName = editNameValue.trim();
+    if (newName) {
+      updateRack(rack.id, { displayName: newName });
+    }
+    setIsEditingName(false);
+  };
 
   // Registered devices for this rack's group
   const groupRegDevices = useMemo(
@@ -899,16 +922,66 @@ export const DevicePanel = () => {
 
       <div className="grafana-side-panel-header">
         <div>
-          <h2
-            style={{
-              margin: 0,
-              fontSize: "var(--font-size-lg)",
-              fontWeight: "var(--font-weight-semibold)",
-              color: "var(--text-primary)",
-            }}
-          >
-            Rack {rack.id.substring(0, 4)}
-          </h2>
+          {isEditingName ? (
+            <input
+              ref={editInputRef}
+              value={editNameValue}
+              onChange={(e) => setEditNameValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleNameSubmit();
+                if (e.key === "Escape") setIsEditingName(false);
+              }}
+              onBlur={handleNameSubmit}
+              style={{
+                fontSize: "var(--font-size-lg)",
+                fontWeight: "var(--font-weight-semibold)",
+                color: "var(--text-primary)",
+                background: "var(--bg-tertiary)",
+                border: "1px solid var(--theme-primary)",
+                outline: "none",
+                borderRadius: "var(--radius-sm)",
+                padding: "2px 6px",
+                width: "200px",
+                margin: 0,
+              }}
+            />
+          ) : (
+            <h2
+              onClick={() => {
+                setEditNameValue(
+                  rack.displayName || `Rack ${rack.id.substring(0, 4)}`,
+                );
+                setIsEditingName(true);
+              }}
+              style={{
+                margin: 0,
+                fontSize: "var(--font-size-lg)",
+                fontWeight: "var(--font-weight-semibold)",
+                color: "var(--text-primary)",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+              }}
+              title="클릭하여 랙 이름 변경"
+            >
+              {rack.displayName || `Rack ${rack.id.substring(0, 4)}`}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="var(--text-tertiary)"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ flexShrink: 0 }}
+              >
+                <path d="M12 20h9"></path>
+                <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+              </svg>
+            </h2>
+          )}
           <span
             style={{
               fontSize: "var(--font-size-sm)",

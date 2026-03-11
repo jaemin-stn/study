@@ -59,6 +59,7 @@ export type Orientation = 0 | 90 | 180 | 270;
 export interface Rack {
   id: string;
   groupName: GroupName; // STN 하위 그룹 (과천/대전)
+  displayName?: string; // 사용자가 지정한 랙 이름
   uHeight: 24 | 32 | 48; // 렉 높이 옵션
   width: number; // 렉 너비 (0.6, 1.0 등)
   position: [number, number]; // 그리드 좌표 [x, z]

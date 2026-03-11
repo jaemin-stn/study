@@ -285,7 +285,7 @@ export const saveRackToJSON = (rack: Rack, options?: ExportOptions) => {
   );
   downloadBlob(
     new Blob([json], { type: "application/json" }),
-    `rack-${rack.id.substring(0, 8)}-${Date.now()}.json`,
+    `rack-${rack.displayName || rack.id.substring(0, 8)}-${Date.now()}.json`,
   );
 };
 
@@ -335,7 +335,7 @@ export const saveRackToExcel = (rack: Rack, options?: ExportOptions) => {
     const blob = new Blob([u8], { type: EXCEL_MIME });
     downloadBlob(
       blob,
-      `Rack_${rack.id.substring(0, 8)}_${getFormattedDate()}.xlsx`,
+      `Rack_${rack.displayName || rack.id.substring(0, 8)}_${getFormattedDate()}.xlsx`,
     );
   } catch (err) {
     console.error("Export failed:", err);

@@ -24,6 +24,7 @@ interface RackProps extends RackType {
 
 export const Rack = ({
   id,
+  displayName,
   uHeight,
   width: rackWidth,
   position,
@@ -540,7 +541,9 @@ export const Rack = ({
               />
               <span>{`${uHeight}U`}</span>
               <span style={{ opacity: 0.4 }}>|</span>
-              <span>{id.slice(0, 4).toUpperCase()}</span>
+              <span>
+                {displayName || `Rack ${id.slice(0, 4).toUpperCase()}`}
+              </span>
             </div>
           </Html>
         </Billboard>

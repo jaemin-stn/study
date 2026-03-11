@@ -17,12 +17,14 @@ export const DeviceModal = () => {
 
   // Find the device and its rack
   let device: Device | undefined;
+  let rack: import("../types").Rack | undefined;
   let rackId: string | undefined;
 
   for (const r of racks) {
     device = r.devices.find((d) => d.id === selectedDeviceId);
     if (device) {
       rackId = r.id;
+      rack = r;
       break;
     }
   }
@@ -139,7 +141,7 @@ export const DeviceModal = () => {
               >
                 {device.type}
               </span>
-              Rack: {rackId?.substring(0, 4)}
+              Rack: {rack?.displayName || rackId?.substring(0, 4)}
             </span>
           </div>
           <button

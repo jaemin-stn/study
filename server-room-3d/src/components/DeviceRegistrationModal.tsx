@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useStore } from "../store/useStore";
 import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
@@ -602,7 +602,8 @@ export const DeviceRegistrationModal = () => {
   const nodes = useStore((s) => s.nodes);
 
   // Form state
-  // Form state. The node ID is now strictly locked to the active container.
+  // Form state. Initialize with activeNodeId, later synced by useEffect
+  const [nodeId, setNodeId] = useState<string>(activeNodeId);
   const [selectedModelIdx, setSelectedModelIdx] = useState(0);
   const [deviceName, setDeviceName] = useState("");
   const [ip, setIp] = useState("");
@@ -611,7 +612,8 @@ export const DeviceRegistrationModal = () => {
 
   // Table state
   const [search, setSearch] = useState("");
-  // Table filter state (node filter is now strictly activeNodeId)
+  // Table filter state
+  const [nodeFilter, setNodeFilter] = useState<string>("all");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // UI state
@@ -623,9 +625,26 @@ export const DeviceRegistrationModal = () => {
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Filtered list — strictly bounded to active node
+  // Sync state when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setNodeId(activeNodeId);
+      const activeNode = nodes.find((n) => n.nodeId === activeNodeId);
+      // If root/MAIN node (parentId === null), default to "all" devices view
+      if (!activeNode || activeNode.parentId === null) {
+        setNodeFilter("all");
+      } else {
+        setNodeFilter(activeNodeId);
+      }
+    }
+  }, [isOpen, activeNodeId, nodes]);
+
+  // Filtered list — respects nodeFilter selection
   const filteredDevices = useMemo(() => {
-    let list = registeredDevices.filter((d) => d.nodeId === activeNodeId);
+    let list = registeredDevices;
+    if (nodeFilter !== "all") {
+      list = list.filter((d) => d.nodeId === nodeFilter);
+    }
     
     if (search.trim()) {
       const q = search.trim().toLowerCase();
@@ -639,7 +658,7 @@ export const DeviceRegistrationModal = () => {
       );
     }
     return list;
-  }, [registeredDevices, activeNodeId, search]);
+  }, [registeredDevices, nodeFilter, search]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -717,7 +736,7 @@ export const DeviceRegistrationModal = () => {
     const selectedDevices = registeredDevices.filter((d) =>
       selectedIds.has(d.id),
     );
-    const scope = findNode(nodes, activeNodeId)?.name || activeNodeId;
+    const scope = nodeFilter === "all" ? "SELECTED" : findNode(nodes, nodeFilter)?.name || nodeFilter;
     exportRegisteredDevicesToExcel(selectedDevices, scope);
     showToast("선택한 장비 데이터가 내보내졌습니다.", "success", "export");
   };
@@ -737,7 +756,7 @@ export const DeviceRegistrationModal = () => {
     if (!validate()) return;
 
     addRegisteredDevice({
-      nodeId: activeNodeId,
+      nodeId: nodeId,
       deviceName: deviceName.trim(),
       modelName: selectedTemplate.modelName,
       type: selectedTemplate.type,
@@ -883,14 +902,13 @@ export const DeviceRegistrationModal = () => {
                 {/* Group */}
                 <div className="drm-field">
                   <label>
-                    위치 (Lock)<span className="drm-required">*</span>
+                    위치<span className="drm-required">*</span>
                   </label>
                   <select
-                    value={activeNodeId}
-                    disabled
-                    style={{ opacity: 0.8, cursor: "not-allowed" }}
+                    value={nodeId}
+                    onChange={(e) => setNodeId(e.target.value)}
                   >
-                    {nodes.filter((n) => n.nodeId === activeNodeId).map((n) => (
+                    {nodes.filter((n) => n.parentId !== null).map((n) => (
                       <option key={n.nodeId} value={n.nodeId}>
                         {n.name}
                       </option>
@@ -1050,11 +1068,11 @@ export const DeviceRegistrationModal = () => {
                 </div>
                 <select
                   className="drm-group-filter"
-                  value={activeNodeId}
-                  disabled
-                  style={{ opacity: 0.8, cursor: "not-allowed" }}
+                  value={nodeFilter}
+                  onChange={(e) => setNodeFilter(e.target.value)}
                 >
-                  {nodes.filter((n) => n.nodeId === activeNodeId).map((n) => (
+                  <option value="all">전체 노드</option>
+                  {nodes.filter((n) => n.parentId !== null).map((n) => (
                     <option key={n.nodeId} value={n.nodeId}>
                       {n.name}
                     </option>

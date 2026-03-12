@@ -2,35 +2,41 @@ import type { HierarchyNode } from "../types";
 
 // ─── Default Node IDs (고정 상수) ──────────────────────────────────────────────
 
+// depth 1
 export const ROOT_NODE_ID = "stn-root";
-export const GWACHEON_NODE_ID = "gwacheon";
-export const DAEJEON_NODE_ID = "daejeon";
+// depth 2
+export const SUDOGWON_NODE_ID = "sudogwon";
+export const CHUNGCHEONG_NODE_ID = "chungcheong";
+// depth 3
+export const GYEONGGI_NODE_ID = "gyeonggi";
+export const DAEJEON_CITY_NODE_ID = "daejeon-city";
+// depth 4
+export const GWACHEON_CENTER_NODE_ID = "gwacheon-center";
+export const DAEJEON_CENTER_NODE_ID = "daejeon-center";
+// depth 5 (rooms)
+export const GWACHEON_NODE_ID = "gwacheon-room-1f"; // Keep same var name for backwards compat
+export const GWACHEON_ROOM_2F_NODE_ID = "gwacheon-room-2f"; 
+export const DAEJEON_NODE_ID = "daejeon-room-1f"; // Keep same var name for backwards compat
 
 // ─── Default Tree ──────────────────────────────────────────────────────────────
 
-/** 기본 트리: STN(root) > 과천, 대전 */
+/** 5-Depth Tree: STN \> 지역 \> 도시 \> 센터 \> 서버실 */
 export const getDefaultNodes = (): HierarchyNode[] => [
-  {
-    nodeId: ROOT_NODE_ID,
-    parentId: null,
-    name: "STN",
-    type: "root",
-    order: 0,
-  },
-  {
-    nodeId: GWACHEON_NODE_ID,
-    parentId: ROOT_NODE_ID,
-    name: "과천",
-    type: "group",
-    order: 0,
-  },
-  {
-    nodeId: DAEJEON_NODE_ID,
-    parentId: ROOT_NODE_ID,
-    name: "대전",
-    type: "group",
-    order: 1,
-  },
+  // Depth 1
+  { nodeId: ROOT_NODE_ID, parentId: null, name: "STN", type: "root", order: 0 },
+  // Depth 2
+  { nodeId: SUDOGWON_NODE_ID, parentId: ROOT_NODE_ID, name: "수도권", type: "group", order: 0 },
+  { nodeId: CHUNGCHEONG_NODE_ID, parentId: ROOT_NODE_ID, name: "충청권", type: "group", order: 1 },
+  // Depth 3
+  { nodeId: GYEONGGI_NODE_ID, parentId: SUDOGWON_NODE_ID, name: "경기", type: "group", order: 0 },
+  { nodeId: DAEJEON_CITY_NODE_ID, parentId: CHUNGCHEONG_NODE_ID, name: "대전", type: "group", order: 0 },
+  // Depth 4
+  { nodeId: GWACHEON_CENTER_NODE_ID, parentId: GYEONGGI_NODE_ID, name: "과천센터", type: "group", order: 0 },
+  { nodeId: DAEJEON_CENTER_NODE_ID, parentId: DAEJEON_CITY_NODE_ID, name: "대전센터", type: "group", order: 0 },
+  // Depth 5
+  { nodeId: GWACHEON_NODE_ID, parentId: GWACHEON_CENTER_NODE_ID, name: "1층 서버실", type: "group", order: 0 },
+  { nodeId: GWACHEON_ROOM_2F_NODE_ID, parentId: GWACHEON_CENTER_NODE_ID, name: "2층 통신실", type: "group", order: 1 },
+  { nodeId: DAEJEON_NODE_ID, parentId: DAEJEON_CENTER_NODE_ID, name: "1층 서버실", type: "group", order: 0 },
 ];
 
 // ─── Tree Traversal Utilities ──────────────────────────────────────────────────

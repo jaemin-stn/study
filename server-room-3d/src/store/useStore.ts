@@ -12,8 +12,6 @@ import {
   getEffectiveDimensions,
 } from "../utils/rackGeometry";
 import {
-  getDefaultNodes,
-  GWACHEON_NODE_ID,
   migrateGroupNameToNodeId,
 } from "../utils/nodeUtils";
 import * as THREE from "three";
@@ -256,8 +254,8 @@ export const useStore = create<AppState>((set, get) => ({
   dragOffset: null,
   isEditMode: false,
   hoveredRackId: null,
-  nodes: getDefaultNodes(),
-  activeNodeId: GWACHEON_NODE_ID,
+  nodes: [],
+  activeNodeId: "",
   importExportModalRackId: null,
   deviceRegistrationModalOpen: false,
 
@@ -627,11 +625,15 @@ export const useStore = create<AppState>((set, get) => ({
       ...d,
       nodeId: d.nodeId || migrateGroupNameToNodeId((d as any).groupName || "과천"),
     }));
+    const finalNodes = newNodes && newNodes.length > 0 ? newNodes : [];
+    const rootNode = finalNodes.find((n) => n.parentId === null);
+
     set({
       racks: migratedRacks,
       importedModels: newModels ?? [],
       registeredDevices: migratedRegDevices,
-      nodes: newNodes && newNodes.length > 0 ? newNodes : getDefaultNodes(),
+      nodes: finalNodes,
+      activeNodeId: rootNode ? rootNode.nodeId : (finalNodes.length > 0 ? finalNodes[0].nodeId : ""),
       selectedRackId: null,
       focusedRackId: null,
       selectedModelId: null,
@@ -702,7 +704,7 @@ export const useStore = create<AppState>((set, get) => ({
           (d) => !toDelete.has(d.nodeId),
         ),
         activeNodeId: toDelete.has(state.activeNodeId)
-          ? state.nodes.find((n) => n.parentId === null)?.nodeId || GWACHEON_NODE_ID
+          ? state.nodes.find((n) => n.parentId === null)?.nodeId || ""
           : state.activeNodeId,
       };
     });

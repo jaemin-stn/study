@@ -1,6 +1,6 @@
 import type { Rack, RegisteredDevice, HierarchyNode } from "../types";
 import { DEVICE_TEMPLATES } from "./deviceTemplates";
-import { getDefaultNodes, GWACHEON_NODE_ID, DAEJEON_NODE_ID, migrateGroupNameToNodeId } from "./nodeUtils";
+import { getDefaultNodes, GWACHEON_NODE_ID, DAEJEON_NODE_ID, GWACHEON_ROOM_2F_NODE_ID, migrateGroupNameToNodeId } from "./nodeUtils";
 import * as XLSX from "xlsx";
 import {
   RACK_WIDTH_STANDARD,
@@ -928,8 +928,9 @@ const localIdxToMac = (idx: number) => {
 export const sampleNodes: HierarchyNode[] = getDefaultNodes();
 
 export const sampleRegisteredDevices: RegisteredDevice[] = [
-  ...generateRegisteredDevices(GWACHEON_NODE_ID, "과천", 50, "10.10.1.1"),
-  ...generateRegisteredDevices(DAEJEON_NODE_ID, "대전", 30, "10.20.1.1"),
+  ...generateRegisteredDevices(GWACHEON_NODE_ID, "과천1F", 20, "10.10.1.1"),
+  ...generateRegisteredDevices(GWACHEON_ROOM_2F_NODE_ID, "과천2F", 30, "10.10.2.1"),
+  ...generateRegisteredDevices(DAEJEON_NODE_ID, "대전1F", 30, "10.20.1.1"),
 ];
 
 const generateGroupRacks = (
@@ -1004,14 +1005,12 @@ const generateGroupRacks = (
     };
   });
 
-const gwacheonDevices = sampleRegisteredDevices.filter(
-  (d) => d.nodeId === GWACHEON_NODE_ID,
-);
-const daejeonDevices = sampleRegisteredDevices.filter(
-  (d) => d.nodeId === DAEJEON_NODE_ID,
-);
+const gwacheon1FDevices = sampleRegisteredDevices.filter((d) => d.nodeId === GWACHEON_NODE_ID);
+const gwacheon2FDevices = sampleRegisteredDevices.filter((d) => d.nodeId === GWACHEON_ROOM_2F_NODE_ID);
+const daejeon1FDevices = sampleRegisteredDevices.filter((d) => d.nodeId === DAEJEON_NODE_ID);
 
 export const sampleRacks: Rack[] = [
-  ...generateGroupRacks(25, GWACHEON_NODE_ID, 5, [3, 12, 19], gwacheonDevices),
-  ...generateGroupRacks(15, DAEJEON_NODE_ID, 5, [2, 9, 14], daejeonDevices),
+  ...generateGroupRacks(10, GWACHEON_NODE_ID, 5, [3, 8], gwacheon1FDevices),
+  ...generateGroupRacks(15, GWACHEON_ROOM_2F_NODE_ID, 5, [2, 12, 14], gwacheon2FDevices),
+  ...generateGroupRacks(15, DAEJEON_NODE_ID, 5, [2, 9, 14], daejeon1FDevices),
 ];

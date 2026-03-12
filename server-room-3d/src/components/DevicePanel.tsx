@@ -123,6 +123,16 @@ const PANEL_STYLES = `
     border-color: var(--severity-critical) !important;
     z-index: 1;
 }
+@keyframes dt-highlight-pulse {
+    0% { box-shadow: 0 0 0 0px #4dabf7; outline: 2px solid transparent; }
+    50% { box-shadow: 0 0 15px 4px #4dabf7; outline: 2px solid #4dabf7; }
+    100% { box-shadow: 0 0 0 0px #4dabf7; outline: 2px solid transparent; }
+}
+.device-tile.is-highlighted {
+    animation: dt-highlight-pulse 1.2s ease-in-out infinite;
+    z-index: 10;
+    border-color: #4dabf7 !important;
+}
 
 /* Gradient overlay for text legibility */
 .device-tile-overlay {
@@ -286,6 +296,7 @@ export const DevicePanel = () => {
     updateRackOrientation,
     setImportExportModalRackId,
     updateRack,
+    highlightedDeviceId,
   } = useStore();
   const rack = racks.find((r) => r.id === selectedRackId);
 
@@ -438,10 +449,12 @@ export const DevicePanel = () => {
           ? `var(--severity-${highestSeverity})`
           : UNIFIED_DEVICE_BORDER;
 
+        const isHighlighted = highlightedDeviceId === device.id;
+
         rendered.push(
           <div
             key={`dev-${u}`}
-            className={`device-tile ${hasError ? "has-error" : ""}`}
+            className={`device-tile ${hasError ? "has-error" : ""} ${isHighlighted ? "is-highlighted" : ""}`}
             style={{
               height: `${heightPx}px`,
               backgroundColor: bg,

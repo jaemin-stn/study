@@ -99,8 +99,8 @@ export const CameraController = () => {
     const rackId = selectedRackId || focusedRackId;
     const { isDragging } = useStore.getState();
 
-    // Focus if a rack is identified AND we are NOT in edit mode AND we are NOT currently dragging
-    if (!isEditMode && !isDragging) {
+    // Focus if a rack is identified AND (we are NOT in edit mode OR it's a manual focus request) AND we are NOT currently dragging
+    if ((focusedRackId || !isEditMode) && !isDragging) {
       setupFocus(rackId);
     }
   }, [selectedRackId, focusedRackId, isEditMode]);
@@ -112,7 +112,8 @@ export const CameraController = () => {
 
     // Stabilize with a fixed time-based easing (independent of FPS fluctuations)
     // Using a smoothing factor that feels snappy but consistent
-    const alpha = 1 - Math.exp(-8 * delta);
+    // Higher value = faster, snappier transition (Aiming for < 1s)
+    const alpha = 1 - Math.exp(-12 * delta);
 
     // Atomic update of position and target to prevent jitter
     camera.position.lerp(vTargetPos.current, alpha);

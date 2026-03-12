@@ -54,6 +54,7 @@ export const Breadcrumb = () => {
   return (
     <>
       <style>{BREADCRUMB_STYLES}</style>
+      <div className="grafana-toolbar-divider" />
       <div className="breadcrumb-container">
         {path.map((node, idx) => {
           const isLast = idx === path.length - 1;
@@ -70,6 +71,7 @@ export const Breadcrumb = () => {
           );
         })}
       </div>
+      <div className="grafana-toolbar-divider" />
     </>
   );
 };

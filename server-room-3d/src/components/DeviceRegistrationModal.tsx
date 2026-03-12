@@ -355,7 +355,7 @@ const MODAL_STYLES = `
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 10px 16px;
-  text-align: left;
+  text-align: center;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -368,6 +368,7 @@ const MODAL_STYLES = `
   color: var(--text-primary);
   font-size: 13px;
   vertical-align: middle;
+  text-align: center;
 }
 .drm-table tr:last-child td {
   border-bottom: none;
@@ -377,6 +378,7 @@ const MODAL_STYLES = `
 }
 .drm-table tr:hover {
   background: rgba(255, 255, 255, 0.03);
+  cursor: pointer;
 }
 /* Checkbox styling */
 .drm-table th input[type="checkbox"],
@@ -600,6 +602,13 @@ export const DeviceRegistrationModal = () => {
   const upsertRegisteredDevices = useStore((s) => s.upsertRegisteredDevices);
   const activeNodeId = useStore((s) => s.activeNodeId);
   const nodes = useStore((s) => s.nodes);
+  const setActiveNode = useStore((s) => s.setActiveNode);
+  const selectRack = useStore((s) => s.selectRack);
+  const focusRack = useStore((s) => s.focusRack);
+  const setHighlightedDevice = useStore((s) => s.setHighlightedDevice);
+  
+  // Track focus timeout to cancel it if a new one starts
+  const highlightTimeoutRef = useRef<any>(null);
 
   // Form state
   // Form state. Initialize with activeNodeId, later synced by useEffect
@@ -645,7 +654,7 @@ export const DeviceRegistrationModal = () => {
     if (nodeFilter !== "all") {
       list = list.filter((d) => d.nodeId === nodeFilter);
     }
-    
+
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
@@ -736,7 +745,8 @@ export const DeviceRegistrationModal = () => {
     const selectedDevices = registeredDevices.filter((d) =>
       selectedIds.has(d.id),
     );
-    const scope = nodeFilter === "all" ? "SELECTED" : getNodeName(nodes, nodeFilter);
+    const scope =
+      nodeFilter === "all" ? "SELECTED" : getNodeName(nodes, nodeFilter);
     exportRegisteredDevicesToExcel(selectedDevices, nodes, scope);
     showToast("선택한 장비 데이터가 내보내졌습니다.", "success", "export");
   };
@@ -808,58 +818,124 @@ export const DeviceRegistrationModal = () => {
     );
     setDeleteConfirm(null);
   };
+  
+  const handleLocateDevice = (device: (typeof registeredDevices)[0]) => {
+    // 1. Find placement data
+    let targetRackId: string | null = null;
+    let targetDeviceId: string | null = null;
+    let targetNodeId: string | null = null;
+
+    for (const rack of racks) {
+      const placed = rack.devices.find((d) => d.registeredDeviceId === device.id);
+      if (placed) {
+        targetRackId = rack.id;
+        targetDeviceId = placed.id;
+        targetNodeId = rack.nodeId;
+        break;
+      }
+    }
+
+    if (!targetRackId || !targetDeviceId || !targetNodeId) {
+      showToast("해당 장비는 랙에 탑재되어 있지 않습니다.", "error");
+      return;
+    }
+
+    // 2. Validate nodeId existence in nodes list
+    if (!nodes.find(n => n.nodeId === targetNodeId)) {
+      showToast("노드 정보를 찾을 수 없습니다.", "error");
+      return;
+    }
+
+    // 3. Navigation sequence
+    // First switch node
+    setActiveNode(targetNodeId);
+    
+    // Select rack (this opens the DevicePanel)
+    selectRack(targetRackId);
+    
+    // Also focus camera
+    focusRack(targetRackId);
+    
+    // Trigger highlight
+    setHighlightedDevice(targetDeviceId);
+
+    // Cancel any existing timeout
+    if (highlightTimeoutRef.current) {
+      clearTimeout(highlightTimeoutRef.current);
+    }
+
+    // Auto-clear highlight after 5 seconds
+    highlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedDevice(null);
+      highlightTimeoutRef.current = null;
+    }, 5000);
+    
+    // We stay in the modal according to "keep open" recommendation, 
+    // but the background view changes.
+  };
 
   return (
     <>
       <ModalStyles />
 
       {/* Delete confirmation popover */}
-      {deleteConfirm && typeof document !== 'undefined' && createPortal(
-        <>
-          <div
-            className="drm-confirm-overlay"
-            onClick={() => setDeleteConfirm(null)}
-          />
-          <div
-            className="drm-confirm-popover"
-            style={{
-              top: Math.min(
-                deleteConfirm.rect.bottom + 8,
-                window.innerHeight - 200,
-              ),
-              left: Math.min(deleteConfirm.rect.left, window.innerWidth - 300),
-            }}
-          >
-            <p>
-              <strong>"{deleteConfirm.deviceName}"</strong>을(를)
-              삭제하시겠습니까?
-            </p>
-            {deleteConfirm.placedCount > 0 && (
-              <div className="drm-placement-warn">
-                ⚠️ 이 장비는 현재 {deleteConfirm.placedCount}개 랙 슬롯에
-                배치되어 있습니다. 삭제하면 함께 제거됩니다.
+      {deleteConfirm &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <>
+            <div
+              className="drm-confirm-overlay"
+              onClick={() => setDeleteConfirm(null)}
+            />
+            <div
+              className="drm-confirm-popover"
+              style={{
+                top: Math.min(
+                  deleteConfirm.rect.bottom + 8,
+                  window.innerHeight - 200,
+                ),
+                left: Math.min(
+                  deleteConfirm.rect.left,
+                  window.innerWidth - 300,
+                ),
+              }}
+            >
+              <p>
+                <strong>"{deleteConfirm.deviceName}"</strong>을(를)
+                삭제하시겠습니까?
+              </p>
+              {deleteConfirm.placedCount > 0 && (
+                <div className="drm-placement-warn">
+                  ⚠️ 이 장비는 현재 {deleteConfirm.placedCount}개 랙 슬롯에
+                  배치되어 있습니다. 삭제하면 함께 제거됩니다.
+                </div>
+              )}
+              <div className="drm-confirm-actions">
+                <button
+                  className="grafana-btn grafana-btn-secondary"
+                  style={{
+                    fontSize: "var(--font-size-sm)",
+                    padding: "4px 12px",
+                  }}
+                  onClick={() => setDeleteConfirm(null)}
+                >
+                  취소
+                </button>
+                <button
+                  className="grafana-btn grafana-btn-destructive"
+                  style={{
+                    fontSize: "var(--font-size-sm)",
+                    padding: "4px 12px",
+                  }}
+                  onClick={confirmDelete}
+                >
+                  삭제
+                </button>
               </div>
-            )}
-            <div className="drm-confirm-actions">
-              <button
-                className="grafana-btn grafana-btn-secondary"
-                style={{ fontSize: "var(--font-size-sm)", padding: "4px 12px" }}
-                onClick={() => setDeleteConfirm(null)}
-              >
-                취소
-              </button>
-              <button
-                className="grafana-btn grafana-btn-destructive"
-                style={{ fontSize: "var(--font-size-sm)", padding: "4px 12px" }}
-                onClick={confirmDelete}
-              >
-                삭제
-              </button>
             </div>
-          </div>
-        </>,
-        document.body
-      )}
+          </>,
+          document.body,
+        )}
 
       {/* Modal */}
       <div className="drm-overlay" onClick={() => setOpen(false)}>
@@ -868,7 +944,7 @@ export const DeviceRegistrationModal = () => {
           <div className="drm-header">
             <h2>
               <div className="icon-wrap">📋</div>
-              장비 등록
+              장비
             </h2>
             <button
               className="drm-close"
@@ -908,11 +984,13 @@ export const DeviceRegistrationModal = () => {
                     value={nodeId}
                     onChange={(e) => setNodeId(e.target.value)}
                   >
-                    {nodes.filter((n) => n.parentId !== null).map((n) => (
-                      <option key={n.nodeId} value={n.nodeId}>
-                        {n.name}
-                      </option>
-                    ))}
+                    {nodes
+                      .filter((n) => n.parentId !== null)
+                      .map((n) => (
+                        <option key={n.nodeId} value={n.nodeId}>
+                          {n.name}
+                        </option>
+                      ))}
                   </select>
                 </div>
 
@@ -1072,11 +1150,13 @@ export const DeviceRegistrationModal = () => {
                   onChange={(e) => setNodeFilter(e.target.value)}
                 >
                   <option value="all">전체 노드</option>
-                  {nodes.filter((n) => n.parentId !== null).map((n) => (
-                    <option key={n.nodeId} value={n.nodeId}>
-                      {n.name}
-                    </option>
-                  ))}
+                  {nodes
+                    .filter((n) => n.parentId !== null)
+                    .map((n) => (
+                      <option key={n.nodeId} value={n.nodeId}>
+                        {n.name}
+                      </option>
+                    ))}
                 </select>
               </div>
 
@@ -1090,9 +1170,10 @@ export const DeviceRegistrationModal = () => {
                             <input
                               type="checkbox"
                               checked={isAllSelected}
-                              onChange={(e) =>
-                                handleSelectAll(e.target.checked)
-                              }
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                handleSelectAll(e.target.checked);
+                              }}
                             />
                           </th>
                           <th>그룹</th>
@@ -1108,20 +1189,22 @@ export const DeviceRegistrationModal = () => {
                       </thead>
                       <tbody>
                         {filteredDevices.map((device) => (
-                          <tr key={device.id}>
+                          <tr 
+                            key={device.id}
+                            onClick={() => handleLocateDevice(device)}
+                          >
                             <td style={{ textAlign: "center" }}>
                               <input
                                 type="checkbox"
                                 checked={selectedIds.has(device.id)}
-                                onChange={(e) =>
-                                  handleSelectRow(device.id, e.target.checked)
-                                }
+                                onChange={(e) => {
+                                  e.stopPropagation();
+                                  handleSelectRow(device.id, e.target.checked);
+                                }}
                               />
                             </td>
                             <td>
-                              <span
-                                className="drm-group-tag group-gwacheon"
-                              >
+                              <span className="drm-group-tag group-gwacheon">
                                 {getNodeName(nodes, device.nodeId)}
                               </span>
                             </td>
@@ -1154,7 +1237,10 @@ export const DeviceRegistrationModal = () => {
                               <button
                                 className="drm-delete-btn"
                                 title="삭제"
-                                onClick={(e) => handleDeleteClick(e, device)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteClick(e, device);
+                                }}
                               >
                                 🗑️
                               </button>
@@ -1187,55 +1273,57 @@ export const DeviceRegistrationModal = () => {
       </div>
 
       {/* Toast (Centered Popup) - Rendered last to fix backdrop-filter stacking context bug */}
-      {toast && typeof document !== 'undefined' && createPortal(
-        <div className="drm-toast-wrapper" onClick={() => setToast(null)}>
-          <div
-            className={`drm-toast ${toast.type === "success" ? "drm-toast-success" : "drm-toast-error"} ${toast.action === "add" || toast.action === "delete" ? "compact" : ""}`}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {toast.action !== "add" && toast.action !== "delete" && (
-              <img
-                src={
-                  toast.action === "export"
-                    ? toast.type === "success"
-                      ? "/assets/export_success.png"
-                      : "/assets/export_error.png"
-                    : toast.action === "import"
+      {toast &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="drm-toast-wrapper" onClick={() => setToast(null)}>
+            <div
+              className={`drm-toast ${toast.type === "success" ? "drm-toast-success" : "drm-toast-error"} ${toast.action === "add" || toast.action === "delete" ? "compact" : ""}`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {toast.action !== "add" && toast.action !== "delete" && (
+                <img
+                  src={
+                    toast.action === "export"
                       ? toast.type === "success"
-                        ? "/assets/import_success.png"
-                        : "/assets/import_error.png"
-                      : toast.type === "success"
-                        ? "/assets/success_popup.png"
-                        : "/assets/error_popup.png"
-                }
-                alt="status illustration"
-                className="drm-toast-image"
-              />
-            )}
-            <div className="drm-toast-content">
-              <h3>
-                {toast.type === "success"
-                  ? toast.action === "export"
-                    ? "내보내기 완료"
-                    : toast.action === "import"
-                      ? "가져오기 완료"
-                      : toast.action === "add"
-                        ? "등록 성공"
-                        : toast.action === "delete"
-                          ? "삭제 완료"
-                          : "완료되었습니다"
-                  : toast.action === "export"
-                    ? "내보내기 실패"
-                    : toast.action === "import"
-                      ? "가져오기 실패"
-                      : "확인이 필요합니다"}
-              </h3>
-              <p>{toast.message}</p>
+                        ? "/assets/export_success.png"
+                        : "/assets/export_error.png"
+                      : toast.action === "import"
+                        ? toast.type === "success"
+                          ? "/assets/import_success.png"
+                          : "/assets/import_error.png"
+                        : toast.type === "success"
+                          ? "/assets/success_popup.png"
+                          : "/assets/error_popup.png"
+                  }
+                  alt="status illustration"
+                  className="drm-toast-image"
+                />
+              )}
+              <div className="drm-toast-content">
+                <h3>
+                  {toast.type === "success"
+                    ? toast.action === "export"
+                      ? "내보내기 완료"
+                      : toast.action === "import"
+                        ? "가져오기 완료"
+                        : toast.action === "add"
+                          ? "등록 성공"
+                          : toast.action === "delete"
+                            ? "삭제 완료"
+                            : "완료되었습니다"
+                    : toast.action === "export"
+                      ? "내보내기 실패"
+                      : toast.action === "import"
+                        ? "가져오기 실패"
+                        : "확인이 필요합니다"}
+                </h3>
+                <p>{toast.message}</p>
+              </div>
             </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body,
+        )}
     </>
   );
 };

@@ -9,7 +9,11 @@ import { ModelImporter } from "./components/ModelImporter";
 import { DeviceRegistrationModal } from "./components/DeviceRegistrationModal";
 import { Breadcrumb } from "./components/Breadcrumb";
 import { useStore } from "./store/useStore";
-import { sampleRacks, sampleRegisteredDevices, sampleNodes } from "./utils/storage";
+import {
+  sampleRacks,
+  sampleRegisteredDevices,
+  sampleNodes,
+} from "./utils/storage";
 
 function App() {
   const {
@@ -63,12 +67,8 @@ function App() {
         {/* Theme Toggle */}
         <ThemeToggle />
 
-        <div className="grafana-toolbar-divider" />
-
         {/* Hierarchy Breadcrumb */}
         <Breadcrumb />
-
-        <div className="grafana-toolbar-divider" />
 
         {/* Edit Mode Toggle */}
         <div
@@ -166,10 +166,10 @@ function App() {
                 e.stopPropagation();
                 setDeviceRegistrationModalOpen(true);
               }}
-              title="장비 등록"
+              title="장비"
               style={{ fontSize: "var(--font-size-sm)" }}
             >
-              📋 장비 등록
+              📋 장비
             </button>
 
             <div className="grafana-toolbar-divider" />
@@ -236,4 +236,3 @@ function App() {
 }
 
 export default App;
-

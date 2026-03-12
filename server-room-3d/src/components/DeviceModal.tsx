@@ -118,7 +118,12 @@ export const DeviceModal = () => {
     <div className="grafana-modal-overlay" onClick={() => selectDevice(null)}>
       <div
         className="grafana-modal"
-        style={{ width: "600px" }}
+        style={{ 
+          width: "600px",
+          maxHeight: "90vh",
+          display: "flex",
+          flexDirection: "column"
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

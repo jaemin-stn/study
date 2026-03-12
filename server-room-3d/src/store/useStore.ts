@@ -31,6 +31,7 @@ export interface AppState {
   hoveredRackId: string | null;
   importExportModalRackId: string | null;
   deviceRegistrationModalOpen: boolean;
+  highlightedDeviceId: string | null;
 
   // Hierarchy
   nodes: HierarchyNode[];
@@ -81,6 +82,7 @@ export interface AppState {
 
   // Registered Device Management
   setDeviceRegistrationModalOpen: (open: boolean) => void;
+  setHighlightedDevice: (id: string | null) => void;
   addRegisteredDevice: (device: Omit<RegisteredDevice, "id">) => void;
   removeRegisteredDevice: (id: string) => void;
   upsertRegisteredDevices: (devices: Omit<RegisteredDevice, "id">[]) => {
@@ -262,6 +264,7 @@ export const useStore = create<AppState>((set, get) => ({
   activeNodeId: "stn-root",
   importExportModalRackId: null,
   deviceRegistrationModalOpen: false,
+  highlightedDeviceId: null,
 
   _cameraRef: null,
   _controlsRef: null,
@@ -285,6 +288,7 @@ export const useStore = create<AppState>((set, get) => ({
   setImportExportModalRackId: (id) => set({ importExportModalRackId: id }),
   setDeviceRegistrationModalOpen: (open) =>
     set({ deviceRegistrationModalOpen: open }),
+  setHighlightedDevice: (id) => set({ highlightedDeviceId: id }),
 
   addRegisteredDevice: (deviceData) => {
     const newDevice: RegisteredDevice = {

@@ -30,6 +30,7 @@ const flattenDevices = (racks: Rack[]) => {
       rows.push({
         deviceId: d.id,
         rackId: r.id,
+        nodeId: r.nodeId,
         name: d.name,
         type: d.type,
         uSize: d.uSize,
@@ -54,6 +55,7 @@ const flattenPorts = (racks: Rack[]) => {
         rows.push({
           portId: p.portId,
           deviceId: d.id,
+          nodeId: r.nodeId,
           status: p.status,
           errorLevel: p.errorLevel || "",
           errorMessage: p.errorMessage || "",
@@ -423,7 +425,7 @@ const GROUP_NAME_MAP: Record<string, string> = {
   DJ: "대전",
 };
 
-const SCHEMA_VERSION = "1.0";
+const SCHEMA_VERSION = "2.0";
 
 // ─── Group-Scoped Flattening Helpers ────────────────────────────────────────
 
@@ -485,33 +487,43 @@ const flattenPortsWithGroup = (racks: Rack[]) => {
 };
 
 /** Flatten registered devices */
-const flattenRegisteredDevices = (devices: RegisteredDevice[]) =>
-  devices.map((d) => ({
-    id: d.id,
-    nodeId: d.nodeId,
-    deviceName: d.deviceName,
-    modelName: d.modelName,
-    type: d.type,
-    uSize: d.uSize,
-    ip: d.ip,
-    mac: d.mac,
-    vendor: d.vendor,
-  }));
+const flattenRegisteredDevices = (devices: RegisteredDevice[], nodes: HierarchyNode[]) =>
+  devices.map((d) => {
+    const node = nodes.find(n => n.nodeId === d.nodeId);
+    return {
+      id: d.id,
+      nodeId: d.nodeId,
+      groupName: node ? node.name : d.nodeId,
+      deviceName: d.deviceName,
+      modelName: d.modelName,
+      type: d.type,
+      uSize: d.uSize,
+      ip: d.ip,
+      mac: d.mac,
+      vendor: d.vendor,
+    };
+  });
 
 // ─── Master Sheet Builders ──────────────────────────────────────────────────
 
-const buildMetaSheet = () =>
+const buildMetaSheet = (scope: ExportScope = "ALL") =>
   XLSX.utils.json_to_sheet([
     { key: "schemaVersion", value: SCHEMA_VERSION },
     { key: "lastExportAt", value: new Date().toISOString() },
+    { key: "hierarchyEnabled", value: true },
+    { key: "exportScopeType", value: scope === "ALL" ? "ALL" : "NODE" },
+    { key: "exportScopeNodeId", value: scope === "ALL" ? "" : scope },
   ]);
 
-const buildGroupsSheet = () =>
+const buildGroupsSheet = (nodes: HierarchyNode[]) =>
   XLSX.utils.json_to_sheet(
-    Object.entries(GROUP_ID_MAP).map(([name, id]) => ({
-      groupId: id,
-      groupName: name,
-    })),
+    nodes.map((n) => ({
+      nodeId: n.nodeId,
+      parentId: n.parentId || "",
+      nodeName: n.name,
+      nodeType: n.type,
+      sortOrder: n.order,
+    }))
   );
 
 // ─── Group-Scoped Export/Import ─────────────────────────────────────────────
@@ -525,18 +537,19 @@ export type ExportScope = "ALL" | string; // "ALL" or nodeId
 export const exportGroupWorkbook = (
   racks: Rack[],
   registeredDevices: RegisteredDevice[],
+  nodes: HierarchyNode[],
   scope: ExportScope = "ALL",
 ) => {
   const wb = XLSX.utils.book_new();
 
   // ── Master sheets (always present) ──
-  XLSX.utils.book_append_sheet(wb, buildMetaSheet(), "_META");
-  XLSX.utils.book_append_sheet(wb, buildGroupsSheet(), "Groups");
+  XLSX.utils.book_append_sheet(wb, buildMetaSheet(scope), "_META");
+  XLSX.utils.book_append_sheet(wb, buildGroupsSheet(nodes), "Groups");
 
   const allRackRows = flattenRacksWithGroup(racks);
   const allDeviceRows = flattenDevicesWithGroup(racks);
   const allPortRows = flattenPortsWithGroup(racks);
-  const allRegDevRows = flattenRegisteredDevices(registeredDevices);
+  const allRegDevRows = flattenRegisteredDevices(registeredDevices, nodes);
 
   if (allRackRows.length > 0)
     XLSX.utils.book_append_sheet(
@@ -618,10 +631,11 @@ export const exportGroupWorkbook = (
  */
 export const exportRegisteredDevicesToExcel = (
   devices: RegisteredDevice[],
+  nodes: HierarchyNode[],
   scope: string, // "ALL" | "과천" | "대전" | "SELECTED"
 ) => {
   const wb = XLSX.utils.book_new();
-  const rows = flattenRegisteredDevices(devices);
+  const rows = flattenRegisteredDevices(devices, nodes);
 
   if (rows.length > 0) {
     XLSX.utils.book_append_sheet(
@@ -649,6 +663,7 @@ export const exportRegisteredDevicesToExcel = (
  */
 export const parseRegisteredDevicesFromExcel = (
   file: File,
+  nodes: HierarchyNode[],
 ): Promise<Omit<RegisteredDevice, "id">[]> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -670,8 +685,11 @@ export const parseRegisteredDevicesFromExcel = (
 
         const parsed: Omit<RegisteredDevice, "id">[] = rows
           .map((r): Omit<RegisteredDevice, "id"> | null => {
-            const grpName = r.groupName || GROUP_NAME_MAP[r.groupId] || "과천";
-            const nid = (r.nodeId as string) || migrateGroupNameToNodeId(grpName);
+            const grpName = r.groupName || r.nodeName || GROUP_NAME_MAP[r.groupId] || "과천";
+            
+            // Try to find nodeId by name in current nodes for better accuracy
+            const matchedNode = nodes.find(n => n.name === grpName);
+            const nid = (r.nodeId as string) || matchedNode?.nodeId || migrateGroupNameToNodeId(String(grpName));
             const mac = String(r.mac || "")
               .trim()
               .toUpperCase();
@@ -713,14 +731,24 @@ export const parseRegisteredDevicesFromExcel = (
   });
 };
 
+export interface ProcessedImportData {
+  nodes: HierarchyNode[];
+  dataByNode: Record<string, { racks: Rack[]; registeredDevices: RegisteredDevice[] }>;
+  exportScope: {
+    type: "ALL" | "NODE";
+    nodeId?: string;
+  };
+  ignoredCount: number;
+}
+
 /**
- * Import group-scoped data from PKG sheets in a workbook.
- * Returns reconstructed Rack[] for the target group only.
+ * Import all data from workbook sheets.
+ * Automatically detects nodes from Groups sheet and maps entities to them.
  */
 export const importGroupPackage = (
   file: File,
-  targetNodeId: string | "ALL",
-): Promise<{ racks: Rack[]; registeredDevices: RegisteredDevice[] }> => {
+  _targetNodeId?: string | "ALL", // Kept for signature compatibility, unused in auto-mode
+): Promise<ProcessedImportData> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -728,166 +756,199 @@ export const importGroupPackage = (
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array" });
 
-        const groupId =
-          targetNodeId === "ALL" ? "ALL" : (GROUP_ID_MAP[targetNodeId] || targetNodeId);
-        const targetGroup = GROUP_NAME_MAP[groupId] || targetNodeId;
+        // --- Parse Metadata ---
+        const metaSheet = workbook.Sheets["_META"];
+        let exportScopeType: "ALL" | "NODE" = "ALL";
+        let exportScopeNodeId = "";
+        if (metaSheet) {
+          const metaRows = XLSX.utils.sheet_to_json(metaSheet) as Record<string, any>[];
+          const typeRow = metaRows.find(r => r.key === "exportScopeType");
+          const idRow = metaRows.find(r => r.key === "exportScopeNodeId");
+          if (typeRow) exportScopeType = typeRow.value as any;
+          if (idRow) exportScopeNodeId = String(idRow.value || "");
+        }
 
-        // ── Try PKG sheets first (groupId then groupName), then master, then legacy ──
+        // --- Sheet Finding ---
         const findSheet = (...candidates: string[]) =>
           candidates.find((name) => workbook.SheetNames.includes(name));
 
-        const rackSheetName =
-          targetNodeId === "ALL"
-            ? findSheet("Racks", "Rack")
-            : findSheet(
-                `PKG_${groupId}_Racks`,
-                `PKG_${targetGroup}_Racks`,
-                "Racks",
-                "Rack",
-              );
-        const deviceSheetName =
-          targetNodeId === "ALL"
-            ? findSheet("Devices", "Equipment")
-            : findSheet(
-                `PKG_${groupId}_Devices`,
-                `PKG_${targetGroup}_Devices`,
-                "Devices",
-                "Equipment",
-              );
-        const portSheetName =
-          targetNodeId === "ALL"
-            ? findSheet("Ports")
-            : findSheet(
-                `PKG_${groupId}_Ports`,
-                `PKG_${targetGroup}_Ports`,
-                "Ports",
-              );
+        const rackSheetName = findSheet("Racks", "Rack");
+        const deviceSheetName = findSheet("Devices", "Equipment");
+        const portSheetName = findSheet("Ports");
         const regDevSheetName = "RegisteredDevices";
 
-        const rackSheet = rackSheetName
-          ? workbook.Sheets[rackSheetName]
-          : undefined;
-        if (!rackSheet)
-          throw new Error(
-            `Rack sheet not found. Available sheets: ${workbook.SheetNames.join(", ")}`,
-          );
+        const rackSheet = rackSheetName ? workbook.Sheets[rackSheetName] : undefined;
+        if (!rackSheet) throw new Error("Rack sheet not found in workbook.");
 
-        const racksFlat = XLSX.utils.sheet_to_json(rackSheet) as Record<
-          string,
-          any
-        >[];
-        const devicesFlat =
-          deviceSheetName && workbook.Sheets[deviceSheetName]
-            ? (XLSX.utils.sheet_to_json(
-                workbook.Sheets[deviceSheetName],
-              ) as Record<string, any>[])
-            : [];
-        const portsFlat =
-          portSheetName && workbook.Sheets[portSheetName]
-            ? (XLSX.utils.sheet_to_json(
-                workbook.Sheets[portSheetName],
-              ) as Record<string, any>[])
-            : [];
+        const racksFlat = XLSX.utils.sheet_to_json(rackSheet) as Record<string, any>[];
+        const devicesFlat = deviceSheetName && workbook.Sheets[deviceSheetName]
+          ? (XLSX.utils.sheet_to_json(workbook.Sheets[deviceSheetName]) as Record<string, any>[])
+          : [];
+        const portsFlat = portSheetName && workbook.Sheets[portSheetName]
+          ? (XLSX.utils.sheet_to_json(workbook.Sheets[portSheetName]) as Record<string, any>[])
+          : [];
         const regDevFlat = workbook.Sheets[regDevSheetName]
-          ? (XLSX.utils.sheet_to_json(
-              workbook.Sheets[regDevSheetName],
-            ) as Record<string, any>[])
+          ? (XLSX.utils.sheet_to_json(workbook.Sheets[regDevSheetName]) as Record<string, any>[])
           : [];
 
-        // Filter to target group (in case master sheets are used)
-        const filteredRacks =
-          targetNodeId === "ALL"
-            ? racksFlat
-            : racksFlat.filter(
-                (r) => r.nodeId === targetNodeId || r.groupId === groupId || r.groupName === targetGroup,
-              );
+        // --- Parse Groups sheet (Hierarchy) ---
+        const groupsSheet = workbook.Sheets["Groups"];
+        let rawParsedNodes: HierarchyNode[] = [];
+        if (groupsSheet) {
+          const rows = XLSX.utils.sheet_to_json(groupsSheet) as Record<string, any>[];
+          if (rows.length > 0 && rows[0].nodeId) {
+            rawParsedNodes = rows.map((r) => ({
+              nodeId: String(r.nodeId),
+              parentId: r.parentId ? String(r.parentId) : null,
+              name: String(r.nodeName || ""),
+              type: (r.nodeType || "group") as any,
+              order: Number(r.sortOrder || 0),
+            }));
+          } else if (rows.length > 0 && (rows[0].groupId || rows[0].groupName)) {
+            rawParsedNodes = rows.map((r) => ({
+              nodeId: r.groupId ? String(r.groupId) : migrateGroupNameToNodeId(r.groupName || "과천"),
+              parentId: "stn-root",
+              name: String(r.groupName || r.groupId || ""),
+              type: "group",
+              order: 0,
+            }));
+          }
+        }
 
-        // Build a set of rack IDs for this group (for device filtering)
-        const groupRackIds = new Set(filteredRacks.map((r) => r.rackId));
+        // --- Filter Nodes based on scope (Ancestors only for NODE scope) ---
+        let finalNodes = rawParsedNodes;
+        if (exportScopeType === "NODE" && exportScopeNodeId) {
+          const keptIds = new Set<string>();
+          const findAncestors = (nid: string) => {
+            if (keptIds.has(nid)) return;
+            keptIds.add(nid);
+            const node = rawParsedNodes.find(n => n.nodeId === nid);
+            if (node?.parentId) findAncestors(node.parentId);
+          };
+          
+          if (rawParsedNodes.some(n => n.nodeId === exportScopeNodeId)) {
+            findAncestors(exportScopeNodeId);
+          } else {
+            // If target node not in list, keep it as is or fallback
+            keptIds.add(exportScopeNodeId);
+          }
+          finalNodes = rawParsedNodes.filter(n => keptIds.has(n.nodeId));
+        }
 
-        // Filter devices: try groupId/groupName first; if none have those fields,
-        // fall back to matching by rackId membership (needed for legacy exports)
-        const hasDeviceGroupField = devicesFlat.some(
-          (d) => d.nodeId !== undefined || d.groupId !== undefined || d.groupName !== undefined,
-        );
-        const filteredDevices =
-          targetNodeId === "ALL"
-            ? devicesFlat
-            : hasDeviceGroupField
-              ? devicesFlat.filter(
-                  (d) => d.nodeId === targetNodeId || d.groupId === groupId || d.groupName === targetGroup,
-                )
-              : devicesFlat.filter((d) => groupRackIds.has(d.rackId));
+        // --- Robust Property Access Helpers ---
+        const getValue = (row: any, ...synonyms: string[]) => {
+          for (const s of synonyms) {
+            if (row[s] !== undefined) return row[s];
+            const key = Object.keys(row).find((k) => k.toLowerCase() === s.toLowerCase());
+            if (key) return row[key];
+          }
+          return undefined;
+        };
 
-        // Reconstruct Rack[] from flat rows
-        const racks: Rack[] = filteredRacks.map((r) => {
-          const rackDevices = filteredDevices
-            .filter((d) => d.rackId === r.rackId)
+        const getRowNodeId = (row: any) => {
+          const nid = getValue(row, "nodeId") || getValue(row, "groupId");
+          if (nid) return String(nid);
+          const gname = getValue(row, "groupName");
+          if (gname) return migrateGroupNameToNodeId(String(gname));
+          return undefined;
+        };
+
+        // --- Reconstruction ---
+        const dataByNode: Record<string, { racks: Rack[]; registeredDevices: RegisteredDevice[] }> = {};
+        let ignoredCount = 0;
+
+        const isAllowedNode = (nid: string) => {
+          if (exportScopeType === "ALL") return true;
+          return nid === exportScopeNodeId;
+        };
+
+        // Helper to ensure node entry exists
+        const ensureNode = (nid: string) => {
+          if (!dataByNode[nid]) {
+            dataByNode[nid] = { racks: [], registeredDevices: [] };
+          }
+        };
+
+        // 1. Process Racks
+        racksFlat.forEach((r) => {
+          const nid = getRowNodeId(r) || "unassigned";
+          if (!isAllowedNode(nid)) {
+            ignoredCount++;
+            return;
+          }
+          ensureNode(nid);
+
+          const rackId = String(getValue(r, "rackId"));
+          const rackDevices = devicesFlat
+            .filter((d) => String(getValue(d, "rackId")) === rackId)
             .map((d) => {
+              const devId = String(getValue(d, "deviceId"));
               const devicePorts = portsFlat
-                .filter((p) => p.deviceId === d.deviceId)
+                .filter((p) => String(getValue(p, "deviceId")) === devId)
                 .map((p) => ({
-                  portId: String(p.portId),
-                  status: p.status as "normal" | "error",
-                  errorLevel: p.errorLevel || undefined,
-                  errorMessage: p.errorMessage || undefined,
+                  portId: String(getValue(p, "portId")),
+                  status: (getValue(p, "status") as "normal" | "error") || "normal",
+                  errorLevel: getValue(p, "errorLevel") || undefined,
+                  errorMessage: getValue(p, "errorMessage") || undefined,
                 }));
 
               return {
-                id: String(d.deviceId),
-                name: String(d.name || ""),
-                type: d.type as any,
-                uSize: Number(d.uSize),
-                uPosition: Number(d.uPosition),
-                imageUrl: d.imageUrl || undefined,
-                modelName: d.modelName || undefined,
-                ip: d.ip || undefined,
-                mac: d.mac || undefined,
-                vendor: d.vendor || undefined,
-                registeredDeviceId: d.registeredDeviceId || undefined,
+                id: devId,
+                name: String(getValue(d, "name", "deviceName") || ""),
+                type: getValue(d, "type") as any,
+                uSize: Number(getValue(d, "uSize")),
+                uPosition: Number(getValue(d, "uPosition")),
+                imageUrl: getValue(d, "imageUrl") || undefined,
+                modelName: getValue(d, "modelName") || undefined,
+                ip: getValue(d, "ip") || undefined,
+                mac: getValue(d, "mac") || undefined,
+                vendor: getValue(d, "vendor") || undefined,
+                registeredDeviceId: getValue(d, "registeredDeviceId") || undefined,
                 portStates: devicePorts,
               };
             });
 
-          return {
-            id: String(r.rackId),
-            nodeId: (r.nodeId as string) ||
-              (targetNodeId === "ALL"
-                ? migrateGroupNameToNodeId(r.groupName || GROUP_NAME_MAP[r.groupId] || "과천")
-                : targetNodeId),
-            uHeight: Number(r.uHeight) as 24 | 32 | 48,
-            width: Number(r.width || RACK_WIDTH_STANDARD),
-            position: [Number(r.posX), Number(r.posZ)] as [number, number],
-            orientation: Number(r.orientation || 180) as 0 | 90 | 180 | 270,
+          dataByNode[nid].racks.push({
+            id: rackId,
+            nodeId: nid,
+            uHeight: Number(getValue(r, "uHeight")) as 24 | 32 | 48,
+            width: Number(getValue(r, "width") || RACK_WIDTH_STANDARD),
+            position: [Number(getValue(r, "posX")), Number(getValue(r, "posZ"))] as [number, number],
+            orientation: Number(getValue(r, "orientation") || 180) as 0 | 90 | 180 | 270,
             devices: rackDevices as any,
-          };
+          });
         });
 
-        // Reconstruct RegisteredDevice[] for the target group
-        const registeredDevices: RegisteredDevice[] = regDevFlat
-          .filter((d) =>
-            targetNodeId === "ALL"
-              ? true
-              : d.nodeId === targetNodeId || d.groupId === groupId || d.groupName === targetGroup,
-          )
-          .map((d) => ({
-            id: String(d.id),
-            nodeId: (d.nodeId as string) ||
-              (targetNodeId === "ALL"
-                ? migrateGroupNameToNodeId(d.groupName || GROUP_NAME_MAP[d.groupId] || "과천")
-                : targetNodeId),
-            deviceName: String(d.deviceName || ""),
-            modelName: String(d.modelName || ""),
-            type: d.type as any,
-            uSize: Number(d.uSize),
-            ip: String(d.ip || ""),
-            mac: String(d.mac || ""),
-            vendor: d.vendor as any,
-          }));
+        // 2. Process Registered Devices
+        regDevFlat.forEach((d) => {
+          const nid = getRowNodeId(d) || "unassigned";
+          if (!isAllowedNode(nid)) {
+            ignoredCount++;
+            return;
+          }
+          ensureNode(nid);
 
-        resolve({ racks, registeredDevices });
+          dataByNode[nid].registeredDevices.push({
+            id: String(getValue(d, "id", "registeredDeviceId")),
+            nodeId: nid,
+            deviceName: String(getValue(d, "deviceName", "name") || ""),
+            modelName: String(getValue(d, "modelName") || ""),
+            type: getValue(d, "type") as any,
+            uSize: Number(getValue(d, "uSize")),
+            ip: String(getValue(d, "ip") || ""),
+            mac: String(getValue(d, "mac") || ""),
+            vendor: getValue(d, "vendor") || undefined,
+          });
+        });
+
+        resolve({ 
+          nodes: finalNodes, 
+          dataByNode, 
+          exportScope: { type: exportScopeType, nodeId: exportScopeNodeId },
+          ignoredCount 
+        });
       } catch (err) {
-        reject(err);
+        reject(err instanceof Error ? err : new Error(String(err)));
       }
     };
     reader.onerror = reject;

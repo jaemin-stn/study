@@ -7,7 +7,7 @@ import {
   exportRegisteredDevicesToExcel,
   parseRegisteredDevicesFromExcel,
 } from "../utils/storage";
-import { findNode } from "../utils/nodeUtils";
+import { getNodeName } from "../utils/nodeUtils";
 
 const VENDORS: VendorName[] = [
   "코위버PTN",
@@ -707,7 +707,7 @@ export const DeviceRegistrationModal = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const parsed = await parseRegisteredDevicesFromExcel(file);
+      const parsed = await parseRegisteredDevicesFromExcel(file, nodes);
       if (parsed.length === 0) {
         showToast(
           "파일에서 유효한 장비를 찾을 수 없습니다.",
@@ -736,8 +736,8 @@ export const DeviceRegistrationModal = () => {
     const selectedDevices = registeredDevices.filter((d) =>
       selectedIds.has(d.id),
     );
-    const scope = nodeFilter === "all" ? "SELECTED" : findNode(nodes, nodeFilter)?.name || nodeFilter;
-    exportRegisteredDevicesToExcel(selectedDevices, scope);
+    const scope = nodeFilter === "all" ? "SELECTED" : getNodeName(nodes, nodeFilter);
+    exportRegisteredDevicesToExcel(selectedDevices, nodes, scope);
     showToast("선택한 장비 데이터가 내보내졌습니다.", "success", "export");
   };
 
@@ -1122,7 +1122,7 @@ export const DeviceRegistrationModal = () => {
                               <span
                                 className="drm-group-tag group-gwacheon"
                               >
-                                {findNode(nodes, device.nodeId)?.name || device.nodeId}
+                                {getNodeName(nodes, device.nodeId)}
                               </span>
                             </td>
                             <td style={{ fontWeight: 600 }}>

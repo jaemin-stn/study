@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import type { ErrorLevel } from "../types";
-import { findNode, GWACHEON_NODE_ID, DAEJEON_NODE_ID } from "../utils/nodeUtils";
+import { getNodeName, GWACHEON_NODE_ID, DAEJEON_NODE_ID } from "../utils/nodeUtils";
 
 // Error item for table display
 interface ErrorItem {
@@ -77,11 +77,7 @@ export const DashboardWidgets = () => {
     "critical",
   );
 
-  const activeNode = useMemo(
-    () => findNode(nodes, activeNodeId),
-    [nodes, activeNodeId],
-  );
-  const activeNodeName = activeNode?.name || "Unknown";
+  const activeNodeName = useMemo(() => getNodeName(nodes, activeNodeId), [nodes, activeNodeId]);
 
   // Filter racks by exactly the active node only
   const groupRacks = useMemo(

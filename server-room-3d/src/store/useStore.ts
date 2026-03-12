@@ -109,6 +109,7 @@ export interface AppState {
   addNode: (node: Omit<HierarchyNode, "nodeId">) => string;
   renameNode: (nodeId: string, name: string) => void;
   deleteNode: (nodeId: string) => void;
+  upsertNodes: (nodes: HierarchyNode[], overwrite: boolean) => Record<string, string>;
 
   // Data Persistence
   loadState: (
@@ -121,6 +122,9 @@ export interface AppState {
     nodeId: string | "ALL",
     newRacks: Rack[],
     newRegisteredDevices?: RegisteredDevice[],
+  ) => void;
+  replaceMultipleNodesData: (
+    data: Record<string, { racks: Rack[]; registeredDevices: RegisteredDevice[] }>
   ) => void;
 }
 
@@ -255,7 +259,7 @@ export const useStore = create<AppState>((set, get) => ({
   isEditMode: false,
   hoveredRackId: null,
   nodes: [],
-  activeNodeId: "",
+  activeNodeId: "stn-root",
   importExportModalRackId: null,
   deviceRegistrationModalOpen: false,
 
@@ -667,6 +671,31 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
 
+  replaceMultipleNodesData: (data) => {
+    set((state) => {
+      let updatedRacks = [...state.racks];
+      let updatedRegDevices = [...state.registeredDevices];
+
+      Object.entries(data).forEach(([nodeId, nodeData]) => {
+        // Remove existing items for this node
+        updatedRacks = updatedRacks.filter((r) => r.nodeId !== nodeId);
+        updatedRegDevices = updatedRegDevices.filter((d) => d.nodeId !== nodeId);
+        
+        // Add new items
+        updatedRacks.push(...nodeData.racks);
+        updatedRegDevices.push(...nodeData.registeredDevices);
+      });
+
+      return {
+        racks: updatedRacks,
+        registeredDevices: updatedRegDevices,
+        selectedRackId: null,
+        focusedRackId: null,
+        selectedDeviceId: null,
+      };
+    });
+  },
+
   // Hierarchy Node Management
   addNode: (nodeData) => {
     const newId = crypto.randomUUID();
@@ -708,6 +737,44 @@ export const useStore = create<AppState>((set, get) => ({
           : state.activeNodeId,
       };
     });
+  },
+
+  upsertNodes: (newNodes, overwrite) => {
+    const mapping: Record<string, string> = {};
+    set((state) => {
+      const updatedNodes = [...state.nodes];
+      
+      newNodes.forEach((n) => {
+        mapping[n.nodeId] = n.nodeId; // Default to input ID
+        const matchIdx = updatedNodes.findIndex((ex) => ex.nodeId === n.nodeId);
+        if (matchIdx >= 0) {
+          if (overwrite) {
+            updatedNodes[matchIdx] = { ...updatedNodes[matchIdx], ...n };
+          }
+        } else {
+          // Check for duplicate by path/name (parentId + name)
+          const duplicateIdx = updatedNodes.findIndex(
+            (ex) => ex.parentId === n.parentId && ex.name === n.name
+          );
+          if (duplicateIdx >= 0) {
+            // Map the input ID to the existing store ID
+            mapping[n.nodeId] = updatedNodes[duplicateIdx].nodeId;
+            if (overwrite) {
+               updatedNodes[duplicateIdx] = { 
+                 ...updatedNodes[duplicateIdx], 
+                 ...n, 
+                 nodeId: updatedNodes[duplicateIdx].nodeId 
+               };
+            }
+          } else {
+            updatedNodes.push(n);
+          }
+        }
+      });
+
+      return { nodes: updatedNodes };
+    });
+    return mapping;
   },
 
   // Imported Model Actions

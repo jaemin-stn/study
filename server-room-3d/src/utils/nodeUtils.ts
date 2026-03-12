@@ -110,10 +110,37 @@ export const migrateGroupNameToNodeId = (
 ): string => {
   switch (groupName) {
     case "과천":
+    case "gwacheon":
       return GWACHEON_NODE_ID;
     case "대전":
+    case "daejeon":
       return DAEJEON_NODE_ID;
     default:
-      return GWACHEON_NODE_ID; // fallback
+      return groupName; // return as is if not a known legacy name
   }
+};
+
+/** 노드 ID를 기반으로 노드 이름을 로버스트하게 반환 (fallback 포함) */
+export const getNodeName = (
+  nodes: HierarchyNode[],
+  nodeId: string,
+): string => {
+  if (!nodeId) return "Unknown";
+  
+  // 1. Direct match
+  const direct = findNode(nodes, nodeId);
+  if (direct) return direct.name;
+  
+  // 2. Try migration mapping
+  const migratedId = migrateGroupNameToNodeId(nodeId);
+  if (migratedId !== nodeId) {
+    const migrated = findNode(nodes, migratedId);
+    if (migrated) return migrated.name;
+  }
+  
+  // 3. Known ID logic
+  if (nodeId === GWACHEON_NODE_ID || nodeId === "gwacheon") return "1층 서버실";
+  if (nodeId === DAEJEON_NODE_ID || nodeId === "daejeon") return "1층 서버실";
+  
+  return nodeId; // Final fallback
 };

@@ -4,7 +4,7 @@ import { useStore, checkFrontClearanceViolation } from "../store/useStore";
 import type { PortState, RegisteredDevice } from "../types";
 import { getHighestError } from "../utils/errorHelpers";
 import { resolveDeviceImage } from "../utils/deviceAssets";
-import { findNode } from "../utils/nodeUtils";
+import { getNodeName } from "../utils/nodeUtils";
 
 /* ---------- Device Tile Image with loading / fallback ---------- */
 const DeviceTileImage = ({ src, alt }: { src: string; alt: string }) => {
@@ -688,7 +688,7 @@ export const DevicePanel = () => {
                   color: "var(--text-secondary)",
                 }}
               >
-                Position: U{addModalSlot} · {findNode(nodes, rack.nodeId)?.name || rack.nodeId} · 가용 공간{" "}
+                Position: U{addModalSlot} · {getNodeName(nodes, rack.nodeId)} · 가용 공간{" "}
                 {contiguousFreeU}U
               </span>
             </div>
@@ -1016,7 +1016,7 @@ export const DevicePanel = () => {
                 fontWeight: 600,
               }}
             >
-              {findNode(nodes, rack.nodeId)?.name || rack.nodeId}
+              {getNodeName(nodes, rack.nodeId)}
             </span>
           </span>
         </div>

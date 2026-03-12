@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import type { ErrorLevel } from "../types";
+import { findNode, GWACHEON_NODE_ID, DAEJEON_NODE_ID } from "../utils/nodeUtils";
 
 // Error item for table display
 interface ErrorItem {
@@ -59,9 +60,16 @@ interface SensorData {
   humidity: number | null;
 }
 
+// Mock sensor data per known node ID
+const MOCK_SENSOR_DATA: Record<string, SensorData> = {
+  [GWACHEON_NODE_ID]: { temperature: 22.5, humidity: 45.0 },
+  [DAEJEON_NODE_ID]: { temperature: 23.8, humidity: 42.0 },
+};
+
 export const DashboardWidgets = () => {
   const racks = useStore((state) => state.racks);
-  const activeGroup = useStore((state) => state.activeGroup);
+  const nodes = useStore((state) => state.nodes);
+  const activeNodeId = useStore((state) => state.activeNodeId);
   const selectRack = useStore((state) => state.selectRack);
   const focusRack = useStore((state) => state.focusRack);
   const selectDevice = useStore((state) => state.selectDevice);
@@ -69,10 +77,16 @@ export const DashboardWidgets = () => {
     "critical",
   );
 
-  // Filter racks by active group
+  const activeNode = useMemo(
+    () => findNode(nodes, activeNodeId),
+    [nodes, activeNodeId],
+  );
+  const activeNodeName = activeNode?.name || "Unknown";
+
+  // Filter racks by exactly the active node only
   const groupRacks = useMemo(
-    () => racks.filter((r) => r.groupName === activeGroup),
-    [racks, activeGroup],
+    () => racks.filter((r) => r.nodeId === activeNodeId),
+    [racks, activeNodeId],
   );
 
   // Collect all errors from group racks only
@@ -128,12 +142,11 @@ export const DashboardWidgets = () => {
     return allErrors.filter((err) => err.severity === selectedSeverity);
   }, [allErrors, selectedSeverity]);
 
-  // Mock sensor data per group
+  // Mock sensor data per exact active node
   const sensorData: SensorData = useMemo(() => {
-    return activeGroup === "과천"
-      ? { temperature: 22.5, humidity: 45.0 }
-      : { temperature: 23.8, humidity: 42.0 };
-  }, [activeGroup]);
+    if (MOCK_SENSOR_DATA[activeNodeId]) return MOCK_SENSOR_DATA[activeNodeId];
+    return { temperature: null, humidity: null };
+  }, [activeNodeId]);
 
   return (
     <div className="dashboard-widgets-container">
@@ -142,7 +155,7 @@ export const DashboardWidgets = () => {
         <div className="grafana-panel-header">
           <h3 className="grafana-panel-title">
             <span style={{ fontSize: "16px" }}>🚨</span>
-            {activeGroup} Error Summary
+            {activeNodeName} Error Summary
           </h3>
         </div>
         <div className="grafana-panel-content">
@@ -269,7 +282,7 @@ export const DashboardWidgets = () => {
         <div className="grafana-panel-header">
           <h3 className="grafana-panel-title">
             <span style={{ fontSize: "16px" }}>🌡️</span>
-            {activeGroup} Sensors
+            {activeNodeName} Sensors
           </h3>
         </div>
         <div

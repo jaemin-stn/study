@@ -29,6 +29,7 @@ export const Rack = ({
   width: rackWidth,
   position,
   devices,
+  nodeId,
   draggingRackId,
   dragPosition,
 }: RackProps) => {
@@ -585,7 +586,7 @@ export const Rack = ({
           position,
           devices,
           width,
-          groupName: useStore.getState().activeGroup,
+          nodeId,
         }}
       />
     </animated.group>

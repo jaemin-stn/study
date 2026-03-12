@@ -1,10 +1,10 @@
 import React from "react";
 import { useStore } from "../store/useStore";
-
+import { findNode } from "../utils/nodeUtils";
 /**
  * FocusCarousel Component
  * Provides a navigation UI to cycle through focused racks in normal mode.
- * Scoped to the active group (과천 or 대전).
+ * Scoped to the active node and its subtree.
  */
 const CarouselStyles = React.memo(() => (
   <style>
@@ -24,11 +24,14 @@ export const FocusCarousel: React.FC = () => {
     selectRack,
     focusRack,
     isEditMode,
-    activeGroup,
+    activeNodeId,
+    nodes,
   } = useStore();
 
-  // Filter racks by active group
-  const groupRacks = racks.filter((r) => r.groupName === activeGroup);
+  // Filter racks rigidly by active node only
+  const groupRacks = React.useMemo(() => {
+    return racks.filter((r) => r.nodeId === activeNodeId);
+  }, [racks, activeNodeId]);
 
   // Requirements: Only visible in normal mode, when a rack is focused, and if more than one rack exists.
   if (isEditMode || !selectedRackId || groupRacks.length <= 1) return null;
@@ -113,7 +116,7 @@ export const FocusCarousel: React.FC = () => {
             marginBottom: "2px",
           }}
         >
-          {activeGroup} Rack Navigator
+          {findNode(nodes, activeNodeId)?.name || "N/A"} Rack Navigator
         </span>
         <div style={{ display: "flex", alignItems: "baseline", gap: "4px" }}>
           <span

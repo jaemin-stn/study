@@ -1,7 +1,8 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import type { Rack } from "../types";
 import type { ExportOptions, ExportScope } from "../utils/storage";
+import { findNode } from "../utils/nodeUtils";
 import {
   saveRackToJSON,
   loadRackFromJSON,
@@ -186,8 +187,10 @@ export const ImportExportModal = () => {
     setImportExportModalRackId,
     updateRack,
     loadState,
-    replaceGroupData,
-    setActiveGroup,
+    replaceNodeData,
+    setActiveNode,
+    nodes,
+    activeNodeId,
   } = useStore();
   const [format, setFormat] = useState<"json" | "excel">("excel");
   const [selectedFields, setSelectedFields] = useState<ExportOptions>({
@@ -196,8 +199,19 @@ export const ImportExportModal = () => {
     port: [...PORT_FIELDS],
   });
   const [exportScope, setExportScope] = useState<ExportScope>("ALL");
-  const [importGroup, setImportGroup] = useState<ExportScope>("과천");
+  const [importGroup, setImportGroup] = useState<ExportScope>(activeNodeId);
   const [importStatus, setImportStatus] = useState<string | null>(null);
+
+  // Dynamic scope options: ALL + leaf/non-root nodes
+  const scopeOptions = useMemo(() => {
+    const opts: { value: ExportScope; label: string }[] = [
+      { value: "ALL", label: "🌐 전체" },
+    ];
+    nodes
+      .filter((n) => n.parentId !== null)
+      .forEach((n) => opts.push({ value: n.nodeId, label: `📦 ${n.name}` }));
+    return opts;
+  }, [nodes]);
 
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
@@ -269,7 +283,7 @@ export const ImportExportModal = () => {
         return;
       }
 
-      replaceGroupData(
+      replaceNodeData(
         importGroup,
         result.racks,
         result.registeredDevices.length > 0
@@ -277,14 +291,15 @@ export const ImportExportModal = () => {
           : undefined,
       );
 
-      setActiveGroup(importGroup === "ALL" ? "과천" : importGroup);
+      setActiveNode(importGroup === "ALL" ? activeNodeId : importGroup);
 
       const deviceCount = result.racks.reduce(
         (sum, r) => sum + r.devices.length,
         0,
       );
+      const importLabel = importGroup === "ALL" ? "전체" : (findNode(nodes, importGroup)?.name || importGroup);
       setImportStatus(
-        `✅ ${importGroup} 그룹 Import 완료! 랙 ${result.racks.length}개, 장비 ${deviceCount}개`,
+        `✅ ${importLabel} Import 완료! 랙 ${result.racks.length}개, 장비 ${deviceCount}개`,
       );
     } catch (err) {
       setImportStatus(`❌ Import 실패: ${(err as Error).message}`);
@@ -464,13 +479,13 @@ export const ImportExportModal = () => {
           내보내기 범위를 선택하세요
         </div>
         <div className="scope-selector">
-          {(["ALL", "과천", "대전"] as ExportScope[]).map((scope) => (
+          {scopeOptions.map(({ value, label }) => (
             <button
-              key={scope}
-              className={`scope-btn ${exportScope === scope ? "scope-active" : ""}`}
-              onClick={() => setExportScope(scope)}
+              key={value}
+              className={`scope-btn ${exportScope === value ? "scope-active" : ""}`}
+              onClick={() => setExportScope(value)}
             >
-              {scope === "ALL" ? "🌐 전체" : `📦 ${scope}`}
+              {label}
             </button>
           ))}
         </div>
@@ -484,8 +499,8 @@ export const ImportExportModal = () => {
           }}
         >
           {exportScope === "ALL"
-            ? "전체 master 시트만 생성합니다 (과천 + 대전 데이터 포함)."
-            : `master 시트 + PKG_${exportScope} 패키지 시트를 생성합니다.`}
+            ? "전체 master 시트만 생성합니다 (모든 노드 데이터 포함)."
+            : `master 시트 + PKG 패키지 시트를 생성합니다.`}
         </div>
 
         <button
@@ -498,7 +513,7 @@ export const ImportExportModal = () => {
           }}
           onClick={handleGroupExport}
         >
-          🚀 Export {exportScope === "ALL" ? "전체" : exportScope}
+          🚀 Export {exportScope === "ALL" ? "전체" : (findNode(nodes, exportScope)?.name || exportScope)}
         </button>
       </div>
 
@@ -552,13 +567,13 @@ export const ImportExportModal = () => {
           가져올 그룹을 선택하세요
         </div>
         <div className="scope-selector">
-          {(["ALL", "과천", "대전"] as ExportScope[]).map((scope) => (
+          {scopeOptions.map(({ value, label }) => (
             <button
-              key={scope}
-              className={`scope-btn ${importGroup === scope ? "scope-active" : ""}`}
-              onClick={() => setImportGroup(scope)}
+              key={value}
+              className={`scope-btn ${importGroup === value ? "scope-active" : ""}`}
+              onClick={() => setImportGroup(value)}
             >
-              {scope === "ALL" ? "🌐 전체" : `📦 ${scope}`}
+              {label}
             </button>
           ))}
         </div>
@@ -568,18 +583,17 @@ export const ImportExportModal = () => {
           <span>
             {importGroup === "ALL" ? (
               <>
-                <strong>전체(모든 그룹)</strong>의 기존 Rack, Device, Port
+                <strong>전체(모든 노드)</strong>의 기존 Rack, Device, Port
                 데이터가 모두 삭제되고 파일 데이터로 교체됩니다.
                 <br />
                 모든 랙 배치가 파일 기준으로 재설정됩니다.
               </>
             ) : (
               <>
-                <strong>{importGroup}</strong> 그룹의 기존 Rack, Device, Port
+                <strong>{findNode(nodes, importGroup)?.name || importGroup}</strong> 노드의 기존 Rack, Device, Port
                 데이터가 모두 삭제되고 파일 데이터로 교체됩니다.
                 <br />
-                {importGroup === "과천" ? "대전" : "과천"} 그룹 데이터에는
-                영향이 없습니다.
+                다른 노드 데이터에는 영향이 없습니다.
               </>
             )}
           </span>
@@ -595,7 +609,7 @@ export const ImportExportModal = () => {
           }}
           onClick={handleGroupImportClick}
         >
-          📥 Import {importGroup} (REPLACE)
+          📥 Import {importGroup === "ALL" ? "전체" : (findNode(nodes, importGroup)?.name || importGroup)} (REPLACE)
         </button>
 
         {importStatus && (

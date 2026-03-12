@@ -1,7 +1,20 @@
 // 에러 레벨
 export type ErrorLevel = "critical" | "major" | "minor" | "warning";
 
-// 그룹 이름 (STN 하위)
+// 노드 타입 (확장 가능)
+export type NodeType = "root" | "group" | "site" | "room" | "zone";
+
+// 계층 노드 (트리 구조)
+export interface HierarchyNode {
+  nodeId: string; // 고유 ID
+  parentId: string | null; // null = root
+  name: string; // 표시 이름
+  type: NodeType; // 노드 유형
+  order: number; // 형제 정렬 순서
+  metadata?: Record<string, unknown>; // 확장 데이터 (선택)
+}
+
+// 하위 호환용 GroupName (migration 전용)
 export type GroupName = "과천" | "대전";
 
 // 벤더 이름
@@ -39,10 +52,10 @@ export interface Device {
   portStates: PortState[];
 }
 
-// 등록 장비 (그룹별 실제 장비 인벤토리)
+// 등록 장비 (노드별 실제 장비 인벤토리)
 export interface RegisteredDevice {
   id: string;
-  groupName: GroupName;
+  nodeId: string; // 소속 노드 ID
   deviceName: string; // 사용자 지정 장비명
   modelName: string; // e.g. "7250 IXR-R6"
   type: DeviceType;
@@ -58,7 +71,7 @@ export type Orientation = 0 | 90 | 180 | 270;
 // 렉
 export interface Rack {
   id: string;
-  groupName: GroupName; // STN 하위 그룹 (과천/대전)
+  nodeId: string; // 소속 노드 ID
   displayName?: string; // 사용자가 지정한 랙 이름
   uHeight: 24 | 32 | 48; // 렉 높이 옵션
   width: number; // 렉 너비 (0.6, 1.0 등)

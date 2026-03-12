@@ -1,5 +1,6 @@
-import type { Rack, GroupName, RegisteredDevice } from "../types";
+import type { Rack, RegisteredDevice, HierarchyNode } from "../types";
 import { DEVICE_TEMPLATES } from "./deviceTemplates";
+import { getDefaultNodes, GWACHEON_NODE_ID, DAEJEON_NODE_ID, migrateGroupNameToNodeId } from "./nodeUtils";
 import * as XLSX from "xlsx";
 import {
   RACK_WIDTH_STANDARD,
@@ -13,7 +14,7 @@ import {
 const flattenRacks = (racks: Rack[]) =>
   racks.map((r) => ({
     rackId: r.id,
-    groupName: r.groupName,
+    nodeId: r.nodeId,
     uHeight: r.uHeight,
     width: r.width,
     posX: r.position[0],
@@ -257,7 +258,7 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
 
           return {
             id: r.rackId as string,
-            groupName: (r.groupName as GroupName) || "과천",
+            nodeId: (r.nodeId as string) || migrateGroupNameToNodeId((r as any).groupName || "과천"),
             uHeight: Number(r.uHeight) as 24 | 32 | 48,
             width: Number(r.width || RACK_WIDTH_STANDARD),
             position: [Number(r.posX), Number(r.posZ)],
@@ -410,14 +411,14 @@ export const loadRackFromExcel = (file: File): Promise<Partial<Rack>> => {
   });
 };
 
-// ─── Group ID Mapping ───────────────────────────────────────────────────────
+// ─── Group ID Mapping (legacy, for backward-compatible import) ──────────────
 
-export const GROUP_ID_MAP: Record<GroupName, string> = {
+export const GROUP_ID_MAP: Record<string, string> = {
   과천: "GW",
   대전: "DJ",
 };
 
-const GROUP_NAME_MAP: Record<string, GroupName> = {
+const GROUP_NAME_MAP: Record<string, string> = {
   GW: "과천",
   DJ: "대전",
 };
@@ -430,8 +431,7 @@ const SCHEMA_VERSION = "1.0";
 const flattenRacksWithGroup = (racks: Rack[]) =>
   racks.map((r) => ({
     rackId: r.id,
-    groupId: GROUP_ID_MAP[r.groupName] || "GW",
-    groupName: r.groupName,
+    nodeId: r.nodeId,
     uHeight: r.uHeight,
     width: r.width,
     posX: r.position[0],
@@ -443,13 +443,11 @@ const flattenRacksWithGroup = (racks: Rack[]) =>
 const flattenDevicesWithGroup = (racks: Rack[]) => {
   const rows: Record<string, unknown>[] = [];
   for (const r of racks) {
-    const groupId = GROUP_ID_MAP[r.groupName] || "GW";
     for (const d of r.devices) {
       rows.push({
         deviceId: d.id,
         rackId: r.id,
-        groupId,
-        groupName: r.groupName,
+        nodeId: r.nodeId,
         name: d.name,
         type: d.type,
         uSize: d.uSize,
@@ -470,13 +468,12 @@ const flattenDevicesWithGroup = (racks: Rack[]) => {
 const flattenPortsWithGroup = (racks: Rack[]) => {
   const rows: Record<string, unknown>[] = [];
   for (const r of racks) {
-    const groupId = GROUP_ID_MAP[r.groupName] || "GW";
     for (const d of r.devices) {
       for (const p of d.portStates) {
         rows.push({
           portId: p.portId,
           deviceId: d.id,
-          groupId,
+          nodeId: r.nodeId,
           status: p.status,
           errorLevel: p.errorLevel || "",
           errorMessage: p.errorMessage || "",
@@ -491,8 +488,7 @@ const flattenPortsWithGroup = (racks: Rack[]) => {
 const flattenRegisteredDevices = (devices: RegisteredDevice[]) =>
   devices.map((d) => ({
     id: d.id,
-    groupId: GROUP_ID_MAP[d.groupName] || "GW",
-    groupName: d.groupName,
+    nodeId: d.nodeId,
     deviceName: d.deviceName,
     modelName: d.modelName,
     type: d.type,
@@ -520,7 +516,7 @@ const buildGroupsSheet = () =>
 
 // ─── Group-Scoped Export/Import ─────────────────────────────────────────────
 
-export type ExportScope = "ALL" | GroupName;
+export type ExportScope = "ALL" | string; // "ALL" or nodeId
 
 /**
  * Export full workbook with all master sheets.
@@ -569,10 +565,10 @@ export const exportGroupWorkbook = (
 
   // ── PKG sheets (only when exporting a specific group) ──
   if (scope !== "ALL") {
-    const groupId = GROUP_ID_MAP[scope];
-    const groupRacks = allRackRows.filter((r) => r.groupId === groupId);
-    const groupDevices = allDeviceRows.filter((d) => d.groupId === groupId);
-    const groupPorts = allPortRows.filter((p) => p.groupId === groupId);
+    const groupId = GROUP_ID_MAP[scope] || scope; // nodeId or legacy group mapping
+    const groupRacks = allRackRows.filter((r) => (r as any).nodeId === scope || (r as any).groupId === groupId);
+    const groupDevices = allDeviceRows.filter((d) => (d as any).nodeId === scope || (d as any).groupId === groupId);
+    const groupPorts = allPortRows.filter((p) => (p as any).nodeId === scope || (p as any).groupId === groupId);
 
     // PKG metadata sheet (use groupId for sheet names to avoid encoding issues)
     const pkgMeta = XLSX.utils.json_to_sheet([
@@ -674,7 +670,8 @@ export const parseRegisteredDevicesFromExcel = (
 
         const parsed: Omit<RegisteredDevice, "id">[] = rows
           .map((r): Omit<RegisteredDevice, "id"> | null => {
-            const grp = r.groupName || GROUP_NAME_MAP[r.groupId] || "과천";
+            const grpName = r.groupName || GROUP_NAME_MAP[r.groupId] || "과천";
+            const nid = (r.nodeId as string) || migrateGroupNameToNodeId(grpName);
             const mac = String(r.mac || "")
               .trim()
               .toUpperCase();
@@ -685,7 +682,6 @@ export const parseRegisteredDevicesFromExcel = (
 
             if (!modelName || !mac || !ip) return null;
 
-            // find template to fill missing type / uSize if not correctly provided
             const template = DEVICE_TEMPLATES.find(
               (t) => t.modelName === modelName,
             );
@@ -695,7 +691,7 @@ export const parseRegisteredDevicesFromExcel = (
             const uSize = Number(r.uSize) || template?.uSize || 1;
 
             return {
-              groupName: grp as GroupName,
+              nodeId: nid,
               modelName,
               deviceName,
               ip,
@@ -723,7 +719,7 @@ export const parseRegisteredDevicesFromExcel = (
  */
 export const importGroupPackage = (
   file: File,
-  targetGroup: GroupName | "ALL",
+  targetNodeId: string | "ALL",
 ): Promise<{ racks: Rack[]; registeredDevices: RegisteredDevice[] }> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -733,32 +729,33 @@ export const importGroupPackage = (
         const workbook = XLSX.read(data, { type: "array" });
 
         const groupId =
-          targetGroup === "ALL" ? "ALL" : GROUP_ID_MAP[targetGroup];
+          targetNodeId === "ALL" ? "ALL" : (GROUP_ID_MAP[targetNodeId] || targetNodeId);
+        const targetGroup = GROUP_NAME_MAP[groupId] || targetNodeId;
 
         // ── Try PKG sheets first (groupId then groupName), then master, then legacy ──
         const findSheet = (...candidates: string[]) =>
           candidates.find((name) => workbook.SheetNames.includes(name));
 
         const rackSheetName =
-          targetGroup === "ALL"
+          targetNodeId === "ALL"
             ? findSheet("Racks", "Rack")
             : findSheet(
-                `PKG_${groupId}_Racks`, // new format: PKG_GW_Racks
-                `PKG_${targetGroup}_Racks`, // old format: PKG_과천_Racks
+                `PKG_${groupId}_Racks`,
+                `PKG_${targetGroup}_Racks`,
                 "Racks",
-                "Rack", // legacy export format
+                "Rack",
               );
         const deviceSheetName =
-          targetGroup === "ALL"
+          targetNodeId === "ALL"
             ? findSheet("Devices", "Equipment")
             : findSheet(
                 `PKG_${groupId}_Devices`,
                 `PKG_${targetGroup}_Devices`,
                 "Devices",
-                "Equipment", // legacy export format
+                "Equipment",
               );
         const portSheetName =
-          targetGroup === "ALL"
+          targetNodeId === "ALL"
             ? findSheet("Ports")
             : findSheet(
                 `PKG_${groupId}_Ports`,
@@ -799,10 +796,10 @@ export const importGroupPackage = (
 
         // Filter to target group (in case master sheets are used)
         const filteredRacks =
-          targetGroup === "ALL"
+          targetNodeId === "ALL"
             ? racksFlat
             : racksFlat.filter(
-                (r) => r.groupId === groupId || r.groupName === targetGroup,
+                (r) => r.nodeId === targetNodeId || r.groupId === groupId || r.groupName === targetGroup,
               );
 
         // Build a set of rack IDs for this group (for device filtering)
@@ -811,14 +808,14 @@ export const importGroupPackage = (
         // Filter devices: try groupId/groupName first; if none have those fields,
         // fall back to matching by rackId membership (needed for legacy exports)
         const hasDeviceGroupField = devicesFlat.some(
-          (d) => d.groupId !== undefined || d.groupName !== undefined,
+          (d) => d.nodeId !== undefined || d.groupId !== undefined || d.groupName !== undefined,
         );
         const filteredDevices =
-          targetGroup === "ALL"
+          targetNodeId === "ALL"
             ? devicesFlat
             : hasDeviceGroupField
               ? devicesFlat.filter(
-                  (d) => d.groupId === groupId || d.groupName === targetGroup,
+                  (d) => d.nodeId === targetNodeId || d.groupId === groupId || d.groupName === targetGroup,
                 )
               : devicesFlat.filter((d) => groupRackIds.has(d.rackId));
 
@@ -854,12 +851,10 @@ export const importGroupPackage = (
 
           return {
             id: String(r.rackId),
-            groupName:
-              targetGroup === "ALL"
-                ? (r.groupName as GroupName) ||
-                  GROUP_NAME_MAP[r.groupId] ||
-                  "과천"
-                : targetGroup,
+            nodeId: (r.nodeId as string) ||
+              (targetNodeId === "ALL"
+                ? migrateGroupNameToNodeId(r.groupName || GROUP_NAME_MAP[r.groupId] || "과천")
+                : targetNodeId),
             uHeight: Number(r.uHeight) as 24 | 32 | 48,
             width: Number(r.width || RACK_WIDTH_STANDARD),
             position: [Number(r.posX), Number(r.posZ)] as [number, number],
@@ -871,18 +866,16 @@ export const importGroupPackage = (
         // Reconstruct RegisteredDevice[] for the target group
         const registeredDevices: RegisteredDevice[] = regDevFlat
           .filter((d) =>
-            targetGroup === "ALL"
+            targetNodeId === "ALL"
               ? true
-              : d.groupId === groupId || d.groupName === targetGroup,
+              : d.nodeId === targetNodeId || d.groupId === groupId || d.groupName === targetGroup,
           )
           .map((d) => ({
             id: String(d.id),
-            groupName:
-              targetGroup === "ALL"
-                ? (d.groupName as GroupName) ||
-                  GROUP_NAME_MAP[d.groupId] ||
-                  "과천"
-                : targetGroup,
+            nodeId: (d.nodeId as string) ||
+              (targetNodeId === "ALL"
+                ? migrateGroupNameToNodeId(d.groupName || GROUP_NAME_MAP[d.groupId] || "과천")
+                : targetNodeId),
             deviceName: String(d.deviceName || ""),
             modelName: String(d.modelName || ""),
             type: d.type as any,
@@ -905,7 +898,8 @@ export const importGroupPackage = (
 // ─── Sample Data Generation ─────────────────────────────────────────────────
 
 const generateRegisteredDevices = (
-  group: GroupName,
+  nodeId: string,
+  nodeName: string,
   count: number,
   ipBase: string,
 ): RegisteredDevice[] =>
@@ -915,8 +909,8 @@ const generateRegisteredDevices = (
     const lastOctet = parseInt(ipParts[3]) + i;
     return {
       id: generateUUID(),
-      groupName: group,
-      deviceName: `${template.modelName}-${group}-${i + 1}`,
+      nodeId,
+      deviceName: `${template.modelName}-${nodeName}-${i + 1}`,
       modelName: template.modelName,
       type: template.type,
       uSize: template.uSize,
@@ -931,15 +925,16 @@ const localIdxToMac = (idx: number) => {
   return hex;
 };
 
+export const sampleNodes: HierarchyNode[] = getDefaultNodes();
+
 export const sampleRegisteredDevices: RegisteredDevice[] = [
-  ...generateRegisteredDevices("과천", 50, "10.10.1.1"),
-  ...generateRegisteredDevices("대전", 30, "10.20.1.1"),
+  ...generateRegisteredDevices(GWACHEON_NODE_ID, "과천", 50, "10.10.1.1"),
+  ...generateRegisteredDevices(DAEJEON_NODE_ID, "대전", 30, "10.20.1.1"),
 ];
 
-/** Generate racks for a single group, placing registered devices into slots */
 const generateGroupRacks = (
   count: number,
-  group: GroupName,
+  nodeId: string,
   colsPerRow: number,
   errorIndexes: number[],
   regDevices: RegisteredDevice[],
@@ -959,7 +954,6 @@ const generateGroupRacks = (
     let currentUPos = 1;
     for (let d = 0; d < 5; d++) {
       const remainingU = uHeight - currentUPos + 1;
-      // Pick from registered devices that fit
       const fittingDevices = regDevices.filter((rd) => rd.uSize <= remainingU);
       if (fittingDevices.length === 0) break;
 
@@ -992,7 +986,6 @@ const generateGroupRacks = (
       currentUPos += regDevice.uSize + 1;
     }
 
-    // Position: local to this group (starts from 0,0)
     let worldX = 0;
     for (let j = 0; j < col; j++) {
       const prevIsWide = j === 4 || j === 9;
@@ -1002,7 +995,7 @@ const generateGroupRacks = (
 
     return {
       id: generateUUID(),
-      groupName: group,
+      nodeId,
       uHeight,
       width,
       position: [stateX, row * 2.0],
@@ -1012,13 +1005,13 @@ const generateGroupRacks = (
   });
 
 const gwacheonDevices = sampleRegisteredDevices.filter(
-  (d) => d.groupName === "과천",
+  (d) => d.nodeId === GWACHEON_NODE_ID,
 );
 const daejeonDevices = sampleRegisteredDevices.filter(
-  (d) => d.groupName === "대전",
+  (d) => d.nodeId === DAEJEON_NODE_ID,
 );
 
 export const sampleRacks: Rack[] = [
-  ...generateGroupRacks(25, "과천", 5, [3, 12, 19], gwacheonDevices),
-  ...generateGroupRacks(15, "대전", 5, [2, 9, 14], daejeonDevices),
+  ...generateGroupRacks(25, GWACHEON_NODE_ID, 5, [3, 12, 19], gwacheonDevices),
+  ...generateGroupRacks(15, DAEJEON_NODE_ID, 5, [2, 9, 14], daejeonDevices),
 ];

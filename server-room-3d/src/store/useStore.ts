@@ -3,7 +3,7 @@ import type {
   Rack,
   Device,
   ImportedModel,
-  GroupName,
+  HierarchyNode,
   RegisteredDevice,
 } from "../types";
 import { GRID_SPACING, RACK_WIDTH_STANDARD } from "../components/constants";
@@ -11,6 +11,11 @@ import {
   getFrontDirection,
   getEffectiveDimensions,
 } from "../utils/rackGeometry";
+import {
+  getDefaultNodes,
+  GWACHEON_NODE_ID,
+  migrateGroupNameToNodeId,
+} from "../utils/nodeUtils";
 import * as THREE from "three";
 
 export interface AppState {
@@ -28,7 +33,10 @@ export interface AppState {
   hoveredRackId: string | null;
   importExportModalRackId: string | null;
   deviceRegistrationModalOpen: boolean;
-  activeGroup: GroupName;
+
+  // Hierarchy
+  nodes: HierarchyNode[];
+  activeNodeId: string;
 
   // Camera reference for viewport-center spawning
   _cameraRef: THREE.Camera | null;
@@ -44,7 +52,7 @@ export interface AppState {
   // Actions
   setCameraRef: (camera: THREE.Camera, controls: any) => void;
   setHoveredRack: (id: string | null) => void;
-  setActiveGroup: (group: GroupName) => void;
+  setActiveNode: (nodeId: string) => void;
   setImportExportModalRackId: (id: string | null) => void;
   addRack: (
     uHeight: 24 | 32 | 48,
@@ -99,14 +107,20 @@ export interface AppState {
   endModelDrag: (id: string, position: [number, number]) => void;
   toggleModelMove: (id: string) => void;
 
+  // Hierarchy Node Management
+  addNode: (node: Omit<HierarchyNode, "nodeId">) => string;
+  renameNode: (nodeId: string, name: string) => void;
+  deleteNode: (nodeId: string) => void;
+
   // Data Persistence
   loadState: (
     racks: Rack[],
     models?: ImportedModel[],
     registeredDevices?: RegisteredDevice[],
+    nodes?: HierarchyNode[],
   ) => void;
-  replaceGroupData: (
-    groupName: GroupName | "ALL",
+  replaceNodeData: (
+    nodeId: string | "ALL",
     newRacks: Rack[],
     newRegisteredDevices?: RegisteredDevice[],
   ) => void;
@@ -242,7 +256,8 @@ export const useStore = create<AppState>((set, get) => ({
   dragOffset: null,
   isEditMode: false,
   hoveredRackId: null,
-  activeGroup: "과천" as GroupName,
+  nodes: getDefaultNodes(),
+  activeNodeId: GWACHEON_NODE_ID,
   importExportModalRackId: null,
   deviceRegistrationModalOpen: false,
 
@@ -258,9 +273,9 @@ export const useStore = create<AppState>((set, get) => ({
   setCameraRef: (camera, controls) =>
     set({ _cameraRef: camera, _controlsRef: controls }),
   setHoveredRack: (id) => set({ hoveredRackId: id }),
-  setActiveGroup: (group) =>
+  setActiveNode: (nodeId) =>
     set({
-      activeGroup: group,
+      activeNodeId: nodeId,
       selectedRackId: null,
       focusedRackId: null,
       selectedDeviceId: null,
@@ -368,10 +383,10 @@ export const useStore = create<AppState>((set, get) => ({
       }
     }
 
-    const { activeGroup } = get();
+    const { activeNodeId } = get();
     const newRack: Rack = {
       id: crypto.randomUUID(),
-      groupName: activeGroup,
+      nodeId: activeNodeId,
       uHeight,
       width,
       position: finalPos,
@@ -602,24 +617,30 @@ export const useStore = create<AppState>((set, get) => ({
     }));
   },
 
-  loadState: (newRacks, newModels, newRegisteredDevices) => {
+  loadState: (newRacks, newModels, newRegisteredDevices, newNodes) => {
+    // Migration: groupName → nodeId
     const migratedRacks = newRacks.map((r) => ({
       ...r,
-      groupName: r.groupName || ("과천" as GroupName),
+      nodeId: r.nodeId || migrateGroupNameToNodeId((r as any).groupName || "과천"),
+    }));
+    const migratedRegDevices = (newRegisteredDevices ?? []).map((d) => ({
+      ...d,
+      nodeId: d.nodeId || migrateGroupNameToNodeId((d as any).groupName || "과천"),
     }));
     set({
       racks: migratedRacks,
       importedModels: newModels ?? [],
-      registeredDevices: newRegisteredDevices ?? [],
+      registeredDevices: migratedRegDevices,
+      nodes: newNodes && newNodes.length > 0 ? newNodes : getDefaultNodes(),
       selectedRackId: null,
       focusedRackId: null,
       selectedModelId: null,
     });
   },
 
-  replaceGroupData: (groupName, newRacks, newRegisteredDevices) => {
+  replaceNodeData: (nodeId, newRacks, newRegisteredDevices) => {
     set((state) => {
-      if (groupName === "ALL") {
+      if (nodeId === "ALL") {
         return {
           racks: newRacks,
           registeredDevices: newRegisteredDevices || [],
@@ -628,9 +649,9 @@ export const useStore = create<AppState>((set, get) => ({
           selectedDeviceId: null,
         };
       }
-      const otherRacks = state.racks.filter((r) => r.groupName !== groupName);
+      const otherRacks = state.racks.filter((r) => r.nodeId !== nodeId);
       const otherRegDevices = state.registeredDevices.filter(
-        (d) => d.groupName !== groupName,
+        (d) => d.nodeId !== nodeId,
       );
       return {
         racks: [...otherRacks, ...newRacks],
@@ -640,6 +661,49 @@ export const useStore = create<AppState>((set, get) => ({
         selectedRackId: null,
         focusedRackId: null,
         selectedDeviceId: null,
+      };
+    });
+  },
+
+  // Hierarchy Node Management
+  addNode: (nodeData) => {
+    const newId = crypto.randomUUID();
+    const newNode: HierarchyNode = { ...nodeData, nodeId: newId };
+    set((state) => ({ nodes: [...state.nodes, newNode] }));
+    return newId;
+  },
+
+  renameNode: (nodeId, name) => {
+    set((state) => ({
+      nodes: state.nodes.map((n) =>
+        n.nodeId === nodeId ? { ...n, name } : n,
+      ),
+    }));
+  },
+
+  deleteNode: (nodeId) => {
+    set((state) => {
+      // 1. Delete node and descendant hierarchy structurally
+      const toDelete = new Set<string>();
+      const queue = [nodeId];
+      while (queue.length > 0) {
+        const curr = queue.shift()!;
+        toDelete.add(curr);
+        state.nodes.forEach((n) => {
+          if (n.parentId === curr) queue.push(n.nodeId);
+        });
+      }
+
+      // 2. But for data isolation, only clean data bound *exactly* to nodes being structurally deleted.
+      return {
+        nodes: state.nodes.filter((n) => !toDelete.has(n.nodeId)),
+        racks: state.racks.filter((r) => !toDelete.has(r.nodeId)),
+        registeredDevices: state.registeredDevices.filter(
+          (d) => !toDelete.has(d.nodeId),
+        ),
+        activeNodeId: toDelete.has(state.activeNodeId)
+          ? state.nodes.find((n) => n.parentId === null)?.nodeId || GWACHEON_NODE_ID
+          : state.activeNodeId,
       };
     });
   },

@@ -2,13 +2,13 @@ import React, { useState, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useStore } from "../store/useStore";
 import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
-import type { GroupName, VendorName } from "../types";
+import type { VendorName } from "../types";
 import {
   exportRegisteredDevicesToExcel,
   parseRegisteredDevicesFromExcel,
 } from "../utils/storage";
+import { findNode } from "../utils/nodeUtils";
 
-const GROUPS: GroupName[] = ["과천", "대전"];
 const VENDORS: VendorName[] = [
   "코위버PTN",
   "CISCO",
@@ -598,10 +598,11 @@ export const DeviceRegistrationModal = () => {
   const addRegisteredDevice = useStore((s) => s.addRegisteredDevice);
   const removeRegisteredDevice = useStore((s) => s.removeRegisteredDevice);
   const upsertRegisteredDevices = useStore((s) => s.upsertRegisteredDevices);
-  const activeGroup = useStore((s) => s.activeGroup);
+  const activeNodeId = useStore((s) => s.activeNodeId);
+  const nodes = useStore((s) => s.nodes);
 
   // Form state
-  const [groupName, setGroupName] = useState<GroupName>(activeGroup);
+  // Form state. The node ID is now strictly locked to the active container.
   const [selectedModelIdx, setSelectedModelIdx] = useState(0);
   const [deviceName, setDeviceName] = useState("");
   const [ip, setIp] = useState("");
@@ -610,7 +611,7 @@ export const DeviceRegistrationModal = () => {
 
   // Table state
   const [search, setSearch] = useState("");
-  const [groupFilter, setGroupFilter] = useState<GroupName | "all">("all");
+  // Table filter state (node filter is now strictly activeNodeId)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // UI state
@@ -622,12 +623,10 @@ export const DeviceRegistrationModal = () => {
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Filtered list — must come before any conditional return (React Hook rule)
+  // Filtered list — strictly bounded to active node
   const filteredDevices = useMemo(() => {
-    let list = registeredDevices;
-    if (groupFilter !== "all") {
-      list = list.filter((d) => d.groupName === groupFilter);
-    }
+    let list = registeredDevices.filter((d) => d.nodeId === activeNodeId);
+    
     if (search.trim()) {
       const q = search.trim().toLowerCase();
       list = list.filter(
@@ -640,7 +639,7 @@ export const DeviceRegistrationModal = () => {
       );
     }
     return list;
-  }, [registeredDevices, groupFilter, search]);
+  }, [registeredDevices, activeNodeId, search]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -718,7 +717,7 @@ export const DeviceRegistrationModal = () => {
     const selectedDevices = registeredDevices.filter((d) =>
       selectedIds.has(d.id),
     );
-    const scope = groupFilter === "all" ? "SELECTED" : groupFilter;
+    const scope = findNode(nodes, activeNodeId)?.name || activeNodeId;
     exportRegisteredDevicesToExcel(selectedDevices, scope);
     showToast("선택한 장비 데이터가 내보내졌습니다.", "success", "export");
   };
@@ -738,7 +737,7 @@ export const DeviceRegistrationModal = () => {
     if (!validate()) return;
 
     addRegisteredDevice({
-      groupName,
+      nodeId: activeNodeId,
       deviceName: deviceName.trim(),
       modelName: selectedTemplate.modelName,
       type: selectedTemplate.type,
@@ -884,15 +883,16 @@ export const DeviceRegistrationModal = () => {
                 {/* Group */}
                 <div className="drm-field">
                   <label>
-                    그룹<span className="drm-required">*</span>
+                    위치 (Lock)<span className="drm-required">*</span>
                   </label>
                   <select
-                    value={groupName}
-                    onChange={(e) => setGroupName(e.target.value as GroupName)}
+                    value={activeNodeId}
+                    disabled
+                    style={{ opacity: 0.8, cursor: "not-allowed" }}
                   >
-                    {GROUPS.map((g) => (
-                      <option key={g} value={g}>
-                        {g}
+                    {nodes.filter((n) => n.nodeId === activeNodeId).map((n) => (
+                      <option key={n.nodeId} value={n.nodeId}>
+                        {n.name}
                       </option>
                     ))}
                   </select>
@@ -1050,15 +1050,13 @@ export const DeviceRegistrationModal = () => {
                 </div>
                 <select
                   className="drm-group-filter"
-                  value={groupFilter}
-                  onChange={(e) =>
-                    setGroupFilter(e.target.value as GroupName | "all")
-                  }
+                  value={activeNodeId}
+                  disabled
+                  style={{ opacity: 0.8, cursor: "not-allowed" }}
                 >
-                  <option value="all">전체 그룹</option>
-                  {GROUPS.map((g) => (
-                    <option key={g} value={g}>
-                      {g}
+                  {nodes.filter((n) => n.nodeId === activeNodeId).map((n) => (
+                    <option key={n.nodeId} value={n.nodeId}>
+                      {n.name}
                     </option>
                   ))}
                 </select>
@@ -1104,13 +1102,9 @@ export const DeviceRegistrationModal = () => {
                             </td>
                             <td>
                               <span
-                                className={`drm-group-tag ${
-                                  device.groupName === "과천"
-                                    ? "group-gwacheon"
-                                    : "group-daejeon"
-                                }`}
+                                className="drm-group-tag group-gwacheon"
                               >
-                                {device.groupName}
+                                {findNode(nodes, device.nodeId)?.name || device.nodeId}
                               </span>
                             </td>
                             <td style={{ fontWeight: 600 }}>

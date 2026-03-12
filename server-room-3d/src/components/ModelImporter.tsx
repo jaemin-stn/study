@@ -15,6 +15,7 @@ import {
   type ModelExportPackage,
   type ImportPreview,
 } from "../utils/modelStorage";
+import { HierarchyTree } from "./HierarchyTree";
 
 /** Read a File as a base64 data URL */
 const fileToDataUrl = (file: File): Promise<string> =>
@@ -231,7 +232,8 @@ export const ModelImporter = () => {
     return () => window.removeEventListener("dragenter", handleDragEnter);
   }, [isEditMode]);
 
-  if (!isEditMode) return null;
+  // Use conditional rendering block inside rather than early return
+  // so that Hierarchy (which is now docked here) remains visible in normal mode.
 
   return (
     <>
@@ -253,18 +255,25 @@ export const ModelImporter = () => {
       <div
         style={{
           position: "absolute",
-          top: "140px",
-          left: "20px",
+          top: "76px",
+          left: "12px",
           zIndex: 100,
           display: "flex",
           flexDirection: "column",
           gap: "12px",
           width: "300px",
-          maxHeight: "calc(100vh - 160px)",
+          maxHeight: "calc(100vh - 90px)",
+          pointerEvents: "none",
         }}
       >
-        {/* Import Action Card */}
-        <div
+        <div style={{ pointerEvents: "auto", width: "100%", flexShrink: 0 }}>
+          <HierarchyTree />
+        </div>
+        
+        {/* Import Action Card and Other Edit-mode Panels */}
+        {isEditMode && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", pointerEvents: "auto", width: "100%", flexShrink: 0 }}>
+          <div
           className="grafana-panel"
           style={{
             padding: "16px",
@@ -636,15 +645,17 @@ export const ModelImporter = () => {
             </div>
           </div>
         )}
+        </div>
+        )}
       </div>
 
       {/* Properties Section — positioned right next to the left panel */}
-      {selectedModel && (
+      {isEditMode && selectedModel && (
         <div
           style={{
             position: "absolute",
-            top: "140px",
-            left: "340px",
+            top: "76px",
+            left: "324px",
             zIndex: 100,
             width: "300px",
             maxHeight: "calc(100vh - 160px)",
@@ -659,67 +670,68 @@ export const ModelImporter = () => {
         </div>
       )}
 
-      {/* Drag overlay */}
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: isDragOver ? 1000 : -1,
-          pointerEvents: isDragOver ? "auto" : "none",
-          background: isDragOver ? "rgba(79, 70, 229, 0.08)" : "transparent",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
-          backdropFilter: isDragOver ? "blur(4px)" : "none",
-        }}
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDragOver(true);
-        }}
-        onDragLeave={() => setIsDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setIsDragOver(false);
-          const file = e.dataTransfer.files[0];
-          if (file) handleImport(file);
-        }}
-      >
-        {isDragOver && (
-          <div
-            style={{
-              padding: "48px",
-              borderRadius: "24px",
-              border: "2px dashed #4f46e5",
-              background: "var(--bg-primary)",
-              boxShadow: "0 24px 48px rgba(0,0,0,0.15)",
-              textAlign: "center",
-              transform: "scale(1.05)",
-              animation: "pulse 2s infinite",
-            }}
-          >
-            <div style={{ fontSize: "64px", marginBottom: "16px" }}>📦</div>
+      {isEditMode && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: isDragOver ? 1000 : -1,
+            pointerEvents: isDragOver ? "auto" : "none",
+            background: isDragOver ? "rgba(79, 70, 229, 0.08)" : "transparent",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+            backdropFilter: isDragOver ? "blur(4px)" : "none",
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDragOver(true);
+          }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setIsDragOver(false);
+            const file = e.dataTransfer.files[0];
+            if (file) handleImport(file);
+          }}
+        >
+          {isDragOver && (
             <div
               style={{
-                fontSize: "20px",
-                fontWeight: 700,
-                color: "var(--text-primary)",
+                padding: "48px",
+                borderRadius: "24px",
+                border: "2px dashed #4f46e5",
+                background: "var(--bg-primary)",
+                boxShadow: "0 24px 48px rgba(0,0,0,0.15)",
+                textAlign: "center",
+                transform: "scale(1.05)",
+                animation: "pulse 2s infinite",
               }}
             >
-              Ready to Import
+              <div style={{ fontSize: "64px", marginBottom: "16px" }}>📦</div>
+              <div
+                style={{
+                  fontSize: "20px",
+                  fontWeight: 700,
+                  color: "var(--text-primary)",
+                }}
+              >
+                Ready to Import
+              </div>
+              <div
+                style={{
+                  fontSize: "14px",
+                  color: "var(--text-secondary)",
+                  marginTop: "8px",
+                }}
+              >
+                Drop your GLB or GLTF file to add it
+              </div>
             </div>
-            <div
-              style={{
-                fontSize: "14px",
-                color: "var(--text-secondary)",
-                marginTop: "8px",
-              }}
-            >
-              Drop your GLB or GLTF file to add it
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Import Preview Modal */}
       {importPreview && importPkg && (

@@ -4,6 +4,7 @@ import { useStore, checkFrontClearanceViolation } from "../store/useStore";
 import type { PortState, RegisteredDevice } from "../types";
 import { getHighestError } from "../utils/errorHelpers";
 import { resolveDeviceImage } from "../utils/deviceAssets";
+import { findNode } from "../utils/nodeUtils";
 
 /* ---------- Device Tile Image with loading / fallback ---------- */
 const DeviceTileImage = ({ src, alt }: { src: string; alt: string }) => {
@@ -274,6 +275,7 @@ export const DevicePanel = () => {
   const {
     racks,
     registeredDevices,
+    nodes,
     selectedRackId,
     selectRack,
     addDevice,
@@ -316,13 +318,13 @@ export const DevicePanel = () => {
     setIsEditingName(false);
   };
 
-  // Registered devices for this rack's group
+  // Registered devices for this rack's exact node scope
   const groupRegDevices = useMemo(
-    () =>
-      rack
-        ? registeredDevices.filter((rd) => rd.groupName === rack.groupName)
-        : [],
-    [registeredDevices, rack?.groupName],
+    () => {
+      if (!rack) return [];
+      return registeredDevices.filter((rd) => rd.nodeId === rack.nodeId);
+    },
+    [registeredDevices, rack?.nodeId],
   );
 
   // Helper to lookup a registered device by ID
@@ -686,7 +688,7 @@ export const DevicePanel = () => {
                   color: "var(--text-secondary)",
                 }}
               >
-                Position: U{addModalSlot} · {rack.groupName} · 가용 공간{" "}
+                Position: U{addModalSlot} · {findNode(nodes, rack.nodeId)?.name || rack.nodeId} · 가용 공간{" "}
                 {contiguousFreeU}U
               </span>
             </div>
@@ -1014,7 +1016,7 @@ export const DevicePanel = () => {
                 fontWeight: 600,
               }}
             >
-              {rack.groupName}
+              {findNode(nodes, rack.nodeId)?.name || rack.nodeId}
             </span>
           </span>
         </div>

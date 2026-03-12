@@ -58,7 +58,7 @@ const DragHandler = () => {
 
 export const Scene = () => {
   const racks = useStore((state) => state.racks);
-  const activeGroup = useStore((state) => state.activeGroup);
+  const activeNodeId = useStore((state) => state.activeNodeId);
   const isDragging = useStore((state) => state.isDragging);
   const draggingRackId = useStore((state) => state.draggingRackId);
   const dragPosition = useStore((state) => state.dragPosition);
@@ -66,10 +66,10 @@ export const Scene = () => {
   const draggingModelId = useStore((state) => state.draggingModelId);
   const { theme } = useTheme();
 
-  // Filter racks by active group for separate floorplans
+  // Strict one-node filtering: only racks placed exactly in this node
   const groupRacks = useMemo(
-    () => racks.filter((r) => r.groupName === activeGroup),
-    [racks, activeGroup],
+    () => racks.filter((r) => r.nodeId === activeNodeId),
+    [racks, activeNodeId],
   );
 
   // Theme-based colors

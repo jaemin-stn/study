@@ -7,11 +7,9 @@ import { FocusCarousel } from "./components/FocusCarousel";
 import { ImportExportModal } from "./components/ImportExportModal";
 import { ModelImporter } from "./components/ModelImporter";
 import { DeviceRegistrationModal } from "./components/DeviceRegistrationModal";
+import { Breadcrumb } from "./components/Breadcrumb";
 import { useStore } from "./store/useStore";
-import { sampleRacks, sampleRegisteredDevices } from "./utils/storage";
-import type { GroupName } from "./types";
-
-const GROUP_TABS: GroupName[] = ["과천", "대전"];
+import { sampleRacks, sampleRegisteredDevices, sampleNodes } from "./utils/storage";
 
 function App() {
   const {
@@ -22,8 +20,6 @@ function App() {
     setEditMode,
     setImportExportModalRackId,
     setDeviceRegistrationModalOpen,
-    activeGroup,
-    setActiveGroup,
     deviceRegistrationModalOpen,
     importExportModalRackId,
     selectedDeviceId,
@@ -35,7 +31,7 @@ function App() {
     selectedDeviceId !== null;
 
   const loadSample = () => {
-    loadState(sampleRacks, undefined, sampleRegisteredDevices);
+    loadState(sampleRacks, undefined, sampleRegisteredDevices, sampleNodes);
   };
 
   return (
@@ -69,46 +65,8 @@ function App() {
 
         <div className="grafana-toolbar-divider" />
 
-        {/* STN Group Switcher */}
-        <div className="grafana-toolbar-group" style={{ gap: "4px" }}>
-          <span
-            className="grafana-toolbar-label"
-            style={{
-              fontWeight: 700,
-              fontSize: "var(--font-size-sm)",
-              color: "var(--theme-primary)",
-              letterSpacing: "0.05em",
-            }}
-          >
-            STN
-          </span>
-          <span
-            style={{
-              color: "var(--text-tertiary)",
-              fontSize: "var(--font-size-sm)",
-              margin: "0 2px",
-            }}
-          >
-            ›
-          </span>
-          {GROUP_TABS.map((group) => (
-            <button
-              key={group}
-              className={`grafana-btn ${activeGroup === group ? "grafana-btn-primary" : "grafana-btn-secondary"}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                setActiveGroup(group);
-              }}
-              style={{
-                fontSize: "var(--font-size-xs)",
-                padding: "4px 12px",
-                minWidth: "48px",
-              }}
-            >
-              {group}
-            </button>
-          ))}
-        </div>
+        {/* Hierarchy Breadcrumb */}
+        <Breadcrumb />
 
         <div className="grafana-toolbar-divider" />
 
@@ -278,3 +236,4 @@ function App() {
 }
 
 export default App;
+

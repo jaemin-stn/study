@@ -36,6 +36,8 @@ export interface AppState {
   // Hierarchy
   nodes: HierarchyNode[];
   activeNodeId: string;
+  expandedNodeIds: Set<string>;
+  isHierarchyCollapsed: boolean;
 
   // Camera reference for viewport-center spawning
   _cameraRef: THREE.Camera | null;
@@ -90,6 +92,7 @@ export interface AppState {
   setHighlightedDevice: (id: string | null) => void;
   addRegisteredDevice: (device: Omit<RegisteredDevice, "id">) => void;
   removeRegisteredDevice: (id: string) => void;
+  updateRegisteredDevice: (id: string, updates: Partial<RegisteredDevice>) => void;
   upsertRegisteredDevices: (devices: Omit<RegisteredDevice, "id">[]) => {
     added: number;
     updated: number;
@@ -117,6 +120,10 @@ export interface AppState {
   renameNode: (nodeId: string, name: string) => void;
   deleteNode: (nodeId: string) => void;
   upsertNodes: (nodes: HierarchyNode[], overwrite: boolean) => Record<string, string>;
+  setExpandedNodeIds: (ids: Set<string>) => void;
+  toggleNodeExpansion: (nodeId: string) => void;
+  expandNodePath: (nodeId: string) => void;
+  setHierarchyCollapsed: (collapsed: boolean) => void;
 
   // Data Persistence
   loadState: (
@@ -267,6 +274,8 @@ export const useStore = create<AppState>((set, get) => ({
   hoveredRackId: null,
   nodes: [],
   activeNodeId: "stn-root",
+  expandedNodeIds: new Set(["stn-root"]),
+  isHierarchyCollapsed: false,
   importExportModalRackId: null,
   deviceRegistrationModalOpen: false,
   highlightedDeviceId: null,
@@ -294,7 +303,9 @@ export const useStore = create<AppState>((set, get) => ({
   setCameraRef: (camera, controls) =>
     set({ _cameraRef: camera, _controlsRef: controls }),
   setHoveredRack: (id) => set({ hoveredRackId: id }),
-  setActiveNode: (nodeId) =>
+  setActiveNode: (nodeId) => {
+    const { expandNodePath } = get();
+    expandNodePath(nodeId);
     set({
       activeNodeId: nodeId,
       selectedRackId: null,
@@ -307,7 +318,8 @@ export const useStore = create<AppState>((set, get) => ({
       draggingModelId: null,
       modelDragPosition: null,
       modelDragOffset: null,
-    }),
+    });
+  },
   setImportExportModalRackId: (id) => set({ importExportModalRackId: id }),
   setDeviceRegistrationModalOpen: (open) =>
     set({ deviceRegistrationModalOpen: open }),
@@ -321,6 +333,38 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => ({
       registeredDevices: [...state.registeredDevices, newDevice],
     }));
+  },
+
+  updateRegisteredDevice: (id: string, updates: Partial<RegisteredDevice>) => {
+    set((state) => {
+      const updatedRegDevices = state.registeredDevices.map((d) =>
+        d.id === id ? { ...d, ...updates } : d
+      );
+
+      // Also update any placed devices in racks that reference this registered device
+      const updatedRacks = state.racks.map((rack) => ({
+        ...rack,
+        devices: rack.devices.map((device) => {
+          if (device.registeredDeviceId === id) {
+            return {
+              ...device,
+              name: updates.deviceName ?? device.name,
+              ip: updates.ip ?? device.ip,
+              mac: updates.mac ?? device.mac,
+              vendor: updates.vendor ?? device.vendor,
+              modelName: updates.modelName ?? device.modelName,
+              uSize: updates.uSize ?? device.uSize,
+            };
+          }
+          return device;
+        }),
+      }));
+
+      return {
+        registeredDevices: updatedRegDevices,
+        racks: updatedRacks,
+      };
+    });
   },
 
   removeRegisteredDevice: (id) => {
@@ -675,12 +719,16 @@ export const useStore = create<AppState>((set, get) => ({
     const finalNodes = newNodes && newNodes.length > 0 ? newNodes : [];
     const rootNode = finalNodes.find((n) => n.parentId === null);
 
+    const expandedNodeIds = new Set<string>();
+    if (rootNode) expandedNodeIds.add(rootNode.nodeId);
+
     set({
       racks: migratedRacks,
       importedModels: newModels ?? [],
       registeredDevices: migratedRegDevices,
       nodes: finalNodes,
       activeNodeId: rootNode ? rootNode.nodeId : (finalNodes.length > 0 ? finalNodes[0].nodeId : ""),
+      expandedNodeIds,
       selectedRackId: null,
       focusedRackId: null,
       selectedModelId: null,
@@ -781,6 +829,30 @@ export const useStore = create<AppState>((set, get) => ({
       };
     });
   },
+
+  setExpandedNodeIds: (ids) => set({ expandedNodeIds: ids }),
+  toggleNodeExpansion: (nodeId) => {
+    set((state) => {
+      const next = new Set(state.expandedNodeIds);
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
+      return { expandedNodeIds: next };
+    });
+  },
+  expandNodePath: (nodeId) => {
+    set((state) => {
+      const next = new Set(state.expandedNodeIds);
+      const { nodes } = state;
+      let curr = nodes.find((n) => n.nodeId === nodeId);
+      next.add(nodeId);
+      while (curr && curr.parentId) {
+        next.add(curr.parentId);
+        curr = nodes.find((n) => n.nodeId === curr?.parentId);
+      }
+      return { expandedNodeIds: next };
+    });
+  },
+  setHierarchyCollapsed: (collapsed) => set({ isHierarchyCollapsed: collapsed }),
 
   upsertNodes: (newNodes, overwrite) => {
     const mapping: Record<string, string> = {};

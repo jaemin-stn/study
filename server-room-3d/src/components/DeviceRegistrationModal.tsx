@@ -45,8 +45,8 @@ const MODAL_STYLES = `
 .drm-modal {
   background: var(--modal-bg);
   border: 1px solid var(--border-medium);
-  border-radius: 24px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-3);
   width: 1000px;
   max-width: 95vw;
   max-height: 85vh;
@@ -63,8 +63,8 @@ const MODAL_STYLES = `
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 24px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 100%);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-weak);
 }
 .drm-header h2 {
@@ -124,20 +124,19 @@ const MODAL_STYLES = `
 }
 
 /* Card-like Sections */
-.drm-section-card {
-  background: rgba(255, 255, 255, 0.015);
+  background: var(--glass-bg);
   border: 1px solid var(--border-weak);
-  border-radius: 20px;
-  padding: 20px;
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
 }
 
 /* Form section */
 .drm-form-title {
-  font-size: 16px;
-  font-weight: 600;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
   color: var(--text-primary);
-  margin-bottom: 16px;
+  margin-bottom: var(--spacing-md);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -168,9 +167,9 @@ const MODAL_STYLES = `
 .drm-field input,
 .drm-field select {
   height: 38px;
-  padding: 0 12px;
+  padding: 0 var(--spacing-sm);
   border: 1px solid var(--border-medium);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font-size: 13px;
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
@@ -400,14 +399,14 @@ const MODAL_STYLES = `
   letter-spacing: 0.02em;
 }
 .drm-group-tag.group-gwacheon {
-  background: rgba(16, 185, 129, 0.1);
-  color: #10b981;
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  background: var(--tag-gwacheon-bg);
+  color: var(--tag-gwacheon);
+  border: 1px solid var(--tag-gwacheon-bg);
 }
 .drm-group-tag.group-daejeon {
-  background: rgba(139, 92, 246, 0.1);
-  color: #8b5cf6;
-  border: 1px solid rgba(139, 92, 246, 0.2);
+  background: var(--tag-daejeon-bg);
+  color: var(--tag-daejeon);
+  border: 1px solid var(--tag-daejeon-bg);
 }
 
 .drm-vendor-tag {
@@ -442,6 +441,27 @@ const MODAL_STYLES = `
   transform: scale(1.05);
   box-shadow: 0 4px 12px rgba(255, 60, 60, 0.3);
 }
+.drm-edit-btn {
+  width: 36px;
+  height: 36px;
+  background: rgba(110, 159, 255, 0.05);
+  border: 1px solid rgba(110, 159, 255, 0.2);
+  color: var(--theme-primary);
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 16px;
+}
+.drm-edit-btn:hover {
+  background: var(--theme-primary);
+  color: white;
+  border-color: var(--theme-primary);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(110, 159, 255, 0.3);
+}
 
 /* Toast notification (Centered Illustration) */
 .drm-toast-wrapper {
@@ -462,23 +482,13 @@ const MODAL_STYLES = `
 
 .drm-toast {
   pointer-events: auto; /* Re-enable pointer events for the toast itself */
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.6) 0%,
-    rgba(255, 255, 255, 0.15) 100%
-  );
-  backdrop-filter: blur(20px) saturate(140%);
-  -webkit-backdrop-filter: blur(20px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.4);
-  border-top: 1px solid rgba(255, 255, 255, 0.8);
-  border-left: 1px solid rgba(255, 255, 255, 0.6);
-  padding: 32px 32px;
-  border-radius: 36px; 
+  background: var(--modal-bg);
+  border: 1px solid var(--border-medium);
+  padding: var(--spacing-xl);
+  border-radius: var(--radius-lg); 
   width: 320px;
   max-width: 90vw;
-  box-shadow: 
-    0 16px 40px rgba(0, 0, 0, 0.15), 
-    inset 0 4px 6px -2px rgba(255, 255, 255, 0.6); 
+  box-shadow: var(--elevation-3);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -599,6 +609,7 @@ export const DeviceRegistrationModal = () => {
   const racks = useStore((s) => s.racks);
   const addRegisteredDevice = useStore((s) => s.addRegisteredDevice);
   const removeRegisteredDevice = useStore((s) => s.removeRegisteredDevice);
+  const updateRegisteredDevice = useStore((s) => s.updateRegisteredDevice);
   const upsertRegisteredDevices = useStore((s) => s.upsertRegisteredDevices);
   const activeNodeId = useStore((s) => s.activeNodeId);
   const nodes = useStore((s) => s.nodes);
@@ -627,6 +638,7 @@ export const DeviceRegistrationModal = () => {
 
   // UI state
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(
     null,
   );
@@ -682,6 +694,29 @@ export const DeviceRegistrationModal = () => {
   ) => {
     setToast({ message, type, action });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleEditClick = (device: (typeof registeredDevices)[0]) => {
+    setEditingDeviceId(device.id);
+    setNodeId(device.nodeId);
+    
+    // Find model index by modelName
+    const idx = DEVICE_TEMPLATES.findIndex(t => t.modelName === device.modelName);
+    if (idx >= 0) setSelectedModelIdx(idx);
+    
+    setDeviceName(device.deviceName);
+    setIp(device.ip);
+    setMac(device.mac);
+    setVendor(device.vendor);
+    setErrors({});
+  };
+
+  const cancelEdit = () => {
+    setEditingDeviceId(null);
+    setDeviceName("");
+    setIp("");
+    setMac("");
+    setErrors({});
   };
 
   const handleSelectAll = (checked: boolean) => {
@@ -765,27 +800,55 @@ export const DeviceRegistrationModal = () => {
   const handleSubmit = () => {
     if (!validate()) return;
 
-    addRegisteredDevice({
-      nodeId: nodeId,
-      deviceName: deviceName.trim(),
-      modelName: selectedTemplate.modelName,
-      type: selectedTemplate.type,
-      uSize: selectedTemplate.uSize,
-      ip: ip.trim(),
-      mac: mac.trim().toUpperCase(),
-      vendor,
-    });
-
-    showToast(
-      `장비 "${deviceName.trim()}" 이(가) 등록되었습니다.`,
-      "success",
-      "add",
+    // MAC uniqueness check (exclude current device if editing)
+    const existing = registeredDevices.find(
+      (d) => d.mac === mac.trim().toUpperCase() && d.id !== editingDeviceId
     );
-    // Reset form
-    setDeviceName("");
-    setIp("");
-    setMac("");
-    setErrors({});
+    if (existing) {
+      setErrors((prev) => ({ ...prev, mac: "이미 존재하는 MAC입니다." }));
+      return;
+    }
+
+    if (editingDeviceId) {
+      updateRegisteredDevice(editingDeviceId, {
+        nodeId: nodeId,
+        deviceName: deviceName.trim(),
+        modelName: selectedTemplate.modelName,
+        type: selectedTemplate.type,
+        uSize: selectedTemplate.uSize,
+        ip: ip.trim(),
+        mac: mac.trim().toUpperCase(),
+        vendor,
+      });
+      showToast(
+        `장비 "${deviceName.trim()}" 정보가 수정되었습니다.`,
+        "success",
+        "add"
+      );
+      cancelEdit();
+    } else {
+      addRegisteredDevice({
+        nodeId: nodeId,
+        deviceName: deviceName.trim(),
+        modelName: selectedTemplate.modelName,
+        type: selectedTemplate.type,
+        uSize: selectedTemplate.uSize,
+        ip: ip.trim(),
+        mac: mac.trim().toUpperCase(),
+        vendor,
+      });
+
+      showToast(
+        `장비 "${deviceName.trim()}" 이(가) 등록되었습니다.`,
+        "success",
+        "add",
+      );
+      // Reset form
+      setDeviceName("");
+      setIp("");
+      setMac("");
+      setErrors({});
+    }
   };
 
   const handleDeleteClick = (
@@ -972,7 +1035,8 @@ export const DeviceRegistrationModal = () => {
             {/* Part A: Registration Form */}
             <div className="drm-section-card">
               <div className="drm-form-title">
-                <span className="icon">➕</span> 새 장비 등록
+                <span className="icon">{editingDeviceId ? "✏️" : "➕"}</span>{" "}
+                {editingDeviceId ? "장비 정보 수정" : "새 장비 등록"}
               </div>
               <div className="drm-form-grid">
                 {/* Group */}
@@ -1089,9 +1153,19 @@ export const DeviceRegistrationModal = () => {
                 </div>
               </div>
 
-              <div className="drm-form-actions">
+              <div className="drm-form-actions" style={{ gap: "12px" }}>
+                {editingDeviceId && (
+                  <button
+                    className="grafana-btn grafana-btn-secondary"
+                    onClick={cancelEdit}
+                    style={{ height: "38px", borderRadius: "10px", padding: "0 20px" }}
+                  >
+                    취소
+                  </button>
+                )}
                 <button className="drm-submit-btn" onClick={handleSubmit}>
-                  <span>✨</span> 등록하기
+                  <span>{editingDeviceId ? "💾" : "✨"}</span>{" "}
+                  {editingDeviceId ? "저장하기" : "등록하기"}
                 </button>
               </div>
             </div>
@@ -1182,6 +1256,9 @@ export const DeviceRegistrationModal = () => {
                           <th>IP 주소</th>
                           <th>MAC 주소</th>
                           <th>벤더</th>
+                           <th style={{ width: 60, textAlign: "center" }}>
+                            수정
+                          </th>
                           <th style={{ width: 60, textAlign: "center" }}>
                             삭제
                           </th>
@@ -1232,6 +1309,18 @@ export const DeviceRegistrationModal = () => {
                               <span className="drm-vendor-tag">
                                 {device.vendor}
                               </span>
+                            </td>
+                             <td style={{ textAlign: "center" }}>
+                              <button
+                                className="drm-edit-btn"
+                                title="수정"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditClick(device);
+                                }}
+                              >
+                                ✏️
+                              </button>
                             </td>
                             <td style={{ textAlign: "center" }}>
                               <button

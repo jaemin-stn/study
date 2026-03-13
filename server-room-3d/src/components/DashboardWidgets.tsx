@@ -29,28 +29,28 @@ const severityConfig: Record<
     bgClass: "severity-critical",
     badgeClass: "grafana-badge-critical",
     statBg: "var(--severity-critical)",
-    statColor: "#ffffff",
+    statColor: "#000000",
   },
   major: {
     label: "Major",
     bgClass: "severity-major",
     badgeClass: "grafana-badge-major",
     statBg: "var(--severity-major)",
-    statColor: "#ffffff",
+    statColor: "#000000",
   },
   minor: {
     label: "Minor",
     bgClass: "severity-minor",
     badgeClass: "grafana-badge-minor",
     statBg: "var(--severity-minor)",
-    statColor: "#1f1f1f",
+    statColor: "#000000",
   },
   warning: {
     label: "Warning",
     bgClass: "severity-warning",
     badgeClass: "grafana-badge-warning",
     statBg: "var(--severity-warning)",
-    statColor: "#1f1f1f",
+    statColor: "#000000",
   },
 };
 
@@ -247,7 +247,7 @@ export const DashboardWidgets = () => {
                       onClick={() => handleErrorRowClick(err)}
                     >
                       <div className="grafana-table-cell">{err.rackName}</div>
-                      <div className="grafana-table-cell">{err.deviceName}</div>
+                      <div className="grafana-table-cell" title={err.deviceName}>{err.deviceName}</div>
                       <div className="grafana-table-cell">{err.portNumber}</div>
                     </div>
                   ))
@@ -258,7 +258,7 @@ export const DashboardWidgets = () => {
                       alignItems: "center",
                       justifyContent: "center",
                       height: "100%",
-                      color: "var(--text-tertiary)",
+                      color: "var(--text-secondary)",
                       fontSize: "var(--font-size-sm)",
                     }}
                   >

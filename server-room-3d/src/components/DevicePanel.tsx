@@ -51,19 +51,6 @@ const DeviceTileImage = ({ src, alt }: { src: string; alt: string }) => {
 };
 
 const PANEL_STYLES = `
-.btn-import-export {
-    background: var(--theme-primary) !important;
-    color: #ffffff !important;
-    border: 1px solid rgba(255,255,255,0.2) !important;
-    box-shadow: 0 0 10px rgba(110, 159, 255, 0.3);
-    font-weight: 600 !important;
-}
-.btn-import-export:hover {
-    filter: brightness(1.1);
-    box-shadow: 0 0 15px rgba(110, 159, 255, 0.5);
-    transform: translateY(-1px);
-}
-
 /* ---------- Device Tile ---------- */
 .device-tile {
     position: relative;
@@ -115,7 +102,7 @@ const PANEL_STYLES = `
 
 @keyframes dt-error-pulse {
     0% { box-shadow: 0 0 0 0px var(--severity-critical); }
-    50% { box-shadow: 0 0 12px 2px var(--severity-critical); }
+    50% { box-shadow: 0 0 12px 2px var(--severity-critical-bg); }
     100% { box-shadow: 0 0 0 0px var(--severity-critical); }
 }
 .device-tile.has-error {
@@ -124,14 +111,14 @@ const PANEL_STYLES = `
     z-index: 1;
 }
 @keyframes dt-highlight-pulse {
-    0% { box-shadow: 0 0 0 0px #4dabf7; outline: 2px solid transparent; }
-    50% { box-shadow: 0 0 15px 4px #4dabf7; outline: 2px solid #4dabf7; }
-    100% { box-shadow: 0 0 0 0px #4dabf7; outline: 2px solid transparent; }
+    0% { box-shadow: 0 0 0 0px var(--theme-primary); outline: 2px solid transparent; }
+    50% { box-shadow: 0 0 15px 4px var(--selected-bg); outline: 2px solid var(--theme-primary); }
+    100% { box-shadow: 0 0 0 0px var(--theme-primary); outline: 2px solid transparent; }
 }
 .device-tile.is-highlighted {
     animation: dt-highlight-pulse 1.2s ease-in-out infinite;
     z-index: 10;
-    border-color: #4dabf7 !important;
+    border-color: var(--theme-primary) !important;
 }
 
 /* Gradient overlay for text legibility */
@@ -163,11 +150,11 @@ const PANEL_STYLES = `
     width: 24px;
     height: 24px;
     border-radius: var(--radius-sm);
-    border: 1px solid rgba(255,60,60,0.4);
-    background: rgba(255,100,100,0.1);
-    color: #ff8a8a;
-    font-size: 14px;
-    font-weight: 700;
+    border: 1px solid var(--severity-critical-bg);
+    background: var(--severity-critical-bg);
+    color: var(--severity-critical-text);
+    font-size: var(--font-size-md);
+    font-weight: var(--font-weight-bold);
     cursor: pointer;
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     flex-shrink: 0;
@@ -175,11 +162,11 @@ const PANEL_STYLES = `
 }
 .device-tile:hover .device-tile-delete {
     opacity: 1;
-    background: #ff3c3c;
+    background: var(--severity-critical);
     color: #fff;
-    border-color: #ff3c3c;
+    border-color: var(--severity-critical);
     transform: scale(1.1);
-    box-shadow: 0 2px 8px rgba(255, 60, 60, 0.4);
+    box-shadow: var(--elevation-2);
 }
 .device-tile-delete:active {
     transform: scale(0.9);
@@ -277,6 +264,68 @@ const PANEL_STYLES = `
     color: var(--text-secondary);
     font-weight: 500;
 }
+
+/* ---------- Confirm Modal ---------- */
+.confirm-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--modal-backdrop);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: fadeIn 0.1s ease-out;
+}
+.confirm-modal-card {
+    background: var(--modal-bg);
+    border: 1px solid var(--border-medium);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--elevation-3);
+    width: 380px;
+    padding: var(--spacing-lg);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    animation: scaleUp 0.15s ease-out;
+}
+@keyframes scaleUp {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+}
+.confirm-modal-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.confirm-modal-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--severity-critical-bg);
+    color: var(--severity-critical-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+}
+.confirm-modal-title {
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-semibold);
+    color: var(--text-primary);
+    margin: 0;
+}
+.confirm-modal-body {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+.confirm-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
 `;
 
 const PanelStyles = React.memo(() => <style>{PANEL_STYLES}</style>);
@@ -294,9 +343,9 @@ export const DevicePanel = () => {
     deleteRack,
     isEditMode,
     updateRackOrientation,
-    setImportExportModalRackId,
     updateRack,
     highlightedDeviceId,
+    showToast,
   } = useStore();
   const rack = racks.find((r) => r.id === selectedRackId);
 
@@ -311,6 +360,7 @@ export const DevicePanel = () => {
     null,
   );
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [isDeleteRackModalOpen, setIsDeleteRackModalOpen] = useState(false);
 
   // Focus input when editing starts
   useEffect(() => {
@@ -319,6 +369,16 @@ export const DevicePanel = () => {
       editInputRef.current.select();
     }
   }, [isEditingName]);
+
+  // Handle ESC key for modal
+  useEffect(() => {
+    if (!isDeleteRackModalOpen) return;
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsDeleteRackModalOpen(false);
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [isDeleteRackModalOpen]);
 
   const handleNameSubmit = () => {
     if (!rack) return;
@@ -426,8 +486,7 @@ export const DevicePanel = () => {
         const heightPx = device.uSize * TOTAL_SLOT_HEIGHT - SLOT_MARGIN;
         // Resolve from registered device if available, else fallback
         const regDev = findRegDevice(device.registeredDeviceId);
-        const displayName =
-          regDev?.modelName ?? device.modelName ?? device.name;
+        const displayName = (regDev ? (regDev.deviceName || regDev.modelName) : (device.modelName ?? device.name)) || "Device";
         const imageSrc = resolveDeviceImage(
           regDev?.modelName ?? device.modelName,
         );
@@ -1035,18 +1094,6 @@ export const DevicePanel = () => {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           <button
-            onClick={() => setImportExportModalRackId(rack.id)}
-            className="grafana-btn btn-import-export"
-            style={{
-              padding: "4px 12px",
-              fontSize: "var(--font-size-xs)",
-              height: "28px",
-            }}
-            title="Import or Export this rack's data"
-          >
-            Import/Export
-          </button>
-          <button
             onClick={() => selectRack(null)}
             className="grafana-modal-close"
             style={{ position: "static", transform: "none" }}
@@ -1144,15 +1191,7 @@ export const DevicePanel = () => {
           <button
             className="grafana-btn grafana-btn-destructive"
             style={{ width: "100%" }}
-            onClick={() => {
-              if (
-                window.confirm(
-                  "이 랙을 삭제하시겠습니까? 내부의 모든 장비도 함께 삭제됩니다.",
-                )
-              ) {
-                deleteRack(rack.id);
-              }
-            }}
+            onClick={() => setIsDeleteRackModalOpen(true)}
           >
             Rack 삭제
           </button>
@@ -1160,6 +1199,41 @@ export const DevicePanel = () => {
       </div>
 
       {renderAddDeviceModal()}
+
+      {/* Rack Deletion Confirm Modal */}
+      {isDeleteRackModalOpen && createPortal(
+        <div className="confirm-modal-overlay" onClick={() => setIsDeleteRackModalOpen(false)}>
+          <div className="confirm-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="confirm-modal-header">
+              <div className="confirm-modal-icon">🗑️</div>
+              <h3 className="confirm-modal-title">랙 삭제</h3>
+            </div>
+            <div className="confirm-modal-body">
+              <strong>{rack.displayName || `Rack ${rack.id.substring(0, 4)}`}</strong>을(를) 삭제하시겠습니까?<br/>
+              랙 내부의 모든 장비도 함께 삭제됩니다.
+            </div>
+            <div className="confirm-modal-actions">
+              <button 
+                className="grafana-btn grafana-btn-secondary"
+                onClick={() => setIsDeleteRackModalOpen(false)}
+              >
+                취소
+              </button>
+              <button 
+                className="grafana-btn grafana-btn-destructive"
+                onClick={() => {
+                  deleteRack(rack.id);
+                  setIsDeleteRackModalOpen(false);
+                  showToast("랙이 삭제되었습니다.", "success");
+                }}
+              >
+                삭제
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

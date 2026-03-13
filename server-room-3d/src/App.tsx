@@ -59,22 +59,17 @@ const APP_STYLES = `
   gap: 12px;
   padding: 14px 24px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2);
-  color: white;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  box-shadow: var(--elevation-3);
+  color: var(--text-primary);
   animation: toast-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: auto;
 }
-.toast-card.error {
-  border-color: rgba(255, 82, 82, 0.4);
-  background: rgba(255, 82, 82, 0.15);
-}
 .toast-card.success {
-  border-color: rgba(76, 175, 80, 0.4);
-  background: rgba(76, 175, 80, 0.15);
+  border-color: var(--severity-success);
+  background: var(--severity-success-bg);
+  color: var(--severity-success-text);
 }
 .toast-icon {
   width: 24px;
@@ -203,14 +198,7 @@ function App() {
                 48
               </button>
 
-              <div
-                style={{
-                  width: "1px",
-                  height: "16px",
-                  background: "rgba(255,255,255,0.1)",
-                  margin: "0 6px",
-                }}
-              />
+              <div className="grafana-toolbar-divider" style={{ height: "16px", margin: "0 6px" }} />
 
               <span
                 className="grafana-toolbar-label"
@@ -248,7 +236,11 @@ function App() {
                 setDeviceRegistrationModalOpen(true);
               }}
               title="장비"
-              style={{ fontSize: "var(--font-size-sm)" }}
+              style={{
+                fontSize: "var(--font-size-sm)",
+                height: "32px",
+                padding: "0 12px",
+              }}
             >
               📋 장비
             </button>
@@ -261,6 +253,11 @@ function App() {
                 className="grafana-btn grafana-btn-primary"
                 onClick={() => setImportExportModalRackId("all")}
                 title="Export Room Data"
+                style={{
+                  fontSize: "var(--font-size-sm)",
+                  height: "32px",
+                  padding: "0 12px",
+                }}
               >
                 Export
               </button>
@@ -268,22 +265,25 @@ function App() {
                 className="grafana-btn grafana-btn-secondary"
                 onClick={() => setImportExportModalRackId("all")}
                 title="Import Room Data"
+                style={{
+                  fontSize: "var(--font-size-sm)",
+                  height: "32px",
+                  padding: "0 12px",
+                }}
               >
                 Import
               </button>
 
-              <div
-                style={{
-                  width: "1px",
-                  height: "20px",
-                  background: "rgba(255,255,255,0.1)",
-                  margin: "0 8px",
-                }}
-              />
+              <div className="grafana-toolbar-divider" style={{ height: "20px", margin: "0 8px" }} />
 
               <button
                 className="grafana-btn grafana-btn-secondary"
                 onClick={loadSample}
+                style={{
+                  fontSize: "var(--font-size-sm)",
+                  height: "32px",
+                  padding: "0 12px",
+                }}
               >
                 Sample
               </button>

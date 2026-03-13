@@ -1,43 +1,13 @@
 import React, { useRef, useState, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import type { Rack, RegisteredDevice, HierarchyNode } from "../types";
-import type { ExportOptions, ExportScope } from "../utils/storage";
+import type { ExportScope } from "../utils/storage";
 import { getNodeName, getAncestorPath } from "../utils/nodeUtils";
 import {
-  saveRackToJSON,
-  loadRackFromJSON,
-  saveRackToExcel,
-  loadRackFromExcel,
-  saveToExcel,
-  saveToJSON,
-  loadFromJSON,
-  loadFromExcel,
   exportGroupWorkbook,
   importGroupPackage,
 } from "../utils/storage";
 import type { ExportRequest } from "../utils/storage";
-
-const RACK_FIELDS = ["rackId", "uHeight", "posX", "posZ", "orientation"];
-const DEVICE_FIELDS = [
-  "deviceId",
-  "rackId",
-  "name",
-  "type",
-  "uSize",
-  "uPosition",
-  "imageUrl",
-  "modelName",
-  "ip",
-  "mac",
-  "vendor"
-];
-const PORT_FIELDS = [
-  "portId",
-  "deviceId",
-  "status",
-  "errorLevel",
-  "errorMessage",
-];
 
 const IMPORT_EXPORT_STYLES = `
 .format-card {
@@ -249,21 +219,14 @@ export const ImportExportModal = () => {
     registeredDevices,
     importExportModalRackId,
     setImportExportModalRackId,
-    updateRack,
-    loadState,
     setActiveNode,
     nodes,
     upsertNodes,
     replaceMultipleNodesData,
     showToast,
+    setHierarchyCollapsed,
   } = useStore();
 
-  const [format, setFormat] = useState<"json" | "excel">("excel");
-  const [selectedFields, setSelectedFields] = useState<ExportOptions>({
-    rack: [...RACK_FIELDS],
-    device: [...DEVICE_FIELDS],
-    port: [...PORT_FIELDS],
-  });
   const [selectedScopeId, setSelectedScopeId] = useState<ExportScope>("ALL");
   const [isExporting, setIsExporting] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
@@ -271,7 +234,10 @@ export const ImportExportModal = () => {
   const [importPreview, setImportPreview] = useState<{
     fileName: string;
     nodes: HierarchyNode[];
-    dataByNode: Record<string, { racks: Rack[]; registeredDevices: RegisteredDevice[] }>;
+    dataByNode: Record<
+      string,
+      { racks: Rack[]; registeredDevices: RegisteredDevice[] }
+    >;
     exportScope: { type: "ALL" | "NODE"; nodeId?: string };
     ignoredCount: number;
   } | null>(null);
@@ -283,55 +249,40 @@ export const ImportExportModal = () => {
     if (nodeId === "ALL") {
       const rackCount = racks.length;
       const deviceCount = racks.reduce((sum, r) => sum + r.devices.length, 0);
-      const portCount = racks.reduce((sum, r) => sum + r.devices.reduce((s, d) => s + d.portStates.length, 0), 0);
+      const portCount = racks.reduce(
+        (sum, r) =>
+          sum + r.devices.reduce((s, d) => s + d.portStates.length, 0),
+        0,
+      );
       return { rackCount, deviceCount, portCount };
     }
-    const nodeRacks = racks.filter(r => r.nodeId === nodeId);
+    const nodeRacks = racks.filter((r) => r.nodeId === nodeId);
     const rackCount = nodeRacks.length;
     const deviceCount = nodeRacks.reduce((sum, r) => sum + r.devices.length, 0);
-    const portCount = nodeRacks.reduce((sum, r) => sum + r.devices.reduce((s, d) => s + d.portStates.length, 0), 0);
+    const portCount = nodeRacks.reduce(
+      (sum, r) => sum + r.devices.reduce((s, d) => s + d.portStates.length, 0),
+      0,
+    );
     return { rackCount, deviceCount, portCount };
   };
 
-  const selectedNodeCounts = useMemo(() => getNodeCounts(selectedScopeId), [selectedScopeId, racks]);
+  const selectedNodeCounts = useMemo(
+    () => getNodeCounts(selectedScopeId),
+    [selectedScopeId, racks],
+  );
 
-  const jsonInputRef = useRef<HTMLInputElement>(null);
-  const excelInputRef = useRef<HTMLInputElement>(null);
   const groupImportRef = useRef<HTMLInputElement>(null);
 
-  if (!importExportModalRackId) return null;
-
-  const isGlobal = importExportModalRackId === "all";
-  const rack = isGlobal
-    ? null
-    : racks.find((r) => r.id === importExportModalRackId);
-
-  if (!isGlobal && !rack) return null;
-
-  const totalSelected =
-    selectedFields.rack.length +
-    selectedFields.device.length +
-    selectedFields.port.length;
-
   // --- Handlers ---
-  const handleLegacyExport = () => {
-    if (totalSelected === 0) return;
-    if (format === "json") {
-      if (isGlobal) saveToJSON(racks, selectedFields);
-      else if (rack) saveRackToJSON(rack, selectedFields);
-    } else {
-      if (isGlobal) saveToExcel(racks, selectedFields);
-      else if (rack) saveRackToExcel(rack, selectedFields);
-    }
-  };
 
   const handleGroupExport = async () => {
     if (isExporting) return;
-    
+
     // Create ONE immutable request object at click time
     const currentScope = selectedScopeId;
-    const currentLabel = currentScope === "ALL" ? "전체" : getNodeName(nodes, currentScope);
-    
+    const currentLabel =
+      currentScope === "ALL" ? "전체" : getNodeName(nodes, currentScope);
+
     const request: ExportRequest = {
       requestId: crypto.randomUUID(),
       scopeId: currentScope,
@@ -342,7 +293,7 @@ export const ImportExportModal = () => {
     setIsExporting(true);
     try {
       // Small delay to ensure UI updates (disable button) before heavy work
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
       exportGroupWorkbook(racks, registeredDevices, nodes, request);
       showToast(`${request.scopeLabel} 내보내기 완료`, "success");
     } finally {
@@ -358,7 +309,9 @@ export const ImportExportModal = () => {
     }
   };
 
-  const handleGroupImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleGroupImportFile = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setImportStatus(`⏳ "${file.name}" 분석 중...`);
@@ -366,7 +319,10 @@ export const ImportExportModal = () => {
     try {
       const result = await importGroupPackage(file);
       const nodeCount = result.nodes.length;
-      const totalRacksInFile = Object.values(result.dataByNode).reduce((sum, n) => sum + n.racks.length, 0);
+      const totalRacksInFile = Object.values(result.dataByNode).reduce(
+        (sum, n) => sum + n.racks.length,
+        0,
+      );
 
       if (nodeCount === 0 && totalRacksInFile === 0) {
         setImportStatus(`⚠️ 파일에서 유효한 데이터를 찾지 못했습니다.`);
@@ -379,7 +335,7 @@ export const ImportExportModal = () => {
         nodes: result.nodes,
         dataByNode: result.dataByNode,
         exportScope: result.exportScope,
-        ignoredCount: result.ignoredCount
+        ignoredCount: result.ignoredCount,
       });
       setImportStatus(null);
     } catch (err) {
@@ -396,157 +352,119 @@ export const ImportExportModal = () => {
       const { nodes: importedNodes, dataByNode } = importPreview;
 
       // 1. Upsert nodes
-      const idMap = importedNodes.length > 0 ? upsertNodes(importedNodes, overwriteNodes) : {};
+      const idMap =
+        importedNodes.length > 0
+          ? upsertNodes(importedNodes, overwriteNodes)
+          : {};
 
       // 2. Remap entity nodeId
-      const remappedData: Record<string, { racks: Rack[]; registeredDevices: RegisteredDevice[] }> = {};
+      const remappedData: Record<
+        string,
+        { racks: Rack[]; registeredDevices: RegisteredDevice[] }
+      > = {};
       Object.entries(dataByNode).forEach(([oldNid, nodeData]) => {
         const newNid = idMap[oldNid] || oldNid;
         if (!remappedData[newNid]) {
           remappedData[newNid] = { racks: [], registeredDevices: [] };
         }
-        remappedData[newNid].racks.push(...nodeData.racks.map(r => ({ ...r, nodeId: newNid })));
-        remappedData[newNid].registeredDevices.push(...nodeData.registeredDevices.map(d => ({ ...d, nodeId: newNid })));
+        remappedData[newNid].racks.push(
+          ...nodeData.racks.map((r) => ({ ...r, nodeId: newNid })),
+        );
+        remappedData[newNid].registeredDevices.push(
+          ...nodeData.registeredDevices.map((d) => ({ ...d, nodeId: newNid })),
+        );
       });
 
       // 3. Store update
       replaceMultipleNodesData(remappedData);
 
-      // 4. Navigate
-      const firstNodeWithRacks = Object.entries(remappedData).find(([_, data]) => data.racks.length > 0)?.[0];
-      if (firstNodeWithRacks) {
-        setActiveNode(firstNodeWithRacks);
+      // 4. Determine Target Node for Focus/Navigation
+      let targetNodeId: string | null = null;
+      if (
+        importPreview.exportScope.type === "NODE" &&
+        importPreview.exportScope.nodeId
+      ) {
+        targetNodeId =
+          idMap[importPreview.exportScope.nodeId] ||
+          importPreview.exportScope.nodeId;
+      } else {
+        // Fallback: use first node with racks in the imported data
+        targetNodeId =
+          Object.entries(remappedData).find(
+            ([_, data]) => data.racks.length > 0,
+          )?.[0] || null;
       }
 
-      const totalRacks = Object.values(remappedData).reduce((sum, n) => sum + n.racks.length, 0);
+      if (targetNodeId) {
+        setActiveNode(targetNodeId);
+        setHierarchyCollapsed(false); // Ensure sidebar is visible
+
+        // Ensure browser scrolls the selected node into view
+        setTimeout(() => {
+          const selectedEl = document.querySelector(".tree-node.selected");
+          if (selectedEl) {
+            selectedEl.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 100);
+      }
+
+      const totalRacks = Object.values(remappedData).reduce(
+        (sum, n) => sum + n.racks.length,
+        0,
+      );
       let successMsg = `✅ Import 완료! (대상 노드 ${Object.keys(remappedData).length}개, Racks ${totalRacks}개)`;
       if (importPreview.ignoredCount > 0) {
         successMsg += ` [범위 외 ${importPreview.ignoredCount}건 제외됨]`;
       }
       setImportStatus(successMsg);
       setImportPreview(null);
+
+      // Auto-close modal on success after a short delay
+      setTimeout(() => setImportExportModalRackId(null), 2000);
     } catch (err) {
       setImportStatus(`❌ 적용 실패: ${(err as Error).message}`);
     }
   };
 
-  const toggleField = (group: keyof ExportOptions, field: string) => {
-    setSelectedFields((prev) => {
-      const current = prev[group];
-      const next = current.includes(field) ? current.filter((f) => f !== field) : [...current, field];
-      let finalDevice = group === "device" ? next : prev.device;
-      let finalPort = group === "port" ? next : prev.port;
-
-      if (finalDevice.length > 0) {
-        if (!finalDevice.includes("deviceId")) finalDevice.push("deviceId");
-        if (!finalDevice.includes("rackId")) finalDevice.push("rackId");
-      }
-      if (finalPort.length > 0) {
-        if (!finalPort.includes("portId")) finalPort.push("portId");
-        if (!finalPort.includes("deviceId")) finalPort.push("deviceId");
-      }
-      return { ...prev, [group]: group === "device" ? finalDevice : group === "port" ? finalPort : next };
-    });
-  };
-
-  const handleSelectAll = (group: keyof ExportOptions) => {
-    const all = group === "rack" ? RACK_FIELDS : group === "device" ? DEVICE_FIELDS : PORT_FIELDS;
-    setSelectedFields((prev) => ({ ...prev, [group]: [...all] }));
-  };
-
-  const handleDeselectAll = (group: keyof ExportOptions) => {
-    setSelectedFields((prev) => ({ ...prev, [group]: [] }));
-  };
-
-  const handleImportClick = () => {
-    if (format === "json") jsonInputRef.current?.click();
-    else excelInputRef.current?.click();
-  };
-
-  const isRequired = (group: keyof ExportOptions, field: string) => {
-    if (group === "device") return (field === "deviceId" || field === "rackId") && selectedFields.device.length > 0;
-    if (group === "port") return (field === "portId" || field === "deviceId") && selectedFields.port.length > 0;
-    return false;
-  };
-
-  // --- Sub-renderers ---
-  const renderCheckboxes = (group: keyof ExportOptions, fields: string[], label: string, emoji: string) => (
-    <div className="options-group">
-      <div className="group-header">
-        <div className="group-title"><span>{emoji}</span> {label}</div>
-        <div style={{ display: "flex", gap: "8px" }}>
-          <button className="link-btn" onClick={() => handleSelectAll(group)}>Select all</button>
-          <button className="link-btn" onClick={() => handleDeselectAll(group)}>Deselect all</button>
-        </div>
-      </div>
-      <div className="checkbox-grid">
-        {fields.map((f) => {
-          const locked = isRequired(group, f);
-          return (
-            <label key={f} className={`checkbox-item ${locked ? "disabled" : ""}`}>
-              <input type="checkbox" checked={selectedFields[group].includes(f)} onChange={() => !locked && toggleField(group, f)} disabled={locked} />
-              {f}
-            </label>
-          );
-        })}
-      </div>
-    </div>
-  );
-
-  const handleFileImport = (globalLoader: (f: File) => Promise<Rack[]>, rackLoader: (f: File) => Promise<Rack | Partial<Rack>>) => 
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      if (!window.confirm(isGlobal ? "Replace ALL racks?" : "Replace equipment in this rack?")) {
-        e.target.value = "";
-        return;
-      }
-      try {
-        if (isGlobal) loadState(await globalLoader(file));
-        else if (rack) {
-          const imported = await rackLoader(file);
-          updateRack(rack.id, { uHeight: imported.uHeight, orientation: imported.orientation, devices: imported.devices as any });
-        }
-        setImportExportModalRackId(null);
-      } catch (err) {
-        alert("Import failed: " + (err as Error).message);
-      }
-      e.target.value = "";
-    };
-
-  const handleJsonImport = handleFileImport(loadFromJSON, loadRackFromJSON);
-  const handleExcelImport = handleFileImport(loadFromExcel, loadRackFromExcel);
 
   const renderExportTree = (parentId: string | null = null, depth = 0) => {
-    const children = nodes.filter(n => n.parentId === parentId).sort((a,b) => a.order - b.order);
+    const children = nodes
+      .filter((n) => n.parentId === parentId)
+      .sort((a, b) => a.order - b.order);
     if (children.length === 0) return null;
 
-    return children.map(node => {
+    return children.map((node) => {
       const isExpanded = expandedNodes.has(node.nodeId);
       const isSelected = selectedScopeId === node.nodeId;
-      const subChildren = nodes.filter(n => n.parentId === node.nodeId);
+      const subChildren = nodes.filter((n) => n.parentId === node.nodeId);
       const hasChildren = subChildren.length > 0;
 
       return (
         <React.Fragment key={node.nodeId}>
-          <div 
+          <div
             className={`export-tree-node ${isSelected ? "selected" : ""}`}
             style={{ paddingLeft: `${depth * 16 + 12}px` }}
             onClick={() => setSelectedScopeId(node.nodeId)}
             title={node.name}
           >
-            <span 
+            <span
               className={`export-tree-toggle ${isExpanded ? "expanded" : ""}`}
-              onClick={(e) => { e.stopPropagation(); setExpandedNodes(prev => {
-                const next = new Set(prev);
-                if (next.has(node.nodeId)) next.delete(node.nodeId); else next.add(node.nodeId);
-                return next;
-              })}}
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpandedNodes((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(node.nodeId)) next.delete(node.nodeId);
+                  else next.add(node.nodeId);
+                  return next;
+                });
+              }}
               style={{ visibility: hasChildren ? "visible" : "hidden" }}
             >
               ▶
             </span>
-            <span style={{ fontSize: "14px", flexShrink: 0 }}>{node.type === "root" ? "🏢" : "📦"}</span>
+            <span style={{ fontSize: "14px", flexShrink: 0 }}>
+              {node.type === "root" ? "🏢" : "📦"}
+            </span>
             <span className="node-name">{node.name}</span>
           </div>
           {isExpanded && renderExportTree(node.nodeId, depth + 1)}
@@ -556,18 +474,21 @@ export const ImportExportModal = () => {
   };
 
   const renderGlobalGroupContent = () => {
-    const selectedPath = selectedScopeId === "ALL" ? [] : getAncestorPath(nodes, selectedScopeId);
-    
+    const selectedPath =
+      selectedScopeId === "ALL" ? [] : getAncestorPath(nodes, selectedScopeId);
+
     return (
       <>
         {/* EXPORT SECTION */}
         <div className="options-group">
           <div className="group-header">
-            <div className="group-title"><span>📤</span> Export Scope Selection</div>
+            <div className="group-title">
+              <span>📤</span> Export Scope Selection
+            </div>
           </div>
-          
+
           <div className="export-tree-container">
-            <div 
+            <div
               className={`export-tree-node ${selectedScopeId === "ALL" ? "selected" : ""}`}
               onClick={() => setSelectedScopeId("ALL")}
             >
@@ -580,113 +501,238 @@ export const ImportExportModal = () => {
 
           <div className="export-selection-preview">
             <div className="export-breadcrumb">
-              📍 Scope: {selectedScopeId === "ALL" ? "전체 (전역 데이터)" : selectedPath.map((p: any) => p.name).join(" > ")}
+              📍 Scope:{" "}
+              {selectedScopeId === "ALL"
+                ? "전체 (전역 데이터)"
+                : selectedPath.map((p: any) => p.name).join(" > ")}
             </div>
             <div className="export-counts-row">
-              <span>Racks: <strong>{selectedNodeCounts.rackCount}</strong></span>
-              <span>Devices: <strong>{selectedNodeCounts.deviceCount}</strong></span>
-              <span>Ports: <strong>{selectedNodeCounts.portCount}</strong></span>
+              <span>
+                Racks: <strong>{selectedNodeCounts.rackCount}</strong>
+              </span>
+              <span>
+                Devices: <strong>{selectedNodeCounts.deviceCount}</strong>
+              </span>
+              <span>
+                Ports: <strong>{selectedNodeCounts.portCount}</strong>
+              </span>
             </div>
           </div>
 
           <div className="export-helper-text">
-            💡 {selectedScopeId === "ALL" 
-              ? "전체 노드의 모든 데이터(Racks & Devices)가 하나의 파일로 출력됩니다." 
+            💡{" "}
+            {selectedScopeId === "ALL"
+              ? "전체 노드의 모든 데이터(Racks & Devices)가 하나의 파일로 출력됩니다."
               : `선택한 노드("${getNodeName(nodes, selectedScopeId)}")에 정의된 데이터만 Export 됩니다. (하위/상위 노드 데이터 제외)`}
           </div>
 
           <div style={{ display: "flex", gap: "10px" }}>
             <button
               className="grafana-btn grafana-btn-primary"
-              style={{ 
-                flex: 1, 
-                height: "40px", 
+              style={{
+                flex: 1,
+                height: "40px",
                 boxShadow: "0 4px 12px rgba(110, 159, 255, 0.25)",
                 cursor: isExporting ? "not-allowed" : "pointer",
-                opacity: isExporting ? 0.7 : 1
+                opacity: isExporting ? 0.7 : 1,
               }}
               onClick={handleGroupExport}
               disabled={!selectedScopeId || isExporting}
             >
-              {isExporting ? "⏳ 생성 중..." : `🚀 Export ${selectedScopeId === "ALL" ? "전체" : "선택 노드"}`}
+              {isExporting
+                ? "⏳ 생성 중..."
+                : `🚀 Export ${selectedScopeId === "ALL" ? "전체" : "선택 노드"}`}
             </button>
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", margin: "4px 0" }}>
-          <div style={{ flex: 1, height: "1px", background: "var(--border-weak)" }} />
-          <span style={{ fontSize: "var(--font-size-xs)", color: "var(--text-tertiary)" }}>OR</span>
-          <div style={{ flex: 1, height: "1px", background: "var(--border-weak)" }} />
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            margin: "4px 0",
+          }}
+        >
+          <div
+            style={{ flex: 1, height: "1px", background: "var(--border-weak)" }}
+          />
+          <span
+            style={{
+              fontSize: "var(--font-size-xs)",
+              color: "var(--text-tertiary)",
+            }}
+          >
+            OR
+          </span>
+          <div
+            style={{ flex: 1, height: "1px", background: "var(--border-weak)" }}
+          />
         </div>
 
         {/* AUTOMATIC IMPORT SECTION */}
         <div className="options-group">
           <div className="group-header">
-            <div className="group-title"><span>📥</span> 자동 가져오기 (Automatic Import)</div>
+            <div className="group-title">
+              <span>📥</span> 자동 가져오기 (Automatic Import)
+            </div>
           </div>
-          <div style={{ fontSize: "12px", color: "var(--text-tertiary)", marginBottom: "12px", lineHeight: "1.5" }}>
-            파일 내의 <strong>Groups</strong> 시트를 분석하여 노드 계층을 복구하고 데이터를 자동으로 반영합니다.
+          <div
+            style={{
+              fontSize: "12px",
+              color: "var(--text-tertiary)",
+              marginBottom: "12px",
+              lineHeight: "1.5",
+            }}
+          >
+            파일 내의 <strong>Groups</strong> 시트를 분석하여 노드 계층을
+            복구하고 데이터를 자동으로 반영합니다.
           </div>
           <div className="import-warning">
             <span style={{ fontSize: "14px", flexShrink: 0 }}>ℹ️</span>
-            <span>노드 내 데이터(Rack/Device/Port)는 파일 기준으로 반영되며, 다른 노드에는 영향이 없습니다.</span>
+            <span>
+              노드 내 데이터(Rack/Device/Port)는 파일 기준으로 반영되며, 다른
+              노드에는 영향이 없습니다.
+            </span>
           </div>
 
           {importPreview ? (
-            <div style={{ background: "var(--selected-bg)", border: "1px solid var(--theme-primary)", borderRadius: "4px", padding: "10px", marginBottom: "12px" }}>
-              <div style={{ fontWeight: 600, fontSize: "12px", marginBottom: "8px", color: "var(--theme-primary)" }}>
+            <div
+              style={{
+                background: "var(--selected-bg)",
+                border: "1px solid var(--theme-primary)",
+                borderRadius: "4px",
+                padding: "10px",
+                marginBottom: "12px",
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 600,
+                  fontSize: "12px",
+                  marginBottom: "8px",
+                  color: "var(--theme-primary)",
+                }}
+              >
                 📊 파일 분석 결과: {importPreview.fileName}
               </div>
-              
-              <div style={{ marginBottom: "10px", padding: "8px", background: "rgba(0,0,0,0.2)", borderRadius: "4px", fontSize: "12px" }}>
-                <div style={{ color: "var(--text-tertiary)", marginBottom: "4px" }}>대상 범위 (Export Scope):</div>
+
+              <div
+                style={{
+                  marginBottom: "10px",
+                  padding: "8px",
+                  background: "rgba(0,0,0,0.2)",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                }}
+              >
+                <div
+                  style={{ color: "var(--text-tertiary)", marginBottom: "4px" }}
+                >
+                  대상 범위 (Export Scope):
+                </div>
                 <div style={{ fontWeight: 600, color: "white" }}>
-                  {importPreview.exportScope.type === "ALL" 
-                    ? "🌐 전체 (ALL)" 
+                  {importPreview.exportScope.type === "ALL"
+                    ? "🌐 전체 (ALL)"
                     : `📍 ${getNodeName(nodes, importPreview.exportScope.nodeId || "")} 전용`}
                 </div>
               </div>
 
-              <div style={{ maxHeight: "150px", overflowY: "auto", fontSize: "11px" }}>
+              <div
+                style={{
+                  maxHeight: "150px",
+                  overflowY: "auto",
+                  fontSize: "11px",
+                }}
+              >
                 {Object.entries(importPreview.dataByNode).map(([nid, data]) => {
                   const nodeName = getNodeName(importPreview.nodes, nid);
                   return (
-                    <div key={nid} style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px", padding: "4px", background: "rgba(0,0,0,0.1)" }}>
+                    <div
+                      key={nid}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginBottom: "4px",
+                        padding: "4px",
+                        background: "rgba(0,0,0,0.1)",
+                      }}
+                    >
                       <span>📍 {nodeName}</span>
-                      <span style={{ fontWeight: 600 }}>Racks: {data.racks.length}개</span>
+                      <span style={{ fontWeight: 600 }}>
+                        Racks: {data.racks.length}개
+                      </span>
                     </div>
                   );
                 })}
               </div>
 
               {importPreview.ignoredCount > 0 && (
-                <div style={{ marginTop: "10px", color: "#ffa940", fontSize: "11px", display: "flex", gap: "4px" }}>
+                <div
+                  style={{
+                    marginTop: "10px",
+                    color: "#ffa940",
+                    fontSize: "11px",
+                    display: "flex",
+                    gap: "4px",
+                  }}
+                >
                   <span>⚠️</span>
-                  <span>파일 내 범위 밖 데이터 {importPreview.ignoredCount}건은 무시되었습니다.</span>
+                  <span>
+                    파일 내 범위 밖 데이터 {importPreview.ignoredCount}건은
+                    무시되었습니다.
+                  </span>
                 </div>
               )}
               <div style={{ marginTop: "12px", display: "flex", gap: "8px" }}>
-                <button className="grafana-btn grafana-btn-primary" style={{ flex: 1 }} onClick={handleApplyImport}>🚀 Confirm & REPLACE</button>
-                <button className="grafana-btn grafana-btn-secondary" onClick={() => setImportPreview(null)}>Cancel</button>
+                <button
+                  className="grafana-btn grafana-btn-primary"
+                  style={{ flex: 1 }}
+                  onClick={handleApplyImport}
+                >
+                  🚀 Confirm & REPLACE
+                </button>
+                <button
+                  className="grafana-btn grafana-btn-secondary"
+                  onClick={() => setImportPreview(null)}
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           ) : (
             <>
               <div style={{ marginBottom: "12px" }}>
-                <label className="checkbox-item" style={{ marginBottom: overwriteNodes ? '8px' : '0' }}>
-                  <input type="checkbox" checked={overwriteNodes} onChange={(e) => setOverwriteNodes(e.target.checked)} />
+                <label
+                  className="checkbox-item"
+                  style={{ marginBottom: overwriteNodes ? "8px" : "0" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={overwriteNodes}
+                    onChange={(e) => setOverwriteNodes(e.target.checked)}
+                  />
                   기존 노드 정보(이름/타입) 덮어쓰기
                 </label>
                 {overwriteNodes && (
-                  <div className="import-warning" style={{ marginBottom: '0' }}>
+                  <div className="import-warning" style={{ marginBottom: "0" }}>
                     <span style={{ fontSize: "14px", flexShrink: 0 }}>⚠️</span>
-                    <span>주의: 체크 시 파일의 노드 정보(이름/타입)가 기존 노드 정보에 덮어써집니다.</span>
+                    <span>
+                      주의: 체크 시 파일의 노드 정보(이름/타입)가 기존 노드
+                      정보에 덮어써집니다.
+                    </span>
                   </div>
                 )}
               </div>
               <button
                 className="grafana-btn grafana-btn-secondary"
-                style={{ padding: "12px", width: "100%", borderStyle: "dashed", borderWidth: "2px", fontWeight: 600 }}
+                style={{
+                  padding: "12px",
+                  width: "100%",
+                  borderStyle: "dashed",
+                  borderWidth: "2px",
+                  fontWeight: 600,
+                }}
                 onClick={handleGroupImportClick}
               >
                 📂 Select Excel File for Auto Import
@@ -695,70 +741,70 @@ export const ImportExportModal = () => {
           )}
 
           {importStatus && (
-            <div style={{
-              marginTop: "12px", padding: "10px", borderRadius: "6px", fontSize: "13px",
-              background: importStatus.startsWith("✅") ? "rgba(34,197,94,0.12)" : "rgba(59,130,246,0.12)",
-              color: importStatus.startsWith("✅") ? "#22c55e" : "#3b82f6",
-              border: `1px solid ${importStatus.startsWith("✅") ? "#22c55e44" : "#3b82f644"}`
-            }}>
+            <div
+              style={{
+                marginTop: "12px",
+                padding: "10px",
+                borderRadius: "6px",
+                fontSize: "13px",
+                background: importStatus.startsWith("✅")
+                  ? "rgba(34,197,94,0.12)"
+                  : "rgba(59,130,246,0.12)",
+                color: importStatus.startsWith("✅") ? "#22c55e" : "#3b82f6",
+                border: `1px solid ${importStatus.startsWith("✅") ? "#22c55e44" : "#3b82f644"}`,
+              }}
+            >
               {importStatus}
             </div>
           )}
         </div>
 
-        <input type="file" ref={groupImportRef} style={{ display: "none" }} accept=".xlsx" onChange={handleGroupImportFile} />
+        <input
+          type="file"
+          ref={groupImportRef}
+          style={{ display: "none" }}
+          accept=".xlsx"
+          onChange={handleGroupImportFile}
+        />
       </>
     );
   };
 
-  const renderLegacyContent = () => (
-    <>
-      <p style={{ color: "var(--text-secondary)", marginBottom: "16px" }}>Configure fields for {rack?.displayName || rack?.id.substring(0, 8)}.</p>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px", marginBottom: "16px" }}>
-        <div onClick={() => setFormat("json")} className={`format-card ${format === "json" ? "active" : ""}`} style={{ padding: "16px", borderRadius: "var(--radius-md)", cursor: "pointer", textAlign: "center" }}>
-          <div style={{ fontSize: "24px", marginBottom: "4px" }}>{"{ }"}</div>
-          <div style={{ fontWeight: 600, fontSize: "12px", color: format === "json" ? "var(--text-primary)" : "var(--text-secondary)" }}>JSON</div>
-        </div>
-        <div onClick={() => setFormat("excel")} className={`format-card ${format === "excel" ? "active" : ""}`} style={{ padding: "16px", borderRadius: "var(--radius-md)", cursor: "pointer", textAlign: "center" }}>
-          <div style={{ fontSize: "24px", marginBottom: "4px" }}>📊</div>
-          <div style={{ fontWeight: 600, fontSize: "12px", color: format === "excel" ? "var(--text-primary)" : "var(--text-secondary)" }}>Excel</div>
-        </div>
-      </div>
-      <div style={{ maxHeight: "300px", overflowY: "auto", marginBottom: "16px" }}>
-        {renderCheckboxes("rack", RACK_FIELDS, "Rack", "🏢")}
-        {renderCheckboxes("device", DEVICE_FIELDS, "Device", "🖥️")}
-        {renderCheckboxes("port", PORT_FIELDS, "Port", "🔌")}
-      </div>
-      <button className="grafana-btn grafana-btn-primary" style={{ padding: "12px", width: "100%", opacity: totalSelected === 0 ? 0.5 : 1 }} onClick={handleLegacyExport} disabled={totalSelected === 0}>🚀 Export</button>
-      <button className="grafana-btn grafana-btn-secondary" style={{ padding: "10px", width: "100%", marginTop: "12px", borderStyle: "dashed" }} onClick={handleImportClick}>📥 Import & Overwrite</button>
-      <input type="file" ref={jsonInputRef} style={{ display: "none" }} accept=".json" onChange={handleJsonImport} />
-      <input type="file" ref={excelInputRef} style={{ display: "none" }} accept=".xlsx" onChange={handleExcelImport} />
-    </>
-  );
+  if (!importExportModalRackId) return null;
 
   return (
-    <div className="grafana-modal-overlay" onClick={() => setImportExportModalRackId(null)}>
+    <div
+      className="grafana-modal-overlay"
+      onClick={() => setImportExportModalRackId(null)}
+    >
       <ModalStyles />
-      <div 
-        className="grafana-modal" 
-        style={{ 
-          width: "520px", 
-          maxHeight: "90vh", 
-          display: "flex", 
+      <div
+        className="grafana-modal"
+        style={{
+          width: "520px",
+          maxHeight: "90vh",
+          display: "flex",
           flexDirection: "column",
-          borderTop: "4px solid var(--theme-primary)" 
-        }} 
+          borderTop: "4px solid var(--theme-primary)",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="grafana-modal-header">
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
             <span style={{ fontSize: "20px" }}>💾</span>
-            <h2 className="grafana-modal-title">{isGlobal ? "STN 데이터 내보내기 / 가져오기" : "Rack 데이터 내보내기 / 가져오기"}</h2>
+            <h2 className="grafana-modal-title">
+              데이터 내보내기 / 가져오기
+            </h2>
           </div>
-          <button className="grafana-modal-close" onClick={() => setImportExportModalRackId(null)}>&times;</button>
+          <button
+            className="grafana-modal-close"
+            onClick={() => setImportExportModalRackId(null)}
+          >
+            &times;
+          </button>
         </div>
         <div className="grafana-modal-content">
-          {isGlobal ? renderGlobalGroupContent() : renderLegacyContent()}
+          {renderGlobalGroupContent()}
         </div>
       </div>
     </div>

@@ -58,6 +58,17 @@
   --severity-success-bg: rgba(26, 127, 75, 0.12);
   --severity-success-text: #1a7f4b;
 
+  /* Tag colors */
+  --tag-gwacheon: #10b981;
+  --tag-gwacheon-bg: rgba(16, 185, 129, 0.1);
+  --tag-daejeon: #8b5cf6;
+  --tag-daejeon-bg: rgba(139, 92, 246, 0.1);
+
+  /* Glassmorphism */
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+
   /* Table styles */
   --table-header-bg: #f4f5f5;
   --table-header-text: #585858;
@@ -126,13 +137,13 @@
 
   /* Text colors */
   --text-primary: #e4e6eb;
-  --text-secondary: #a7a9b3;
-  --text-tertiary: #6e7078;
+  --text-secondary: #b0b3bf;
+  --text-tertiary: #8b8e99;
   --text-disabled: #4a4c56;
   --text-link: #6e9fff;
 
   /* Border colors */
-  --border-weak: #2c2f36;
+  --border-weak: #33373f;
   --border-medium: #3d4048;
   --border-strong: #6e7078;
 
@@ -173,12 +184,23 @@
   --severity-success-bg: rgba(115, 191, 105, 0.15);
   --severity-success-text: #73bf69;
 
+  /* Tag colors (dark mode) */
+  --tag-gwacheon: #10b981;
+  --tag-gwacheon-bg: rgba(16, 185, 129, 0.15);
+  --tag-daejeon: #a78bfa;
+  --tag-daejeon-bg: rgba(167, 139, 250, 0.15);
+
+  /* Glassmorphism (dark mode) */
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+
   /* Table styles */
   --table-header-bg: #22252b;
-  --table-header-text: #a7a9b3;
-  --table-row-hover: rgba(204, 204, 220, 0.07);
+  --table-header-text: #b0b3bf;
+  --table-row-hover: rgba(204, 204, 220, 0.12);
   --table-row-alt: #1c1f24;
-  --table-border: #2c2f36;
+  --table-border: #3d4048;
 
   /* Toolbar/Header */
   --toolbar-bg: #181b1f;

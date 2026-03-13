@@ -11,7 +11,7 @@ const TREE_STYLES = `
   background: var(--bg-primary);
   border: 1px solid var(--border-weak);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--elevation-1);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -45,7 +45,7 @@ const TREE_STYLES = `
   align-items: center;
   padding: 5px 10px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   transition: background 0.15s, color 0.15s;
   user-select: none;
@@ -75,7 +75,7 @@ const TREE_STYLES = `
   border-radius: 3px;
 }
 .tree-node-toggle:hover {
-  background: rgba(255,255,255,0.08);
+  background: var(--hover-bg);
 }
 .tree-node-toggle.expanded {
   transform: rotate(90deg);
@@ -119,7 +119,7 @@ const TREE_STYLES = `
   border: 1px solid var(--theme-primary);
   border-radius: 3px;
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   padding: 2px 6px;
   outline: none;
 }
@@ -129,13 +129,13 @@ const TREE_STYLES = `
   background: var(--bg-primary);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--elevation-3);
   padding: 4px 0;
   min-width: 140px;
 }
 .tree-context-item {
   padding: 6px 14px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.1s;
@@ -277,24 +277,15 @@ export const HierarchyTree = () => {
   const nodes = useStore((s) => s.nodes);
   const activeNodeId = useStore((s) => s.activeNodeId);
   const setActiveNode = useStore((s) => s.setActiveNode);
+  const expandedNodeIds = useStore((s) => s.expandedNodeIds);
+  const toggleNodeExpansion = useStore((s) => s.toggleNodeExpansion);
+  const isCollapsed = useStore((s) => s.isHierarchyCollapsed);
+  const setIsCollapsed = useStore((s) => s.setHierarchyCollapsed);
   const racks = useStore((s) => s.racks);
   const isEditMode = useStore((s) => s.isEditMode);
   const addNode = useStore((s) => s.addNode);
   const renameNode = useStore((s) => s.renameNode);
   const deleteNode = useStore((s) => s.deleteNode);
-
-  // All root nodes expanded by default
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => {
-    const initial = new Set<string>();
-    nodes.forEach((n) => {
-      if (n.parentId === null) initial.add(n.nodeId);
-    });
-    // Also expand direct children of root
-    nodes.forEach((n) => {
-      if (n.parentId && initial.has(n.parentId)) initial.add(n.nodeId);
-    });
-    return initial;
-  });
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -305,7 +296,6 @@ export const HierarchyTree = () => {
   const [renameValue, setRenameValue] = useState("");
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  const [isCollapsed, setIsCollapsed] = useState(false);
 
   // Close context menu on click outside
   useEffect(() => {
@@ -334,24 +324,13 @@ export const HierarchyTree = () => {
   });
 
   const handleToggle = useCallback((nodeId: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(nodeId)) next.delete(nodeId);
-      else next.add(nodeId);
-      return next;
-    });
-  }, []);
+    toggleNodeExpansion(nodeId);
+  }, [toggleNodeExpansion]);
 
   const handleSelect = useCallback(
     (nodeId: string) => {
       if (renamingId) return;
       setActiveNode(nodeId);
-      // Auto-expand when selecting
-      setExpandedIds((prev) => {
-        const next = new Set(prev);
-        next.add(nodeId);
-        return next;
-      });
     },
     [setActiveNode, renamingId],
   );
@@ -377,7 +356,7 @@ export const HierarchyTree = () => {
     });
     setContextMenu(null);
     // Expand parent and start renaming
-    setExpandedIds((prev) => new Set(prev).add(parentId));
+    toggleNodeExpansion(parentId);
     setRenamingId(newId);
     setRenameValue("New Node");
   }, [contextMenu, nodes, addNode]);
@@ -465,7 +444,7 @@ export const HierarchyTree = () => {
               depth={0}
               nodes={nodes}
               activeNodeId={activeNodeId}
-              expandedIds={expandedIds}
+              expandedIds={expandedNodeIds}
               rackCounts={rackCounts}
               isEditMode={isEditMode}
               onToggle={handleToggle}
@@ -499,14 +478,14 @@ export const HierarchyTree = () => {
               border: "1px solid var(--border-medium)",
               borderRadius: "var(--radius-md)",
               padding: "16px",
-              boxShadow: "var(--shadow-lg)",
+              boxShadow: "var(--elevation-3)",
               zIndex: 10001,
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div
               style={{
-                fontSize: "12px",
+                fontSize: "var(--font-size-sm)",
                 color: "var(--text-secondary)",
                 marginBottom: "8px",
                 fontWeight: 600,

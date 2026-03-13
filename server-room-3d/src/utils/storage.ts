@@ -1,6 +1,6 @@
 import type { Rack, RegisteredDevice, HierarchyNode } from "../types";
 import { DEVICE_TEMPLATES } from "./deviceTemplates";
-import { getDefaultNodes, GWACHEON_NODE_ID, DAEJEON_NODE_ID, GWACHEON_ROOM_2F_NODE_ID, migrateGroupNameToNodeId } from "./nodeUtils";
+import { getDefaultNodes, migrateGroupNameToNodeId } from "./nodeUtils";
 import * as XLSX from "xlsx";
 import {
   RACK_WIDTH_STANDARD,
@@ -506,13 +506,22 @@ const flattenRegisteredDevices = (devices: RegisteredDevice[], nodes: HierarchyN
 
 // ─── Master Sheet Builders ──────────────────────────────────────────────────
 
-const buildMetaSheet = (scope: ExportScope = "ALL") =>
+export interface ExportRequest {
+  requestId: string;
+  scopeId: ExportScope;
+  scopeLabel: string;
+  exportedAt: string;
+}
+
+const buildMetaSheet = (request: ExportRequest) =>
   XLSX.utils.json_to_sheet([
     { key: "schemaVersion", value: SCHEMA_VERSION },
-    { key: "lastExportAt", value: new Date().toISOString() },
+    { key: "lastExportAt", value: request.exportedAt },
     { key: "hierarchyEnabled", value: true },
-    { key: "exportScopeType", value: scope === "ALL" ? "ALL" : "NODE" },
-    { key: "exportScopeNodeId", value: scope === "ALL" ? "" : scope },
+    { key: "exportScopeType", value: request.scopeId === "ALL" ? "ALL" : "NODE" },
+    { key: "exportScopeId", value: request.scopeId },
+    { key: "exportScopeLabel", value: request.scopeLabel },
+    { key: "requestId", value: request.requestId },
   ]);
 
 const buildGroupsSheet = (nodes: HierarchyNode[]) =>
@@ -538,12 +547,14 @@ export const exportGroupWorkbook = (
   racks: Rack[],
   registeredDevices: RegisteredDevice[],
   nodes: HierarchyNode[],
-  scope: ExportScope = "ALL",
+  request: ExportRequest,
 ) => {
+  console.log(`[Export] Start - Request: ${request.requestId}, ScopeId: ${request.scopeId}, Label: ${request.scopeLabel}`);
+  
   const wb = XLSX.utils.book_new();
 
   // ── Master sheets (always present) ──
-  XLSX.utils.book_append_sheet(wb, buildMetaSheet(scope), "_META");
+  XLSX.utils.book_append_sheet(wb, buildMetaSheet(request), "_META");
   XLSX.utils.book_append_sheet(wb, buildGroupsSheet(nodes), "Groups");
 
   const allRackRows = flattenRacksWithGroup(racks);
@@ -577,7 +588,8 @@ export const exportGroupWorkbook = (
     );
 
   // ── PKG sheets (only when exporting a specific group) ──
-  if (scope !== "ALL") {
+  if (request.scopeId !== "ALL") {
+    const scope = request.scopeId;
     const groupId = GROUP_ID_MAP[scope] || scope; // nodeId or legacy group mapping
     const groupRacks = allRackRows.filter((r) => (r as any).nodeId === scope || (r as any).groupId === groupId);
     const groupDevices = allDeviceRows.filter((d) => (d as any).nodeId === scope || (d as any).groupId === groupId);
@@ -587,11 +599,12 @@ export const exportGroupWorkbook = (
     const pkgMeta = XLSX.utils.json_to_sheet([
       { key: "packageId", value: generateUUID() },
       { key: "groupId", value: groupId },
-      { key: "groupName", value: scope },
+      { key: "groupName", value: request.scopeLabel },
       { key: "exportScope", value: "GROUP_ONLY" },
       { key: "schemaVersion", value: SCHEMA_VERSION },
-      { key: "exportedAt", value: new Date().toISOString() },
+      { key: "exportedAt", value: request.exportedAt },
       { key: "importModeHint", value: "REPLACE" },
+      { key: "requestId", value: request.requestId },
     ]);
     XLSX.utils.book_append_sheet(wb, pkgMeta, `PKG_${groupId}`);
 
@@ -615,13 +628,18 @@ export const exportGroupWorkbook = (
       );
   }
 
-  const scopeLabel = scope === "ALL" ? "ALL" : scope;
   try {
+    console.log(`[Export] Generating Workbook Bytes - Request: ${request.requestId}`);
     const u8 = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([u8], { type: EXCEL_MIME });
-    downloadBlob(blob, `STN_${scopeLabel}_${getFormattedDate()}.xlsx`);
+    
+    const formattedLabel = request.scopeLabel.replace(/\s+/g, "_");
+    const filename = `STN_${formattedLabel}_${getFormattedDate()}.xlsx`;
+    
+    console.log(`[Export] Triggering Download - Request: ${request.requestId}, Filename: ${filename}`);
+    downloadBlob(blob, filename);
   } catch (err) {
-    console.error("Export failed:", err);
+    console.error(`[Export] Error - Request: ${request.requestId}`, err);
     alert("내보내기에 실패했습니다. 콘솔을 확인해주세요.");
   }
 };
@@ -763,7 +781,7 @@ export const importGroupPackage = (
         if (metaSheet) {
           const metaRows = XLSX.utils.sheet_to_json(metaSheet) as Record<string, any>[];
           const typeRow = metaRows.find(r => r.key === "exportScopeType");
-          const idRow = metaRows.find(r => r.key === "exportScopeNodeId");
+          const idRow = metaRows.find(r => r.key === "exportScopeId" || r.key === "exportScopeNodeId");
           if (typeRow) exportScopeType = typeRow.value as any;
           if (idRow) exportScopeNodeId = String(idRow.value || "");
         }
@@ -988,11 +1006,9 @@ const localIdxToMac = (idx: number) => {
 
 export const sampleNodes: HierarchyNode[] = getDefaultNodes();
 
-export const sampleRegisteredDevices: RegisteredDevice[] = [
-  ...generateRegisteredDevices(GWACHEON_NODE_ID, "과천1F", 20, "10.10.1.1"),
-  ...generateRegisteredDevices(GWACHEON_ROOM_2F_NODE_ID, "과천2F", 30, "10.10.2.1"),
-  ...generateRegisteredDevices(DAEJEON_NODE_ID, "대전1F", 30, "10.20.1.1"),
-];
+export const sampleRegisteredDevices: RegisteredDevice[] = sampleNodes.flatMap((node, idx) =>
+  generateRegisteredDevices(node.nodeId, node.name, 20, `10.${idx + 1}.1.1`)
+);
 
 const generateGroupRacks = (
   count: number,
@@ -1066,12 +1082,8 @@ const generateGroupRacks = (
     };
   });
 
-const gwacheon1FDevices = sampleRegisteredDevices.filter((d) => d.nodeId === GWACHEON_NODE_ID);
-const gwacheon2FDevices = sampleRegisteredDevices.filter((d) => d.nodeId === GWACHEON_ROOM_2F_NODE_ID);
-const daejeon1FDevices = sampleRegisteredDevices.filter((d) => d.nodeId === DAEJEON_NODE_ID);
-
-export const sampleRacks: Rack[] = [
-  ...generateGroupRacks(10, GWACHEON_NODE_ID, 5, [3, 8], gwacheon1FDevices),
-  ...generateGroupRacks(15, GWACHEON_ROOM_2F_NODE_ID, 5, [2, 12, 14], gwacheon2FDevices),
-  ...generateGroupRacks(15, DAEJEON_NODE_ID, 5, [2, 9, 14], daejeon1FDevices),
-];
+export const sampleRacks: Rack[] = sampleNodes.flatMap((node, idx) => {
+  const nodeDevices = sampleRegisteredDevices.filter((d) => d.nodeId === node.nodeId);
+  const rackCount = 8 + (idx % 5);
+  return generateGroupRacks(rackCount, node.nodeId, 5, [2, 5], nodeDevices);
+});

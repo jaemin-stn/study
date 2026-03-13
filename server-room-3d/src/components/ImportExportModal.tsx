@@ -15,6 +15,7 @@ import {
   exportGroupWorkbook,
   importGroupPackage,
 } from "../utils/storage";
+import type { ExportRequest } from "../utils/storage";
 
 const RACK_FIELDS = ["rackId", "uHeight", "posX", "posZ", "orientation"];
 const DEVICE_FIELDS = [
@@ -254,6 +255,7 @@ export const ImportExportModal = () => {
     nodes,
     upsertNodes,
     replaceMultipleNodesData,
+    showToast,
   } = useStore();
 
   const [format, setFormat] = useState<"json" | "excel">("excel");
@@ -262,7 +264,8 @@ export const ImportExportModal = () => {
     device: [...DEVICE_FIELDS],
     port: [...PORT_FIELDS],
   });
-  const [exportScope, setExportScope] = useState<ExportScope>("ALL");
+  const [selectedScopeId, setSelectedScopeId] = useState<ExportScope>("ALL");
+  const [isExporting, setIsExporting] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [overwriteNodes, setOverwriteNodes] = useState(true);
   const [importPreview, setImportPreview] = useState<{
@@ -290,7 +293,7 @@ export const ImportExportModal = () => {
     return { rackCount, deviceCount, portCount };
   };
 
-  const selectedNodeCounts = useMemo(() => getNodeCounts(exportScope), [exportScope, racks]);
+  const selectedNodeCounts = useMemo(() => getNodeCounts(selectedScopeId), [selectedScopeId, racks]);
 
   const jsonInputRef = useRef<HTMLInputElement>(null);
   const excelInputRef = useRef<HTMLInputElement>(null);
@@ -322,8 +325,29 @@ export const ImportExportModal = () => {
     }
   };
 
-  const handleGroupExport = () => {
-    exportGroupWorkbook(racks, registeredDevices, nodes, exportScope);
+  const handleGroupExport = async () => {
+    if (isExporting) return;
+    
+    // Create ONE immutable request object at click time
+    const currentScope = selectedScopeId;
+    const currentLabel = currentScope === "ALL" ? "전체" : getNodeName(nodes, currentScope);
+    
+    const request: ExportRequest = {
+      requestId: crypto.randomUUID(),
+      scopeId: currentScope,
+      scopeLabel: currentLabel,
+      exportedAt: new Date().toISOString(),
+    };
+
+    setIsExporting(true);
+    try {
+      // Small delay to ensure UI updates (disable button) before heavy work
+      await new Promise(r => setTimeout(r, 100));
+      exportGroupWorkbook(racks, registeredDevices, nodes, request);
+      showToast(`${request.scopeLabel} 내보내기 완료`, "success");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleGroupImportClick = () => {
@@ -499,7 +523,7 @@ export const ImportExportModal = () => {
 
     return children.map(node => {
       const isExpanded = expandedNodes.has(node.nodeId);
-      const isSelected = exportScope === node.nodeId;
+      const isSelected = selectedScopeId === node.nodeId;
       const subChildren = nodes.filter(n => n.parentId === node.nodeId);
       const hasChildren = subChildren.length > 0;
 
@@ -508,7 +532,7 @@ export const ImportExportModal = () => {
           <div 
             className={`export-tree-node ${isSelected ? "selected" : ""}`}
             style={{ paddingLeft: `${depth * 16 + 12}px` }}
-            onClick={() => setExportScope(node.nodeId)}
+            onClick={() => setSelectedScopeId(node.nodeId)}
             title={node.name}
           >
             <span 
@@ -532,7 +556,7 @@ export const ImportExportModal = () => {
   };
 
   const renderGlobalGroupContent = () => {
-    const selectedPath = exportScope === "ALL" ? [] : getAncestorPath(nodes, exportScope);
+    const selectedPath = selectedScopeId === "ALL" ? [] : getAncestorPath(nodes, selectedScopeId);
     
     return (
       <>
@@ -544,8 +568,8 @@ export const ImportExportModal = () => {
           
           <div className="export-tree-container">
             <div 
-              className={`export-tree-node ${exportScope === "ALL" ? "selected" : ""}`}
-              onClick={() => setExportScope("ALL")}
+              className={`export-tree-node ${selectedScopeId === "ALL" ? "selected" : ""}`}
+              onClick={() => setSelectedScopeId("ALL")}
             >
               <span style={{ width: "16px" }} />
               <span style={{ fontSize: "14px", flexShrink: 0 }}>🌐</span>
@@ -556,7 +580,7 @@ export const ImportExportModal = () => {
 
           <div className="export-selection-preview">
             <div className="export-breadcrumb">
-              📍 Scope: {exportScope === "ALL" ? "전체 (전역 데이터)" : selectedPath.map((p: any) => p.name).join(" > ")}
+              📍 Scope: {selectedScopeId === "ALL" ? "전체 (전역 데이터)" : selectedPath.map((p: any) => p.name).join(" > ")}
             </div>
             <div className="export-counts-row">
               <span>Racks: <strong>{selectedNodeCounts.rackCount}</strong></span>
@@ -566,28 +590,25 @@ export const ImportExportModal = () => {
           </div>
 
           <div className="export-helper-text">
-            💡 {exportScope === "ALL" 
+            💡 {selectedScopeId === "ALL" 
               ? "전체 노드의 모든 데이터(Racks & Devices)가 하나의 파일로 출력됩니다." 
-              : `선택한 노드("${getNodeName(nodes, exportScope)}")에 정의된 데이터만 Export 됩니다. (하위/상위 노드 데이터 제외)`}
+              : `선택한 노드("${getNodeName(nodes, selectedScopeId)}")에 정의된 데이터만 Export 됩니다. (하위/상위 노드 데이터 제외)`}
           </div>
 
           <div style={{ display: "flex", gap: "10px" }}>
             <button
-              className="grafana-btn grafana-btn-secondary"
-              style={{ flex: 1, height: "40px" }}
-              onClick={() => {
-                exportGroupWorkbook(racks, registeredDevices, nodes, "ALL");
-              }}
-            >
-              Export 전체
-            </button>
-            <button
               className="grafana-btn grafana-btn-primary"
-              style={{ flex: 1.2, height: "40px", boxShadow: "0 4px 12px rgba(110, 159, 255, 0.25)" }}
+              style={{ 
+                flex: 1, 
+                height: "40px", 
+                boxShadow: "0 4px 12px rgba(110, 159, 255, 0.25)",
+                cursor: isExporting ? "not-allowed" : "pointer",
+                opacity: isExporting ? 0.7 : 1
+              }}
               onClick={handleGroupExport}
-              disabled={exportScope === "ALL"}
+              disabled={!selectedScopeId || isExporting}
             >
-              🚀 Export 선택 노드
+              {isExporting ? "⏳ 생성 중..." : `🚀 Export ${selectedScopeId === "ALL" ? "전체" : "선택 노드"}`}
             </button>
           </div>
         </div>

@@ -48,12 +48,17 @@ export interface AppState {
   modelDragPosition: [number, number] | null;
   modelDragOffset: [number, number] | null;
 
+  // Toast Notification
+  toast: { message: string, type: 'success' | 'error' } | null;
+  showToast: (message: string, type: 'success' | 'error') => void;
+
   // Actions
   setCameraRef: (camera: THREE.Camera, controls: any) => void;
   setHoveredRack: (id: string | null) => void;
   setActiveNode: (nodeId: string) => void;
   setImportExportModalRackId: (id: string | null) => void;
   addRack: (
+
     uHeight: 24 | 32 | 48,
     position?: [number, number],
     width?: number,
@@ -275,6 +280,17 @@ export const useStore = create<AppState>((set, get) => ({
   modelDragPosition: null,
   modelDragOffset: null,
 
+  toast: null,
+  showToast: (message, type) => {
+    set({ toast: { message, type } });
+    setTimeout(() => {
+      const current = get().toast;
+      if (current?.message === message) {
+        set({ toast: null });
+      }
+    }, 3000);
+  },
+
   setCameraRef: (camera, controls) =>
     set({ _cameraRef: camera, _controlsRef: controls }),
   setHoveredRack: (id) => set({ hoveredRackId: id }),
@@ -284,6 +300,13 @@ export const useStore = create<AppState>((set, get) => ({
       selectedRackId: null,
       focusedRackId: null,
       selectedDeviceId: null,
+      isDragging: false,
+      draggingRackId: null,
+      dragPosition: null,
+      dragOffset: null,
+      draggingModelId: null,
+      modelDragPosition: null,
+      modelDragOffset: null,
     }),
   setImportExportModalRackId: (id) => set({ importExportModalRackId: id }),
   setDeviceRegistrationModalOpen: (open) =>
@@ -366,8 +389,11 @@ export const useStore = create<AppState>((set, get) => ({
       spawnPos = [0, 0];
     }
 
+    const { activeNodeId } = get();
+    const nodeRacks = racks.filter((r) => r.nodeId === activeNodeId);
+
     let finalPos = spawnPos;
-    if (checkCollision(racks, null, spawnPos, width)) {
+    if (checkCollision(nodeRacks, null, spawnPos, width)) {
       let found = false;
       for (let radius = 1; radius <= 20; radius++) {
         for (const dx of [-radius, 0, radius]) {
@@ -377,7 +403,7 @@ export const useStore = create<AppState>((set, get) => ({
               spawnPos[0] + dx * 0.5,
               spawnPos[1] + dz * 0.5,
             ];
-            if (!checkCollision(racks, null, candidate, width)) {
+            if (!checkCollision(nodeRacks, null, candidate, width)) {
               finalPos = candidate;
               found = true;
               break;
@@ -389,7 +415,6 @@ export const useStore = create<AppState>((set, get) => ({
       }
     }
 
-    const { activeNodeId } = get();
     const newRack: Rack = {
       id: crypto.randomUUID(),
       nodeId: activeNodeId,
@@ -408,11 +433,14 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   moveRack: (id, newPosition) => {
-    const { racks } = get();
+    const { racks, showToast } = get();
     const rack = racks.find((r) => r.id === id);
     if (!rack) return false;
 
-    if (checkCollision(racks, id, newPosition, rack.width, rack.orientation)) {
+    const nodeRacks = racks.filter((r) => r.nodeId === rack.nodeId);
+
+    if (checkCollision(nodeRacks, id, newPosition, rack.width, rack.orientation)) {
+      showToast("겹치는 위치에는 렉을 배치할 수 없습니다.", "error");
       return false;
     }
 
@@ -479,7 +507,9 @@ export const useStore = create<AppState>((set, get) => ({
 
     const worldX = newPosition[0] * GRID_SPACING;
 
-    for (const other of racks) {
+    const nodeRacks = racks.filter((r) => r.nodeId === rack.nodeId);
+
+    for (const other of nodeRacks) {
       if (other.id === id) continue;
       if (Math.abs(other.position[1] - newPosition[1]) > 0.1) continue;
 
@@ -496,15 +526,16 @@ export const useStore = create<AppState>((set, get) => ({
       }
     }
 
+
     const colliding = checkCollision(
-      racks,
+      nodeRacks,
       id,
       finalPosition,
       rack.width,
       rack.orientation,
     );
     const frontClearanceViolation = checkFrontClearanceViolation(
-      racks,
+      nodeRacks,
       id,
       finalPosition,
       rack.orientation,
@@ -512,6 +543,11 @@ export const useStore = create<AppState>((set, get) => ({
     );
 
     if (colliding || frontClearanceViolation) {
+      if (colliding) {
+        get().showToast("다른 렉과 겹쳐서 배치할 수 없습니다.", "error");
+      } else {
+        get().showToast("앞쪽 유지보수 공간이 부족합니다.", "error");
+      }
       set({
         isDragging: false,
         draggingRackId: null,
@@ -536,12 +572,14 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   updateRackOrientation: (id, orientation) => {
-    const { racks } = get();
+    const { racks, showToast } = get();
     const rack = racks.find((r) => r.id === id);
     if (!rack) return;
 
+    const nodeRacks = racks.filter((r) => r.nodeId === rack.nodeId);
+
     const frontClearanceViolation = checkFrontClearanceViolation(
-      racks,
+      nodeRacks,
       id,
       rack.position,
       orientation,
@@ -549,6 +587,7 @@ export const useStore = create<AppState>((set, get) => ({
     );
 
     if (frontClearanceViolation) {
+      showToast("해당 방향은 앞쪽 유지보수 공간이 부족합니다.", "error");
       return;
     }
 

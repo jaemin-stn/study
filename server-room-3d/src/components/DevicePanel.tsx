@@ -1075,7 +1075,7 @@ export const DevicePanel = () => {
                 { label: "West (270°)", value: 270 },
               ].map((dir) => {
                 const wouldViolate = checkFrontClearanceViolation(
-                  racks,
+                  racks.filter((r) => r.nodeId === rack.nodeId),
                   rack.id,
                   rack.position,
                   dir.value as 0 | 90 | 180 | 270,

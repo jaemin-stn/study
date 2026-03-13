@@ -14,8 +14,89 @@ import {
   sampleRegisteredDevices,
   sampleNodes,
 } from "./utils/storage";
+import { createPortal } from "react-dom";
+
+/* ---------- Premium Toast Component ---------- */
+const Toast = () => {
+  const toast = useStore((s) => s.toast);
+  if (!toast) return null;
+
+  return createPortal(
+    <div className="toast-overlay">
+      <div className={`toast-card ${toast.type}`}>
+        <div className="toast-icon">
+          {toast.type === "success" ? (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+          )}
+        </div>
+        <span className="toast-message">{toast.message}</span>
+      </div>
+    </div>,
+    document.body
+  );
+};
+
+const APP_STYLES = `
+.toast-overlay {
+  position: fixed;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  pointer-events: none;
+}
+.toast-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 24px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3), inset 0 1px 1px rgba(255, 255, 255, 0.2);
+  color: white;
+  animation: toast-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+}
+.toast-card.error {
+  border-color: rgba(255, 82, 82, 0.4);
+  background: rgba(255, 82, 82, 0.15);
+}
+.toast-card.success {
+  border-color: rgba(76, 175, 80, 0.4);
+  background: rgba(76, 175, 80, 0.15);
+}
+.toast-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.toast-message {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+@keyframes toast-slide-up {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+`;
 
 function App() {
+
   const {
     addRack,
     loadState,
@@ -231,8 +312,12 @@ function App() {
 
       {/* Rack Navigation Carousel (Normal Mode) */}
       <FocusCarousel />
+
+      <Toast />
+      <style>{APP_STYLES}</style>
     </div>
   );
 }
+
 
 export default App;

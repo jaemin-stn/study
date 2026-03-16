@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useStore } from "../store/useStore";
 import type { Device } from "../types";
 
@@ -114,8 +115,12 @@ export const DeviceModal = () => {
     );
   };
 
-  return (
-    <div className="grafana-modal-overlay" onClick={() => selectDevice(null)}>
+  return createPortal(
+    <div
+      className="grafana-modal-overlay"
+      style={{ zIndex: 2000 }}
+      onClick={() => selectDevice(null)}
+    >
       <div
         className="grafana-modal"
         style={{ 
@@ -255,6 +260,7 @@ export const DeviceModal = () => {
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

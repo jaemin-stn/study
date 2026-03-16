@@ -1,4 +1,5 @@
-import React, { useRef, useState, useMemo } from "react";
+import React, { useRef, useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useStore } from "../store/useStore";
 import type { Rack, RegisteredDevice, HierarchyNode } from "../types";
 import type { ExportScope } from "../utils/storage";
@@ -225,6 +226,8 @@ export const ImportExportModal = () => {
     replaceMultipleNodesData,
     showToast,
     setHierarchyCollapsed,
+    pendingImportFile,
+    setPendingImportFile,
   } = useStore();
 
   const [selectedScopeId, setSelectedScopeId] = useState<ExportScope>("ALL");
@@ -248,7 +251,7 @@ export const ImportExportModal = () => {
   const getNodeCounts = (nodeId: string | "ALL") => {
     if (nodeId === "ALL") {
       const rackCount = racks.length;
-      const deviceCount = racks.reduce((sum, r) => sum + r.devices.length, 0);
+      const deviceCount = registeredDevices.length;
       const portCount = racks.reduce(
         (sum, r) =>
           sum + r.devices.reduce((s, d) => s + d.portStates.length, 0),
@@ -257,8 +260,9 @@ export const ImportExportModal = () => {
       return { rackCount, deviceCount, portCount };
     }
     const nodeRacks = racks.filter((r) => r.nodeId === nodeId);
+    const nodeDevices = registeredDevices.filter((d) => d.nodeId === nodeId);
     const rackCount = nodeRacks.length;
-    const deviceCount = nodeRacks.reduce((sum, r) => sum + r.devices.length, 0);
+    const deviceCount = nodeDevices.length;
     const portCount = nodeRacks.reduce(
       (sum, r) => sum + r.devices.reduce((s, d) => s + d.portStates.length, 0),
       0,
@@ -268,7 +272,7 @@ export const ImportExportModal = () => {
 
   const selectedNodeCounts = useMemo(
     () => getNodeCounts(selectedScopeId),
-    [selectedScopeId, racks],
+    [selectedScopeId, racks, registeredDevices],
   );
 
   const groupImportRef = useRef<HTMLInputElement>(null);
@@ -301,23 +305,27 @@ export const ImportExportModal = () => {
     }
   };
 
-  const handleGroupImportClick = () => {
+  const handleGroupImportClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    console.log("[IEM] Auto Import button clicked");
     setImportStatus(null);
     if (groupImportRef.current) {
+      console.log("[IEM] File input ref exists, triggering click");
       groupImportRef.current.value = "";
       groupImportRef.current.click();
+    } else {
+      console.error("[IEM] File input ref is null!");
     }
   };
 
   const handleGroupImportFile = async (
-    e: React.ChangeEvent<HTMLInputElement>,
+    file: File,
   ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    console.log("[IEM] handleGroupImportFile called", file.name);
     setImportStatus(`⏳ "${file.name}" 분석 중...`);
 
     try {
-      const result = await importGroupPackage(file);
+      const result = await importGroupPackage(file, nodes);
       const nodeCount = result.nodes.length;
       const totalRacksInFile = Object.values(result.dataByNode).reduce(
         (sum, n) => sum + n.racks.length,
@@ -326,7 +334,6 @@ export const ImportExportModal = () => {
 
       if (nodeCount === 0 && totalRacksInFile === 0) {
         setImportStatus(`⚠️ 파일에서 유효한 데이터를 찾지 못했습니다.`);
-        e.target.value = "";
         return;
       }
 
@@ -341,8 +348,15 @@ export const ImportExportModal = () => {
     } catch (err) {
       setImportStatus(`❌ 파일 분석 실패: ${(err as Error).message}`);
     }
-    e.target.value = "";
   };
+
+  // Auto-trigger analysis if file was provided via toolbar
+  useEffect(() => {
+    if (pendingImportFile && importExportModalRackId === "all") {
+      handleGroupImportFile(pendingImportFile);
+      setPendingImportFile(null); // Clear after starting
+    }
+  }, [pendingImportFile, importExportModalRackId]);
 
   const handleApplyImport = () => {
     if (!importPreview) return;
@@ -732,6 +746,9 @@ export const ImportExportModal = () => {
                   borderStyle: "dashed",
                   borderWidth: "2px",
                   fontWeight: 600,
+                  display: "flex",
+                  justifyContent: "center",
+                  alignItems: "center"
                 }}
                 onClick={handleGroupImportClick}
               >
@@ -764,17 +781,24 @@ export const ImportExportModal = () => {
           ref={groupImportRef}
           style={{ display: "none" }}
           accept=".xlsx"
-          onChange={handleGroupImportFile}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) handleGroupImportFile(file);
+            e.target.value = "";
+          }}
         />
       </>
     );
   };
 
   if (!importExportModalRackId) return null;
+  
+  if (typeof document === "undefined") return null;
 
-  return (
+  return createPortal(
     <div
       className="grafana-modal-overlay"
+      style={{ zIndex: 2000 }}
       onClick={() => setImportExportModalRackId(null)}
     >
       <ModalStyles />
@@ -807,6 +831,7 @@ export const ImportExportModal = () => {
           {renderGlobalGroupContent()}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

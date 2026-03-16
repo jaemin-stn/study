@@ -144,3 +144,62 @@ export const getNodeName = (
   
   return nodeId; // Final fallback
 };
+
+/** 노드의 깊이 반환 (root = 1) */
+export const getNodeDepth = (nodes: HierarchyNode[], nodeId: string): number => {
+  const path = getAncestorPath(nodes, nodeId);
+  return path.length;
+};
+
+/** 노드의 전체 경로 이름 반환 (예: "STN > 수도권 > 경기") */
+export const getFullPath = (nodes: HierarchyNode[], nodeId: string): string => {
+  const path = getAncestorPath(nodes, nodeId);
+  if (path.length === 0) return "";
+  return path.map((n) => n.name).join(" > ");
+};
+
+/**
+ * 특정 경로 문자열(예: "STN > 수도권 > 경기")을 기반으로 노드들을 조회하거나 생성 정보를 생성합니다.
+ * 실제 Store 반영은 upsertNodes 등을 통해 수행되어야 합니다.
+ */
+export const resolvePathToNodeId = (
+  nodes: HierarchyNode[],
+  pathStr: string,
+  existingNewNodes: HierarchyNode[] = [],
+): { nodeId: string; newNodes: HierarchyNode[] } => {
+  const parts = pathStr.split(">").map((s) => s.trim());
+  const allNodes = [...nodes, ...existingNewNodes];
+  const createdNodes: HierarchyNode[] = [];
+
+  let currentParentId: string | null = null;
+  let lastNodeId = "";
+
+  for (let i = 0; i < parts.length; i++) {
+    const partName = parts[i];
+    // 현재 부모 아래에 같은 이름을 가진 노드가 있는지 확인
+    const found = allNodes.find(
+      (n) => n.name.trim().toLowerCase() === partName.toLowerCase() && n.parentId === currentParentId,
+    );
+
+    if (found) {
+      currentParentId = found.nodeId;
+      lastNodeId = found.nodeId;
+    } else {
+      // 노드 생성
+      const newNodeId = `node-${Math.random().toString(36).substring(2, 9)}`;
+      const newNode: HierarchyNode = {
+        nodeId: newNodeId,
+        parentId: currentParentId,
+        name: partName,
+        type: i === 0 ? "root" : "group",
+        order: 99, // 신규 생성 노드는 우선 뒤로 배치
+      };
+      createdNodes.push(newNode);
+      allNodes.push(newNode);
+      currentParentId = newNodeId;
+      lastNodeId = newNodeId;
+    }
+  }
+
+  return { nodeId: lastNodeId, newNodes: createdNodes };
+};

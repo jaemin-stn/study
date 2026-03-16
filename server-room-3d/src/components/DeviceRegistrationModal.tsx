@@ -35,7 +35,7 @@ const MODAL_STYLES = `
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: 2000;
   animation: drm-fade-in 0.25s ease-out;
 }
 @keyframes drm-fade-in {
@@ -124,6 +124,7 @@ const MODAL_STYLES = `
 }
 
 /* Card-like Sections */
+.drm-section-card {
   background: var(--glass-bg);
   border: 1px solid var(--border-weak);
   border-radius: var(--radius-lg);
@@ -554,6 +555,10 @@ const MODAL_STYLES = `
   from { transform: scale(0.9) translateY(10px); opacity: 0; }
   to { transform: scale(1) translateY(0); opacity: 1; }
 }
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 .drm-confirm-overlay {
   position: fixed;
   inset: 0;
@@ -639,6 +644,7 @@ export const DeviceRegistrationModal = () => {
   // UI state
   const [toast, setToast] = useState<ToastState | null>(null);
   const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(
     null,
   );
@@ -740,18 +746,25 @@ export const DeviceRegistrationModal = () => {
     filteredDevices.length > 0 &&
     filteredDevices.every((d) => selectedIds.has(d.id));
 
-  const handleImportExcel = () => {
+  const handleImportExcel = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    console.log("[DRM] Batch Import button clicked");
     if (fileInputRef.current) {
+      console.log("[DRM] File input ref exists, triggering click");
       fileInputRef.current.value = "";
       fileInputRef.current.click();
+    } else {
+      console.error("[DRM] File input ref is null!");
     }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    console.log("[DRM] File input onChange fired", file?.name);
     if (!file) return;
+    setIsProcessing(true);
     try {
-      const parsed = await parseRegisteredDevicesFromExcel(file, nodes);
+      const { devices: parsed, newNodes } = await parseRegisteredDevicesFromExcel(file, nodes);
       if (parsed.length === 0) {
         showToast(
           "파일에서 유효한 장비를 찾을 수 없습니다.",
@@ -760,15 +773,28 @@ export const DeviceRegistrationModal = () => {
         );
         return;
       }
+      
+      // If there are new nodes in the path, upsert them first and apply mapping
+      if (newNodes.length > 0) {
+        const idMap = useStore.getState().upsertNodes(newNodes, false);
+        parsed.forEach(d => {
+            if (idMap[d.nodeId]) {
+                d.nodeId = idMap[d.nodeId];
+            }
+        });
+      }
+
       const { added, updated } = upsertRegisteredDevices(parsed);
       showToast(
-        `일괄 등록 완료! (신규: ${added}건, 갱신: ${updated}건)`,
+        `일괄 등록 완료! (신규: ${added}건, 갱신: ${updated}건${newNodes.length > 0 ? `, 신규 노드: ${newNodes.length}개` : ""})`,
         "success",
         "import",
       );
     } catch (err: any) {
       console.error(err);
       showToast(`일괄 등록 실패: ${err.message}`, "error", "import");
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -781,7 +807,7 @@ export const DeviceRegistrationModal = () => {
       selectedIds.has(d.id),
     );
     const scope =
-      nodeFilter === "all" ? "SELECTED" : getNodeName(nodes, nodeFilter);
+      nodeFilter === "all" ? "ALL" : getNodeName(nodes, nodeFilter);
     exportRegisteredDevicesToExcel(selectedDevices, nodes, scope);
     showToast("선택한 장비 데이터가 내보내졌습니다.", "success", "export");
   };
@@ -1001,7 +1027,8 @@ export const DeviceRegistrationModal = () => {
         )}
 
       {/* Modal */}
-      <div className="drm-overlay" onClick={() => setOpen(false)}>
+      {createPortal(
+        <div className="drm-overlay" onClick={() => setOpen(false)}>
         <div className="drm-modal" onClick={(e) => e.stopPropagation()}>
           {/* Header */}
           <div className="drm-header">
@@ -1201,6 +1228,11 @@ export const DeviceRegistrationModal = () => {
                   <button
                     className="grafana-btn grafana-btn-primary"
                     onClick={handleImportExcel}
+                    style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px"
+                    }}
                   >
                     <span>📤</span> 일괄 등록 (Excel)
                   </button>
@@ -1359,7 +1391,21 @@ export const DeviceRegistrationModal = () => {
             </div>
           </div>
         </div>
-      </div>
+      </div>,
+        document.body,
+      )}
+
+      {/* Processing Overlay */}
+      {isProcessing && createPortal(
+        <div className="drm-overlay" style={{ zIndex: 3000, background: 'rgba(0,0,0,0.7)' }}>
+          <div className="drm-toast" style={{ padding: '40px' }}>
+            <div style={{ fontSize: '40px', marginBottom: '16px', animation: 'spin 2s linear infinite' }}>⏳</div>
+            <h3 style={{ margin: 0 }}>일괄 등록 처리 중...</h3>
+            <p style={{ marginTop: '8px', opacity: 0.7 }}>잠시만 기다려 주세요.</p>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Toast (Centered Popup) - Rendered last to fix backdrop-filter stacking context bug */}
       {toast &&

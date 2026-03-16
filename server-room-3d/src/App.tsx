@@ -1,3 +1,4 @@
+import React, { useRef } from "react";
 import { Scene } from "./components/Scene";
 import { DevicePanel } from "./components/DevicePanel";
 import { DeviceModal } from "./components/DeviceModal";
@@ -103,7 +104,10 @@ function App() {
     deviceRegistrationModalOpen,
     importExportModalRackId,
     selectedDeviceId,
+    setPendingImportFile,
   } = useStore();
+
+  const toolbarImportInputRef = useRef<HTMLInputElement>(null);
 
   const isModalOpen =
     deviceRegistrationModalOpen ||
@@ -112,6 +116,28 @@ function App() {
 
   const loadSample = () => {
     loadState(sampleRacks, undefined, sampleRegisteredDevices, sampleNodes);
+  };
+
+  const handleToolbarImportClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    console.log("[App] Toolbar Import button clicked");
+    if (toolbarImportInputRef.current) {
+      console.log("[App] File input ref exists, triggering click");
+      toolbarImportInputRef.current.value = "";
+      toolbarImportInputRef.current.click();
+    } else {
+      console.error("[App] File input ref is null!");
+    }
+  };
+
+  const handleToolbarImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    console.log("[App] File input onChange fired", file?.name);
+    if (file) {
+      setPendingImportFile(file);
+      setDeviceRegistrationModalOpen(false);
+      setImportExportModalRackId("all");
+    }
   };
 
   return (
@@ -233,6 +259,8 @@ function App() {
               className="grafana-btn grafana-btn-primary"
               onClick={(e) => {
                 e.stopPropagation();
+                // Close other modals
+                setImportExportModalRackId(null);
                 setDeviceRegistrationModalOpen(true);
               }}
               title="장비"
@@ -251,7 +279,10 @@ function App() {
             <div className="grafana-toolbar-group">
               <button
                 className="grafana-btn grafana-btn-primary"
-                onClick={() => setImportExportModalRackId("all")}
+                onClick={() => {
+                  setDeviceRegistrationModalOpen(false);
+                  setImportExportModalRackId("all");
+                }}
                 title="Export Room Data"
                 style={{
                   fontSize: "var(--font-size-sm)",
@@ -263,16 +294,23 @@ function App() {
               </button>
               <button
                 className="grafana-btn grafana-btn-secondary"
-                onClick={() => setImportExportModalRackId("all")}
                 title="Import Room Data"
                 style={{
                   fontSize: "var(--font-size-sm)",
                   height: "32px",
                   padding: "0 12px",
                 }}
+                onClick={handleToolbarImportClick}
               >
                 Import
               </button>
+              <input
+                type="file"
+                ref={toolbarImportInputRef}
+                style={{ display: "none" }}
+                accept=".xlsx"
+                onChange={handleToolbarImportFile}
+              />
 
               <div className="grafana-toolbar-divider" style={{ height: "20px", margin: "0 8px" }} />
 

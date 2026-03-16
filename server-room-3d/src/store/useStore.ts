@@ -32,6 +32,7 @@ export interface AppState {
   importExportModalRackId: string | null;
   deviceRegistrationModalOpen: boolean;
   highlightedDeviceId: string | null;
+  showEquipmentInTree: boolean;
 
   // Hierarchy
   nodes: HierarchyNode[];
@@ -89,7 +90,8 @@ export interface AppState {
 
   // Registered Device Management
   setDeviceRegistrationModalOpen: (open: boolean) => void;
-  setHighlightedDevice: (id: string | null) => void;
+  setHighlightedDevice: (id: string | null, duration?: number) => void;
+  setShowEquipmentInTree: (show: boolean) => void;
   addRegisteredDevice: (device: Omit<RegisteredDevice, "id">) => void;
   removeRegisteredDevice: (id: string) => void;
   updateRegisteredDevice: (id: string, updates: Partial<RegisteredDevice>) => void;
@@ -97,6 +99,10 @@ export interface AppState {
     added: number;
     updated: number;
   };
+
+  // Import/Export flow enhancements
+  pendingImportFile: File | null;
+  setPendingImportFile: (file: File | null) => void;
 
   // Imported Model Actions
   addImportedModel: (model: Omit<ImportedModel, "id">) => string;
@@ -279,6 +285,9 @@ export const useStore = create<AppState>((set, get) => ({
   importExportModalRackId: null,
   deviceRegistrationModalOpen: false,
   highlightedDeviceId: null,
+  showEquipmentInTree: false,
+  pendingImportFile: null,
+  setPendingImportFile: (file) => set({ pendingImportFile: file }),
 
   _cameraRef: null,
   _controlsRef: null,
@@ -323,7 +332,17 @@ export const useStore = create<AppState>((set, get) => ({
   setImportExportModalRackId: (id) => set({ importExportModalRackId: id }),
   setDeviceRegistrationModalOpen: (open) =>
     set({ deviceRegistrationModalOpen: open }),
-  setHighlightedDevice: (id) => set({ highlightedDeviceId: id }),
+  setHighlightedDevice: (id, duration) => {
+    set({ highlightedDeviceId: id });
+    if (id && duration) {
+      setTimeout(() => {
+        if (get().highlightedDeviceId === id) {
+          set({ highlightedDeviceId: null });
+        }
+      }, duration);
+    }
+  },
+  setShowEquipmentInTree: (show) => set({ showEquipmentInTree: show }),
 
   addRegisteredDevice: (deviceData) => {
     const newDevice: RegisteredDevice = {

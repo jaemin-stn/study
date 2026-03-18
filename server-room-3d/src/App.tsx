@@ -27,11 +27,21 @@ const Toast = () => {
       <div className={`toast-card ${toast.type}`}>
         <div className="toast-icon">
           {toast.type === "success" ? (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+            >
               <polyline points="20 6 9 17 4 12" />
             </svg>
           ) : (
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+            >
               <circle cx="12" cy="12" r="10" />
               <line x1="12" y1="8" x2="12" y2="12" />
               <line x1="12" y1="16" x2="12.01" y2="16" />
@@ -41,7 +51,7 @@ const Toast = () => {
         <span className="toast-message">{toast.message}</span>
       </div>
     </div>,
-    document.body
+    document.body,
   );
 };
 
@@ -92,7 +102,6 @@ const APP_STYLES = `
 `;
 
 function App() {
-
   const {
     addRack,
     loadState,
@@ -224,7 +233,10 @@ function App() {
                 48
               </button>
 
-              <div className="grafana-toolbar-divider" style={{ height: "16px", margin: "0 6px" }} />
+              <div
+                className="grafana-toolbar-divider"
+                style={{ height: "16px", margin: "0 6px" }}
+              />
 
               <span
                 className="grafana-toolbar-label"
@@ -312,7 +324,10 @@ function App() {
                 onChange={handleToolbarImportFile}
               />
 
-              <div className="grafana-toolbar-divider" style={{ height: "20px", margin: "0 8px" }} />
+              <div
+                className="grafana-toolbar-divider"
+                style={{ height: "20px", margin: "0 8px" }}
+              />
 
               <button
                 className="grafana-btn grafana-btn-secondary"
@@ -356,6 +371,5 @@ function App() {
     </div>
   );
 }
-
 
 export default App;

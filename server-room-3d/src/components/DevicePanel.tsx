@@ -441,7 +441,7 @@ export const DevicePanel = () => {
 
     const device = {
       type: regDevice.type,
-      name: regDevice.modelName,
+      name: regDevice.deviceName,
       uSize: regDevice.uSize,
       uPosition: start,
       modelName: regDevice.modelName,

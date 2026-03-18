@@ -127,7 +127,7 @@ export interface AppState {
   deleteNode: (nodeId: string) => void;
   upsertNodes: (nodes: HierarchyNode[], overwrite: boolean) => Record<string, string>;
   setExpandedNodeIds: (ids: Set<string>) => void;
-  toggleNodeExpansion: (nodeId: string) => void;
+  toggleNodeExpansion: (nodeId: string, expand?: boolean) => void;
   expandNodePath: (nodeId: string) => void;
   setHierarchyCollapsed: (collapsed: boolean) => void;
 
@@ -403,11 +403,14 @@ export const useStore = create<AppState>((set, get) => ({
     set((state) => {
       const existing = [...state.registeredDevices];
       devices.forEach((newDev) => {
-        // try to find by MAC (preferred) or deviceName+IP
+        // Identity Matching Rule (Strictly Node-Scoped):
+        // 1. Same Node + Same MAC (Strong match)
+        // 2. Same Node + Same Name + Same IP (Secondary match for attribute updates)
         const matchIdx = existing.findIndex(
           (ex) =>
-            ex.mac === newDev.mac ||
-            (ex.deviceName === newDev.deviceName && ex.ip === newDev.ip),
+            ex.nodeId === newDev.nodeId &&
+            (ex.mac === newDev.mac ||
+              (ex.deviceName === newDev.deviceName && ex.ip === newDev.ip)),
         );
 
         if (matchIdx >= 0) {
@@ -850,11 +853,16 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   setExpandedNodeIds: (ids) => set({ expandedNodeIds: ids }),
-  toggleNodeExpansion: (nodeId) => {
+  toggleNodeExpansion: (nodeId, expand) => {
     set((state) => {
       const next = new Set(state.expandedNodeIds);
-      if (next.has(nodeId)) next.delete(nodeId);
-      else next.add(nodeId);
+      const shouldExpand = expand !== undefined ? expand : !next.has(nodeId);
+      
+      if (shouldExpand) {
+        next.add(nodeId);
+      } else {
+        next.delete(nodeId);
+      }
       return { expandedNodeIds: next };
     });
   },

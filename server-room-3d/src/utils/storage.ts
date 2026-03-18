@@ -6,7 +6,8 @@ import {
   getNodeName, 
   getNodeDepth, 
   getFullPath,
-  resolvePathToNodeId
+  resolvePathToNodeId,
+  getAncestorPath
 } from "./nodeUtils";
 import * as XLSX from "xlsx";
 import {
@@ -104,13 +105,13 @@ const generateUUID = () => {
   );
 };
 
-/** YYMMDD format for filenames */
-const getYYMMDD = () => {
+/** yyyy_mm_dd format for filenames */
+const getFormattedDate = () => {
   const now = new Date();
-  const y = String(now.getFullYear()).substring(2);
+  const y = now.getFullYear();
   const m = String(now.getMonth() + 1).padStart(2, "0");
   const d = String(now.getDate()).padStart(2, "0");
-  return `${y}${m}${d}`;
+  return `${y}_${m}_${d}`;
 };
 
 const EXCEL_MIME =
@@ -207,7 +208,7 @@ export const saveToExcel = (racks: Rack[], options?: ExportOptions) => {
   try {
     const u8 = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([u8], { type: EXCEL_MIME });
-    downloadBlob(blob, `devices_ALL_${getYYMMDD()}.xlsx`);
+    downloadBlob(blob, `ALL_${getFormattedDate()}.xlsx`);
   } catch (err) {
     console.error("Export failed:", err);
     alert("내보내기에 실패했습니다. 콘솔을 확인해주세요.");
@@ -341,9 +342,10 @@ export const saveRackToExcel = (rack: Rack, options?: ExportOptions) => {
   try {
     const u8 = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([u8], { type: EXCEL_MIME });
+    const label = rack.displayName || rack.id.substring(0, 8);
     downloadBlob(
       blob,
-      `devices_SELECTED_${getYYMMDD()}.xlsx`,
+      `${label.replace(/[\s\>]+/g, "_")}_${getFormattedDate()}.xlsx`,
     );
   } catch (err) {
     console.error("Export failed:", err);
@@ -438,6 +440,7 @@ const SCHEMA_VERSION = "2.0";
 const flattenRacksWithGroup = (racks: Rack[], nodes: HierarchyNode[]) =>
   racks.map((r) => ({
     rackId: r.id,
+    rackName: r.displayName || r.id.substring(0, 8),
     nodeId: r.nodeId,
     groupName: getNodeName(nodes, r.nodeId),
     depth: getNodeDepth(nodes, r.nodeId),
@@ -450,18 +453,20 @@ const flattenRacksWithGroup = (racks: Rack[], nodes: HierarchyNode[]) =>
   }));
 
 /** Flatten devices with groupId column */
-const flattenDevicesWithGroup = (racks: Rack[], nodes: HierarchyNode[]) => {
+const flattenDevicesWithGroup = (racks: Rack[], nodes: HierarchyNode[], registeredDevices: RegisteredDevice[]) => {
   const rows: Record<string, unknown>[] = [];
   for (const r of racks) {
     for (const d of r.devices) {
+      const regDev = registeredDevices.find(rd => rd.id === d.registeredDeviceId);
       rows.push({
         deviceId: d.id,
+        deviceName: regDev ? regDev.deviceName : d.name,
         rackId: r.id,
+        rackName: r.displayName || r.id.substring(0, 8),
         nodeId: r.nodeId,
         groupName: getNodeName(nodes, r.nodeId),
         depth: getNodeDepth(nodes, r.nodeId),
         groupPath: getFullPath(nodes, r.nodeId),
-        name: d.name,
         type: d.type,
         uSize: d.uSize,
         uPosition: d.uPosition,
@@ -478,14 +483,18 @@ const flattenDevicesWithGroup = (racks: Rack[], nodes: HierarchyNode[]) => {
 };
 
 /** Flatten ports with groupId column */
-const flattenPortsWithGroup = (racks: Rack[]) => {
+const flattenPortsWithGroup = (racks: Rack[], registeredDevices: RegisteredDevice[]) => {
   const rows: Record<string, unknown>[] = [];
   for (const r of racks) {
     for (const d of r.devices) {
+      const regDev = registeredDevices.find(rd => rd.id === d.registeredDeviceId);
       for (const p of d.portStates) {
         rows.push({
           portId: p.portId,
           deviceId: d.id,
+          deviceName: regDev ? regDev.deviceName : d.name,
+          rackId: r.id,
+          rackName: r.displayName || r.id.substring(0, 8),
           nodeId: r.nodeId,
           status: p.status,
           errorLevel: p.errorLevel || "",
@@ -504,8 +513,9 @@ const flattenRegisteredDevices = (devices: RegisteredDevice[], nodes: HierarchyN
       id: d.id,
       nodeId: d.nodeId,
       groupName: getNodeName(nodes, d.nodeId),
+      nodePath: getFullPath(nodes, d.nodeId),
+      groupPath: getFullPath(nodes, d.nodeId), // Duplicate for robustness
       depth: getNodeDepth(nodes, d.nodeId),
-      groupPath: getFullPath(nodes, d.nodeId),
       deviceName: d.deviceName,
       modelName: d.modelName,
       type: d.type,
@@ -564,15 +574,25 @@ export const exportGroupWorkbook = (
   console.log(`[Export] Start - Request: ${request.requestId}, ScopeId: ${request.scopeId}, Label: ${request.scopeLabel}`);
   
   const wb = XLSX.utils.book_new();
+  const isAllScope = request.scopeId === "ALL";
+
+  // Filter dataset by scope before building sheets
+  const filteredRacks = isAllScope 
+    ? racks 
+    : racks.filter(r => r.nodeId === request.scopeId);
+  
+  const filteredRegDevices = isAllScope
+    ? registeredDevices
+    : registeredDevices.filter(d => d.nodeId === request.scopeId);
 
   // ── Master sheets (always present) ──
   XLSX.utils.book_append_sheet(wb, buildMetaSheet(request), "_META");
   XLSX.utils.book_append_sheet(wb, buildGroupsSheet(nodes), "Groups");
 
-  const allRackRows = flattenRacksWithGroup(racks, nodes);
-  const allDeviceRows = flattenDevicesWithGroup(racks, nodes);
-  const allPortRows = flattenPortsWithGroup(racks);
-  const allRegDevRows = flattenRegisteredDevices(registeredDevices, nodes);
+  const allRackRows = flattenRacksWithGroup(filteredRacks, nodes);
+  const allDeviceRows = flattenDevicesWithGroup(filteredRacks, nodes, filteredRegDevices);
+  const allPortRows = flattenPortsWithGroup(filteredRacks, filteredRegDevices);
+  const allRegDevRows = flattenRegisteredDevices(filteredRegDevices, nodes);
 
   if (allRackRows.length > 0)
     XLSX.utils.book_append_sheet(
@@ -646,8 +666,8 @@ export const exportGroupWorkbook = (
     const blob = new Blob([u8], { type: EXCEL_MIME });
     
     const isAll = request.scopeId === "ALL";
-    const labelPart = isAll ? "ALL" : `SELECTED_${request.scopeLabel.replace(/\s+/g, "_")}`;
-    const filename = `devices_${labelPart}_${getYYMMDD()}.xlsx`;
+    const labelPart = isAll ? "ALL" : request.scopeLabel.replace(/[\s\>]+/g, "_");
+    const filename = `${labelPart}_${getFormattedDate()}.xlsx`;
     
     console.log(`[Export] Triggering Download - Request: ${request.requestId}, Filename: ${filename}`);
     downloadBlob(blob, filename);
@@ -680,8 +700,8 @@ export const exportRegisteredDevicesToExcel = (
     const u8 = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([u8], { type: EXCEL_MIME });
     const isAllScope = scope === "ALL";
-    const labelPart = isAllScope ? "SELECTED" : `SELECTED_${scope.replace(/\s+/g, "_")}`;
-    const filename = `devices_${labelPart}_${getYYMMDD()}.xlsx`;
+    const labelPart = isAllScope ? "ALL" : scope.replace(/[\s\>]+/g, "_");
+    const filename = `${labelPart}_${getFormattedDate()}.xlsx`;
     
     downloadBlob(
       blob,
@@ -724,22 +744,30 @@ export const parseRegisteredDevicesFromExcel = (
         const accumulatedNewNodes: HierarchyNode[] = [];
         const parsed: Omit<RegisteredDevice, "id">[] = rows
           .map((r): Omit<RegisteredDevice, "id"> | null => {
-            const path = r.groupPath || r.nodePath || r.path;
-            const grpName = r.groupName || r.nodeName || r.group || GROUP_NAME_MAP[r.groupId] || "과천";
+            const nodeIdInFile = r.nodeId || r.groupId;
+            const path = r.nodePath || r.groupPath || r.path;
+            const grpName = r.nodeName || r.groupName || r.group || (nodeIdInFile ? undefined : GROUP_NAME_MAP[r.groupId]);
             
-            let nid = "";
+            let nid = nodeIdInFile ? String(nodeIdInFile) : "";
             
-            // Try to resolve by path first (creates nodes if missing)
+            // 1. Try to resolve by path first (Full Hierarchy)
             if (path) {
               const { nodeId: resolvedId, newNodes } = resolvePathToNodeId(nodes, String(path), accumulatedNewNodes);
               if (newNodes.length > 0) {
-                accumulatedNewNodes.push(...newNodes);
+                // Deduplicate before adding to accumulated array
+                newNodes.forEach(nn => {
+                    if (!accumulatedNewNodes.some(ex => ex.nodeId === nn.nodeId)) {
+                        accumulatedNewNodes.push(nn);
+                    }
+                });
               }
               nid = resolvedId;
-            } else if (grpName) {
-              const strName = String(grpName);
+            } 
+            // 2. If no path, but we have a group name, try name-based resolution
+            else if (!nid && grpName) {
+              const strName = String(grpName).trim();
               // Try to find in current nodes or newly discovered nodes
-              const matched = [...nodes, ...accumulatedNewNodes].find(n => n.name === strName);
+              const matched = [...nodes, ...accumulatedNewNodes].find(n => n.name.toLowerCase() === strName.toLowerCase());
               if (matched) {
                 nid = matched.nodeId;
               } else {
@@ -751,15 +779,19 @@ export const parseRegisteredDevicesFromExcel = (
                     // Create new node under root as fallback
                     const { nodeId: resolvedId, newNodes } = resolvePathToNodeId(nodes, strName, accumulatedNewNodes);
                     if (newNodes.length > 0) {
-                        accumulatedNewNodes.push(...newNodes);
+                        newNodes.forEach(nn => {
+                            if (!accumulatedNewNodes.some(ex => ex.nodeId === nn.nodeId)) {
+                                accumulatedNewNodes.push(nn);
+                            }
+                        });
                     }
                     nid = resolvedId;
                 }
               }
             }
             
-            // Final fallback to ID if we have it
-            if (!nid) nid = String(r.nodeId || r.groupId || "");
+            // 3. Last fallback: use the raw ID from file if still empty
+            if (!nid) nid = String(nodeIdInFile || "unassigned");
             const mac = String(r.mac || "")
               .trim()
               .toUpperCase();
@@ -815,10 +847,11 @@ export interface ProcessedImportData {
  * Import all data from workbook sheets.
  * Automatically detects nodes from Groups sheet and maps entities to them.
  */
+// --- Refactored Import Architecture: Row-Driven & Robust ---
 export const importGroupPackage = (
   file: File,
   systemNodes: HierarchyNode[] = [],
-  _targetNodeId?: string | "ALL", // Kept for signature compatibility
+  targetNodeId: string | "ALL" = "ALL",
 ): Promise<ProcessedImportData> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -827,7 +860,10 @@ export const importGroupPackage = (
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: "array" });
 
-        // --- Parse Metadata ---
+        console.group("[Import Flow]");
+        console.log("Workbook loaded. Sheets:", workbook.SheetNames);
+
+        // 1. Metadata & Scope Parsing
         const metaSheet = workbook.Sheets["_META"];
         let exportScopeType: "ALL" | "NODE" = "ALL";
         let exportScopeNodeId = "";
@@ -839,233 +875,232 @@ export const importGroupPackage = (
           if (idRow) exportScopeNodeId = String(idRow.value || "");
         }
 
-        // --- Sheet Finding ---
-        const findSheet = (...candidates: string[]) =>
-          candidates.find((name) => workbook.SheetNames.includes(name));
+        // 2. Load Raw Sheet Data
+        const findS = (...c: string[]) => c.find(n => workbook.SheetNames.includes(n));
+        const rackSN = findS("Racks", "Rack");
+        const devSN = findS("Devices", "Equipment");
+        const portSN = findS("Ports");
+        const regDevSN = findS("RegisteredDevices", "Registered Devices", "EquipmentList") || "RegisteredDevices";
 
-        const rackSheetName = findSheet("Racks", "Rack");
-        const deviceSheetName = findSheet("Devices", "Equipment");
-        const portSheetName = findSheet("Ports");
-        const regDevSheetName = findSheet("RegisteredDevices", "Registered Devices", "EquipmentList") || "RegisteredDevices";
+        const racksRaw = rackSN ? (XLSX.utils.sheet_to_json(workbook.Sheets[rackSN]) as any[]) : [];
+        const devsRaw = devSN ? (XLSX.utils.sheet_to_json(workbook.Sheets[devSN]) as any[]) : [];
+        const portsRaw = portSN ? (XLSX.utils.sheet_to_json(workbook.Sheets[portSN]) as any[]) : [];
+        const regDevsRaw = workbook.Sheets[regDevSN] ? (XLSX.utils.sheet_to_json(workbook.Sheets[regDevSN]) as any[]) : [];
 
-        const rackSheet = rackSheetName ? workbook.Sheets[rackSheetName] : undefined;
-        if (!rackSheet) throw new Error("Rack sheet not found in workbook.");
+        console.log(`Counts: Racks=${racksRaw.length}, PlacedDevices=${devsRaw.length}, RegDevices=${regDevsRaw.length}`);
 
-        const racksFlat = XLSX.utils.sheet_to_json(rackSheet) as Record<string, any>[];
-        const devicesFlat = deviceSheetName && workbook.Sheets[deviceSheetName]
-          ? (XLSX.utils.sheet_to_json(workbook.Sheets[deviceSheetName]) as Record<string, any>[])
-          : [];
-        const portsFlat = portSheetName && workbook.Sheets[portSheetName]
-          ? (XLSX.utils.sheet_to_json(workbook.Sheets[portSheetName]) as Record<string, any>[])
-          : [];
-        const regDevFlat = workbook.Sheets[regDevSheetName]
-          ? (XLSX.utils.sheet_to_json(workbook.Sheets[regDevSheetName]) as Record<string, any>[])
-          : [];
-
-        // --- Parse Groups sheet (Hierarchy) ---
+        // 3. Load Groups/Hierarchy
         const groupsSheet = workbook.Sheets["Groups"];
-        let rawParsedNodes: HierarchyNode[] = [];
+        let fileNodes: HierarchyNode[] = [];
         if (groupsSheet) {
-          const rows = XLSX.utils.sheet_to_json(groupsSheet) as Record<string, any>[];
-          if (rows.length > 0 && rows[0].nodeId) {
-            rawParsedNodes = rows.map((r) => ({
-              nodeId: String(r.nodeId),
-              parentId: r.parentId ? String(r.parentId) : null,
-              name: String(r.nodeName || ""),
-              type: (r.nodeType || "group") as any,
-              order: Number(r.sortOrder || 0),
-            }));
-          } else if (rows.length > 0 && (rows[0].groupId || rows[0].groupName)) {
-            rawParsedNodes = rows.map((r) => ({
-              nodeId: r.groupId ? String(r.groupId) : migrateGroupNameToNodeId(r.groupName || "과천"),
-              parentId: "stn-root",
-              name: String(r.groupName || r.groupId || ""),
-              type: "group",
-              order: 0,
-            }));
-          }
+          const rows = XLSX.utils.sheet_to_json(groupsSheet) as any[];
+          fileNodes = rows.map(r => ({
+            nodeId: String(r.nodeId || r.groupId || generateUUID()),
+            parentId: r.parentId ? String(r.parentId) : null,
+            name: String(r.nodeName || r.groupName || ""),
+            type: (r.nodeType || "group") as any,
+            order: Number(r.sortOrder || r.order || 0)
+          }));
         }
 
-        // --- Filter Nodes based on scope (Ancestors only for NODE scope) ---
-        let finalNodes = rawParsedNodes;
-        if (exportScopeType === "NODE" && exportScopeNodeId) {
-          const keptIds = new Set<string>();
-          const findAncestors = (nid: string) => {
-            if (keptIds.has(nid)) return;
-            keptIds.add(nid);
-            const node = rawParsedNodes.find(n => n.nodeId === nid);
-            if (node?.parentId) findAncestors(node.parentId);
-          };
-          
-          if (rawParsedNodes.some(n => n.nodeId === exportScopeNodeId)) {
-            findAncestors(exportScopeNodeId);
-          } else {
-            // If target node not in list, keep it as is or fallback
-            keptIds.add(exportScopeNodeId);
-          }
-          finalNodes = rawParsedNodes.filter(n => keptIds.has(n.nodeId));
-        }
+        // Resolution Context: Start with system nodes, augment with file nodes
+        const resolutionNodes = [...systemNodes];
+        fileNodes.forEach(fn => {
+           if (!resolutionNodes.some(sn => sn.nodeId === fn.nodeId)) resolutionNodes.push(fn);
+        });
 
-        // --- Robust Property Access Helpers ---
-        const getValue = (row: any, ...synonyms: string[]) => {
-          for (const s of synonyms) {
+        const getValue = (row: any, ...syns: string[]) => {
+          for (const s of syns) {
             if (row[s] !== undefined) return row[s];
-            const key = Object.keys(row).find((k) => k.toLowerCase() === s.toLowerCase());
+            const key = Object.keys(row).find(k => k.toLowerCase() === s.toLowerCase());
             if (key) return row[key];
           }
           return undefined;
         };
 
-        const getRowNodeId = (row: any) => {
-          // 1. Try to resolve by Path first (Full Hierarchy)
-          const pathStr =
-            getValue(row, "groupPath") || getValue(row, "nodePath");
-          if (pathStr) {
-            const { nodeId: resolvedId, newNodes } = resolvePathToNodeId(
-              systemNodes,
-              String(pathStr),
-              finalNodes,
-            );
-            if (newNodes.length > 0) {
-              finalNodes.push(...newNodes);
-            }
-            return resolvedId;
-          }
-
-          // 2. Try to resolve by Name (Single level or Legacy names)
-          const gname =
-            getValue(row, "groupName") ||
-            getValue(row, "nodeName") ||
-            getValue(row, "group");
-          if (gname) {
-            const strName = String(gname).trim();
-            // Try EXACT name + parent match in existing nodes first
-            const matched = finalNodes.find((n) => n.name.toLowerCase() === strName.toLowerCase());
-            if (matched) return matched.nodeId;
-            
-            // Try global search in system nodes if not in finalNodes
-            const sysMatched = systemNodes.find(n => n.name.toLowerCase() === strName.toLowerCase());
-            if (sysMatched) return sysMatched.nodeId;
-
-            // Legacy mapping fallback
-            const migrated = migrateGroupNameToNodeId(strName);
-            if (migrated !== strName) return migrated;
-
-            // If it's a new name without a path, resolve it (creates under root if ambiguous)
-            const { nodeId: resolvedId, newNodes } = resolvePathToNodeId(
-              systemNodes,
-              strName,
-              finalNodes,
-            );
-            if (newNodes.length > 0) {
-              finalNodes.push(...newNodes);
-            }
-            return resolvedId;
-          }
-
-          // 3. Last fallback: Internal ID
+        /**
+         * Resolves the target nodeId for a specific row independently.
+         * Implementation follows strict hierarchy reconstruction per row.
+         */
+        const getRowInfo = (row: any) => {
+          const path = getValue(row, "groupPath") || getValue(row, "nodePath");
           const nid = getValue(row, "nodeId") || getValue(row, "groupId");
-          if (nid) return String(nid);
-
-          return undefined;
+          const name = getValue(row, "groupName") || getValue(row, "nodeName");
+          
+          return { path: path ? String(path) : undefined, nid: nid ? String(nid) : undefined, name: name ? String(name) : undefined };
         };
 
-        // --- Reconstruction ---
-        const dataByNode: Record<string, { racks: Rack[]; registeredDevices: RegisteredDevice[] }> = {};
+        /**
+         * Resolves the target nodeId for a specific row independently.
+         * Implementation follows strict hierarchy reconstruction per row.
+         */
+        const resolveRowToNodeId = (info: { path?: string, nid?: string, name?: string }, rowIndex: number, type: string): string => {
+          const { path, nid, name } = info;
+
+          let resultId = "unassigned";
+
+          if (path) {
+            // Priority 1: Full Path Resolution (Creates hierarchy if missing)
+            const { nodeId: resId, newNodes } = resolvePathToNodeId(systemNodes, String(path), resolutionNodes);
+            newNodes.forEach(nn => {
+               if (!resolutionNodes.some(ex => ex.nodeId === nn.nodeId)) resolutionNodes.push(nn);
+            });
+            resultId = resId;
+          } else if (nid && resolutionNodes.some(n => n.nodeId === String(nid))) {
+            // Priority 2: Exact NodeID match
+            resultId = String(nid);
+          } else if (name) {
+            // Priority 3: Name match fallback
+            const match = resolutionNodes.find(n => n.name.toLowerCase() === String(name).toLowerCase());
+            if (match) {
+              resultId = match.nodeId;
+            } else {
+              // Create a node at root if only name is known
+              const { nodeId: resId, newNodes } = resolvePathToNodeId(systemNodes, String(name), resolutionNodes);
+              newNodes.forEach(nn => resolutionNodes.push(nn));
+              resultId = resId;
+            }
+          }
+
+          if (rowIndex < 5 || rowIndex % 50 === 0) {
+            console.log(`[Import] Row ${type}[${rowIndex}]: resolved to nodeId=${resultId} (Path: ${path || "N/A"})`);
+          }
+          return resultId;
+        };
+
+        // 4. Data Population & Filtering
         let ignoredCount = 0;
+        const isTargeted = targetNodeId && targetNodeId !== "ALL";
+        // Get target path for strict path-based filtering if targeted
+        const targetPath = isTargeted ? getFullPath(systemNodes, targetNodeId) : null;
 
-        const isAllowedNode = (_nid: string) => {
-          // During import, we generally want to allow everything in the file
-          // to prevent accidental data loss due to scope mismatches.
-          return true;
+        const dataByNode: Record<string, { racks: Rack[]; registeredDevices: RegisteredDevice[] }> = {};
+        const ensureNode = (id: string) => {
+          if (!dataByNode[id]) dataByNode[id] = { racks: [], registeredDevices: [] };
         };
 
-        // Helper to ensure node entry exists
-        const ensureNode = (nid: string) => {
-          if (!dataByNode[nid]) {
-            dataByNode[nid] = { racks: [], registeredDevices: [] };
+        racksRaw.forEach((r, idx) => {
+          const info = getRowInfo(r);
+          
+          // Strict filtering: If targeted, only allow rows matching targetNodeId or EXACT targetPath
+          if (isTargeted) {
+             const rowPath = info.path;
+             if (rowPath) {
+                if (rowPath !== targetPath) {
+                    ignoredCount++;
+                    return;
+                }
+             } else if (info.nid !== targetNodeId) {
+                ignoredCount++;
+                return;
+             }
           }
-        };
 
-        // 1. Process Racks
-        racksFlat.forEach((r) => {
-          const nid = getRowNodeId(r) || "unassigned";
-          if (!isAllowedNode(nid)) {
-            ignoredCount++;
-            return;
-          }
-          ensureNode(nid);
+          const nodeTarget = resolveRowToNodeId(info, idx, "Rack");
+          ensureNode(nodeTarget);
 
-          const rackId = String(getValue(r, "rackId"));
-          const rackDevices = devicesFlat
-            .filter((d) => String(getValue(d, "rackId")) === rackId)
-            .map((d) => {
-              const devId = String(getValue(d, "deviceId"));
-              const devicePorts = portsFlat
-                .filter((p) => String(getValue(p, "deviceId")) === devId)
-                .map((p) => ({
+          const rId = String(getValue(r, "rackId") || generateUUID());
+          const rDevices = devsRaw
+            .filter(d => String(getValue(d, "rackId")) === String(getValue(r, "rackId")))
+            .map(d => {
+              const dId = String(getValue(d, "deviceId") || generateUUID());
+              const dPorts = portsRaw
+                .filter(p => String(getValue(p, "deviceId")) === String(getValue(d, "deviceId")))
+                .map(p => ({
                   portId: String(getValue(p, "portId")),
-                  status: (getValue(p, "status") as "normal" | "error") || "normal",
-                  errorLevel: getValue(p, "errorLevel") || undefined,
-                  errorMessage: getValue(p, "errorMessage") || undefined,
+                  status: (getValue(p, "status") || "normal") as any,
+                  errorLevel: getValue(p, "errorLevel"),
+                  errorMessage: getValue(p, "errorMessage")
                 }));
-
+              
               return {
-                id: devId,
-                name: String(getValue(d, "name", "deviceName") || ""),
-                type: getValue(d, "type") as any,
-                uSize: Number(getValue(d, "uSize")),
-                uPosition: Number(getValue(d, "uPosition")),
-                imageUrl: getValue(d, "imageUrl") || undefined,
-                modelName: getValue(d, "modelName") || undefined,
-                ip: getValue(d, "ip") || undefined,
-                mac: getValue(d, "mac") || undefined,
-                vendor: getValue(d, "vendor") || undefined,
-                registeredDeviceId: getValue(d, "registeredDeviceId") || undefined,
-                portStates: devicePorts,
+                id: dId,
+                name: String(getValue(d, "deviceName", "name") || ""),
+                type: (getValue(d, "type") || "network") as any,
+                uSize: Number(getValue(d, "uSize") || 1),
+                uPosition: Number(getValue(d, "uPosition") || 1),
+                modelName: getValue(d, "modelName"),
+                ip: getValue(d, "ip"),
+                mac: getValue(d, "mac"),
+                vendor: getValue(d, "vendor"),
+                registeredDeviceId: getValue(d, "registeredDeviceId"),
+                portStates: dPorts
               };
             });
 
-          dataByNode[nid].racks.push({
-            id: rackId,
-            nodeId: nid,
-            uHeight: Number(getValue(r, "uHeight")) as 24 | 32 | 48,
+          dataByNode[nodeTarget].racks.push({
+            id: rId,
+            nodeId: nodeTarget,
+            displayName: String(getValue(r, "rackName", "displayName") || `Rack-${idx}`),
+            uHeight: Number(getValue(r, "uHeight") || 48) as any,
             width: Number(getValue(r, "width") || RACK_WIDTH_STANDARD),
-            position: [Number(getValue(r, "posX")), Number(getValue(r, "posZ"))] as [number, number],
-            orientation: Number(getValue(r, "orientation") || 180) as 0 | 90 | 180 | 270,
-            devices: rackDevices as any,
+            position: [Number(getValue(r, "posX") || 0), Number(getValue(r, "posZ") || 0)],
+            orientation: Number(getValue(r, "orientation") || 0) as any,
+            devices: rDevices as any
           });
         });
 
-        // 2. Process Registered Devices
-        regDevFlat.forEach((d) => {
-          const nid = getRowNodeId(d) || "unassigned";
-          if (!isAllowedNode(nid)) {
-            ignoredCount++;
-            return;
+        regDevsRaw.forEach((d, idx) => {
+          const info = getRowInfo(d);
+          
+          if (isTargeted) {
+             const rowPath = info.path;
+             if (rowPath) {
+                if (rowPath !== targetPath) {
+                    ignoredCount++;
+                    return;
+                }
+             } else if (info.nid !== targetNodeId) {
+                ignoredCount++;
+                return;
+             }
           }
-          ensureNode(nid);
 
-          dataByNode[nid].registeredDevices.push({
-            id: String(getValue(d, "id", "registeredDeviceId")),
-            nodeId: nid,
+          const nodeTarget = resolveRowToNodeId(info, idx, "RegDev");
+          ensureNode(nodeTarget);
+
+          dataByNode[nodeTarget].registeredDevices.push({
+            id: String(getValue(d, "id", "registeredDeviceId") || generateUUID()),
+            nodeId: nodeTarget,
             deviceName: String(getValue(d, "deviceName", "name") || ""),
             modelName: String(getValue(d, "modelName") || ""),
-            type: getValue(d, "type") as any,
-            uSize: Number(getValue(d, "uSize")),
+            type: (getValue(d, "type") || "network") as any,
+            uSize: Number(getValue(d, "uSize") || 1),
             ip: String(getValue(d, "ip") || ""),
             mac: String(getValue(d, "mac") || ""),
-            vendor: getValue(d, "vendor") || undefined,
+            vendor: getValue(d, "vendor")
           });
         });
 
-        resolve({ 
-          nodes: finalNodes, 
-          dataByNode, 
+        // 5. Final Hierarchy Cleanup
+        // If targeted, only include nodes in the direct ancestor path of the target node.
+        let resultNodes = resolutionNodes;
+        if (isTargeted) {
+          const targetNode = resolutionNodes.find(n => n.nodeId === targetNodeId);
+          if (targetNode) {
+            resultNodes = getAncestorPath(resolutionNodes, targetNode.nodeId);
+          } else {
+             // If target node not found in resolutionNodes (shouldn't happen with resolvePathToNodeId), 
+             // but just in case, use direct system path if target is a known system node.
+             const systemTarget = systemNodes.find(n => n.nodeId === targetNodeId);
+             if (systemTarget) {
+                 resultNodes = getAncestorPath(systemNodes, systemTarget.nodeId);
+             }
+          }
+        }
+
+        console.log(`[Import] Final Summary: ${Object.keys(dataByNode).length} targeted nodes identified. Ignored ${ignoredCount} rows.`);
+        console.groupEnd();
+
+        resolve({
+          nodes: resultNodes,
+          dataByNode,
           exportScope: { type: exportScopeType, nodeId: exportScopeNodeId },
-          ignoredCount 
+          ignoredCount
         });
       } catch (err) {
+        console.error("[Import] Failure:", err);
+        console.groupEnd();
         reject(err instanceof Error ? err : new Error(String(err)));
       }
     };
@@ -1081,11 +1116,17 @@ const generateRegisteredDevices = (
   nodeName: string,
   count: number,
   ipBase: string,
+  nodeIdx: number, // Added to ensure global uniqueness
 ): RegisteredDevice[] =>
   Array.from({ length: count }).map((_, i) => {
     const template = DEVICE_TEMPLATES[i % DEVICE_TEMPLATES.length];
     const ipParts = ipBase.split(".");
     const lastOctet = parseInt(ipParts[3]) + i;
+    
+    // Globally unique MAC suffix using node index and local index
+    const macSuffix = ((nodeIdx << 8) | i).toString(16).padStart(4, "0");
+    const formattedMacSuffix = `${macSuffix.slice(0, 2)}:${macSuffix.slice(2, 4)}`;
+
     return {
       id: generateUUID(),
       nodeId,
@@ -1094,20 +1135,17 @@ const generateRegisteredDevices = (
       type: template.type,
       uSize: template.uSize,
       ip: `${ipParts[0]}.${ipParts[1]}.${ipParts[2]}.${lastOctet}`,
-      mac: `00:00:5e:00:53:${localIdxToMac(i)}`,
+      mac: `00:00:5e:00:${formattedMacSuffix}`.toUpperCase(),
       vendor: "Nokia",
     };
   });
 
-const localIdxToMac = (idx: number) => {
-  const hex = idx.toString(16).padStart(2, "0");
-  return hex;
-};
+
 
 export const sampleNodes: HierarchyNode[] = getDefaultNodes();
 
 export const sampleRegisteredDevices: RegisteredDevice[] = sampleNodes.flatMap((node, idx) =>
-  generateRegisteredDevices(node.nodeId, node.name, 20, `10.${idx + 1}.1.1`)
+  generateRegisteredDevices(node.nodeId, node.name, 20, `10.${idx + 1}.1.1`, idx)
 );
 
 const generateGroupRacks = (

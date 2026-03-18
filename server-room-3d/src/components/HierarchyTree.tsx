@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import type { HierarchyNode } from "../types";
 import { getChildren, getAncestorPath } from "../utils/nodeUtils";
@@ -443,12 +443,16 @@ export const HierarchyTree = () => {
     }
   }, [renamingId]);
 
-  // Calculate equipment counts (Inventory-based)
-  const equipmentCounts = new Map<string, number>();
-  registeredDevices.forEach((rd) => {
-    const current = equipmentCounts.get(rd.nodeId) || 0;
-    equipmentCounts.set(rd.nodeId, current + 1);
-  });
+  // Calculate direct equipment counts (non-recursive)
+  const equipmentCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    
+    registeredDevices.forEach((rd) => {
+      counts.set(rd.nodeId, (counts.get(rd.nodeId) || 0) + 1);
+    });
+
+    return counts;
+  }, [registeredDevices]);
 
   const getNodeDevices = useCallback(
     (nodeId: string): { device: any; rackId: string | null }[] => {

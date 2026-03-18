@@ -652,7 +652,7 @@ export const DeviceRegistrationModal = () => {
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Sync state when modal opens
+  // Sync state when modal opens ONLY (don't reset on nodes change during session)
   useEffect(() => {
     if (isOpen) {
       setNodeId(activeNodeId);
@@ -664,7 +664,8 @@ export const DeviceRegistrationModal = () => {
         setNodeFilter(activeNodeId);
       }
     }
-  }, [isOpen, activeNodeId, nodes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   // Filtered list — respects nodeFilter selection
   const filteredDevices = useMemo(() => {

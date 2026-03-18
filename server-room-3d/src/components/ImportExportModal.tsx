@@ -216,6 +216,7 @@ const ModalStyles = React.memo(() => <style>{IMPORT_EXPORT_STYLES}</style>);
 
 export const ImportExportModal = () => {
   const {
+    activeNodeId,
     racks,
     registeredDevices,
     importExportModalRackId,
@@ -230,7 +231,7 @@ export const ImportExportModal = () => {
     setPendingImportFile,
   } = useStore();
 
-  const [selectedScopeId, setSelectedScopeId] = useState<ExportScope>("ALL");
+  const [selectedScopeId, setSelectedScopeId] = useState<ExportScope>(activeNodeId || "ALL");
   const [isExporting, setIsExporting] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [overwriteNodes, setOverwriteNodes] = useState(true);
@@ -325,7 +326,7 @@ export const ImportExportModal = () => {
     setImportStatus(`⏳ "${file.name}" 분석 중...`);
 
     try {
-      const result = await importGroupPackage(file, nodes);
+      const result = await importGroupPackage(file, nodes, selectedScopeId);
       const nodeCount = result.nodes.length;
       const totalRacksInFile = Object.values(result.dataByNode).reduce(
         (sum, n) => sum + n.racks.length,
@@ -381,6 +382,7 @@ export const ImportExportModal = () => {
         if (!remappedData[newNid]) {
           remappedData[newNid] = { racks: [], registeredDevices: [] };
         }
+        // Use PUSH instead of overwrite to accumulate data if multiple old IDs map to the same new ID
         remappedData[newNid].racks.push(
           ...nodeData.racks.map((r) => ({ ...r, nodeId: newNid })),
         );
@@ -426,15 +428,25 @@ export const ImportExportModal = () => {
         (sum, n) => sum + n.racks.length,
         0,
       );
-      let successMsg = `✅ Import 완료! (대상 노드 ${Object.keys(remappedData).length}개, Racks ${totalRacks}개)`;
+      const totalDevices = Object.values(remappedData).reduce(
+        (sum, n) => sum + n.registeredDevices.length,
+        0,
+      );
+      console.log(`[Import] Final verification: Racks=${totalRacks}, RegisteredDevices=${totalDevices}`);
+      let successMsg = `✅ Import 완료! (${Object.keys(remappedData).length}개 노드: Racks ${totalRacks}개, Devices ${totalDevices}개)`;
       if (importPreview.ignoredCount > 0) {
         successMsg += ` [범위 외 ${importPreview.ignoredCount}건 제외됨]`;
       }
       setImportStatus(successMsg);
+      showToast(successMsg, "success");
       setImportPreview(null);
-
-      // Auto-close modal on success after a short delay
-      setTimeout(() => setImportExportModalRackId(null), 2000);
+      Object.keys(remappedData).forEach(nid => {
+        useStore.getState().toggleNodeExpansion(nid, true);
+      });
+      setTimeout(() => {
+         setImportExportModalRackId(null);
+         alert(successMsg);
+      }, 500);
     } catch (err) {
       setImportStatus(`❌ 적용 실패: ${(err as Error).message}`);
     }
@@ -674,7 +686,7 @@ export const ImportExportModal = () => {
                     >
                       <span>📍 {nodeName}</span>
                       <span style={{ fontWeight: 600 }}>
-                        Racks: {data.racks.length}개
+                        Racks: {data.racks.length} | RegDevs: {data.registeredDevices.length}
                       </span>
                     </div>
                   );

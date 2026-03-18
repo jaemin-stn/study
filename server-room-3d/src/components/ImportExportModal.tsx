@@ -225,8 +225,6 @@ export const ImportExportModal = () => {
     nodes,
     upsertNodes,
     replaceMultipleNodesData,
-    loadState,
-    importedModels,
     showToast,
     setHierarchyCollapsed,
     pendingImportFile,
@@ -330,11 +328,11 @@ export const ImportExportModal = () => {
     setImportStatus(`⏳ "${file.name}" 분석 중...`);
 
     try {
-      // Respect the user's selected scope. Only force "ALL" if no specific target is set 
-      // or if it's explicitly "ALL". 
-      const effectiveScope = selectedScopeId;
+      // Decouple analysis from UI selection to prevent scope leakage.
+      // Always analyze as "ALL" first to see what's in the file.
+      const effectiveScope = "ALL";
       
-      console.log(`[IEM] Analyzing with effectiveScope=${effectiveScope}`);
+      console.log(`[IEM] Analyzing file "${file.name}"...`);
       const result = await importGroupPackage(file, nodes, effectiveScope);
       const nodeCount = result.nodes.length;
       const totalRacksInFile = Object.values(result.dataByNode).reduce(
@@ -347,7 +345,7 @@ export const ImportExportModal = () => {
       );
 
       if (nodeCount === 0 || (totalRacksInFile === 0 && totalDevicesInFile === 0)) {
-        setImportStatus(`⚠️ 파일 또는 범위("${effectiveScope === "ALL" ? "전체" : "선택된 노드"}")에서 데이터를 찾지 못했습니다. [제외됨: ${result.ignoredCount}건]`);
+        setImportStatus(`⚠️ 파일에서 유효한 데이터를 찾지 못했습니다. [제외됨: ${result.ignoredCount}건]`);
         return;
       }
 
@@ -374,7 +372,7 @@ export const ImportExportModal = () => {
       handleGroupImportFile(pendingImportFile);
       setPendingImportFile(null); // Clear after starting
     }
-  }, [pendingImportFile, importExportModalRackId, selectedScopeId]);
+  }, [pendingImportFile, importExportModalRackId]);
 
   const handleApplyImport = () => {
     if (!importPreview) return;
@@ -383,10 +381,9 @@ export const ImportExportModal = () => {
     try {
       const { nodes: importedRawNodes, dataByNode, nodeIdMap } = importPreview;
 
-      // 1. Determine Scope & Prepare Data
-      const isNodeImport = importPreview.effectiveScopeId !== "ALL";
-      const targetExistsInStore = nodes.some(n => n.nodeId === importPreview.effectiveScopeId);
-
+      // 1. Determine Scope from File Metadata
+      const isNodeImport = importPreview.exportScope.type === "NODE";
+      
       // 2. Remap Node Hierarchy to Final System IDs
       const finalNodes = importedRawNodes.map(n => ({
         ...n,
@@ -413,26 +410,13 @@ export const ImportExportModal = () => {
         );
       });
 
-      // 4. APPLY TO STORE: 
-      // Scenario A: NEW Node Import -> REPLACE mode to isolate path. (Strict isolation on first render)
-      // Scenario B: EXISTING Node Import (e.g. after ALL import) -> DATA ONLY update to preserve tree.
-      // Scenario C: ALL Import -> MERGE mode to restore full hierarchy.
+      // 4. APPLY TO STORE: Unified Merge Architecture
+      // We always UPSERT nodes to merge hierarchy (create missing, update existing)
+      // and REPLACE data for specific nodes provided in the file to preserve others.
+      // This satisfies the "No cross-scope disturbance" requirement.
       
-      if (isNodeImport) {
-        if (!targetExistsInStore) {
-          // Scenario A: First-render isolation. Replace entire hierarchy with reduced target path.
-          const allRacks = Object.values(remappedByNode).flatMap((n) => (n as any).racks);
-          const allRegDevs = Object.values(remappedByNode).flatMap((n) => (n as any).registeredDevices);
-          loadState(allRacks, importedModels, allRegDevs, finalNodes);
-        } else {
-          // Scenario B: Targeted Content Update. Keep hierarchy as-is, replace only target node's racks/devices.
-          replaceMultipleNodesData(remappedByNode);
-        }
-      } else {
-        // Scenario C: Full system restoration. Merge all nodes and data.
-        upsertNodes(finalNodes, overwriteNodes, false);
-        replaceMultipleNodesData(remappedByNode);
-      }
+      upsertNodes(finalNodes, overwriteNodes, false);
+      replaceMultipleNodesData(remappedByNode);
 
       // 4. Determine Target Node for Focus/Navigation
       let targetNodeId: string | null = null;
@@ -481,7 +465,7 @@ export const ImportExportModal = () => {
         return;
       }
 
-      let successMsg = `✅ Import 완료! (${Object.keys(remappedByNode).length}개 노드: Racks ${totalRacks}개, Devices ${totalDevices}개)`;
+      let successMsg = `✅ Import 완료! (${Object.keys(remappedByNode).length}개 노드: Racks ${totalRacks}개, Devices ${totalDevices}개) [Scope: ${isNodeImport ? "Node" : "ALL"}]`;
       if (importPreview.ignoredCount > 0) {
         successMsg += ` [범위 외 ${importPreview.ignoredCount}건 제외됨]`;
       }

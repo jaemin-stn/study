@@ -701,7 +701,7 @@ export const exportRegisteredDevicesToExcel = (
     const blob = new Blob([u8], { type: EXCEL_MIME });
     const isAllScope = scope === "ALL";
     const labelPart = isAllScope ? "ALL" : scope.replace(/[\s\>]+/g, "_");
-    const filename = `${labelPart}_${getFormattedDate()}.xlsx`;
+    const filename = `장비_${labelPart}_${getFormattedDate()}.xlsx`;
     
     downloadBlob(
       blob,

@@ -13,6 +13,8 @@ import {
 } from "../utils/rackGeometry";
 import {
   migrateGroupNameToNodeId,
+  ROOT_NODE_ID,
+  getDefaultNodes,
 } from "../utils/nodeUtils";
 import * as THREE from "three";
 
@@ -278,9 +280,9 @@ export const useStore = create<AppState>((set, get) => ({
   dragOffset: null,
   isEditMode: false,
   hoveredRackId: null,
-  nodes: [],
-  activeNodeId: "stn-root",
-  expandedNodeIds: new Set(["stn-root"]),
+  nodes: getDefaultNodes(),
+  activeNodeId: ROOT_NODE_ID,
+  expandedNodeIds: new Set([ROOT_NODE_ID]),
   isHierarchyCollapsed: false,
   importExportModalRackId: null,
   deviceRegistrationModalOpen: false,

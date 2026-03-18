@@ -970,8 +970,19 @@ export const importGroupPackage = (
 
         // 4. Data Population & Filtering
         let ignoredCount = 0;
-        const isTargeted = targetNodeId && targetNodeId !== "ALL";
-        // Get target path for strict path-based filtering if targeted
+        const targetNode = targetNodeId && targetNodeId !== "ALL" ? systemNodes.find(n => n.nodeId === targetNodeId) : null;
+        const isRootTarget = targetNode && (targetNode.parentId === null || targetNode.nodeId === "stn-root");
+
+        let isTargeted = targetNodeId && targetNodeId !== "ALL";
+
+        // If the file being imported is an ALL-scope export and the user is targeting the root node,
+        // we treat it as a non-targeted (full) import to allow full restoration of the hierarchy and data.
+        if (exportScopeType === "ALL" && isRootTarget) {
+          console.log("[Import] ALL-scope file detected with root node target. Bypassing strict filtering for full restoration.");
+          isTargeted = false;
+        }
+
+        // Get target path for strict path-based filtering if still targeted
         const targetPath = isTargeted ? getFullPath(systemNodes, targetNodeId) : null;
 
         const dataByNode: Record<string, { racks: Rack[]; registeredDevices: RegisteredDevice[] }> = {};

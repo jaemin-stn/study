@@ -424,7 +424,7 @@ export const DevicePanel = () => {
     const end = start + regDevice.uSize - 1;
 
     if (start < 1 || end > rack.uHeight) {
-      alert(`Error: Device (${regDevice.uSize}U) exceeds rack height.`);
+      showToast(`에러: 장비(${regDevice.uSize}U)가 랙 높이를 초과했습니다.`, "error");
       return;
     }
 
@@ -435,7 +435,7 @@ export const DevicePanel = () => {
     });
 
     if (collision) {
-      alert(`Error: Collision with "${collision.name}"`);
+      showToast(`에러: "${collision.name}" 장비와 겹칩니다.`, "error");
       return;
     }
 
@@ -454,7 +454,7 @@ export const DevicePanel = () => {
     if (success) {
       closeAddModal();
     } else {
-      alert("Failed to add device: Unknown error");
+      showToast("장비 추가 실패: 알 수 없는 오류", "error");
     }
   };
 

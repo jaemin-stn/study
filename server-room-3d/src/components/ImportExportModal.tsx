@@ -231,7 +231,14 @@ export const ImportExportModal = () => {
     setPendingImportFile,
   } = useStore();
 
-  const [selectedScopeId, setSelectedScopeId] = useState<ExportScope>(activeNodeId || "ALL");
+  const [selectedScopeId, setSelectedScopeId] = useState<ExportScope>("ALL");
+
+  // Sync with activeNodeId when modal opens
+  useEffect(() => {
+    if (importExportModalRackId === "all") {
+       setSelectedScopeId(activeNodeId || "ALL");
+    }
+  }, [importExportModalRackId, activeNodeId]);
   const [isExporting, setIsExporting] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [overwriteNodes, setOverwriteNodes] = useState(true);
@@ -326,15 +333,25 @@ export const ImportExportModal = () => {
     setImportStatus(`⏳ "${file.name}" 분석 중...`);
 
     try {
-      const result = await importGroupPackage(file, nodes, selectedScopeId);
+      // If we are in a completely empty state (only root exists or nothing), 
+      // we MUST use "ALL" to allow full reconstruction.
+      const isSystemEmpty = nodes.length <= 1; 
+      const effectiveScope = isSystemEmpty ? "ALL" : selectedScopeId;
+      
+      console.log(`[IEM] Analyzing with effectiveScope=${effectiveScope} (isSystemEmpty=${isSystemEmpty})`);
+      const result = await importGroupPackage(file, nodes, effectiveScope);
       const nodeCount = result.nodes.length;
       const totalRacksInFile = Object.values(result.dataByNode).reduce(
-        (sum, n) => sum + n.racks.length,
+        (sum, n: any) => sum + n.racks.length,
+        0,
+      );
+      const totalDevicesInFile = Object.values(result.dataByNode).reduce(
+        (sum, n: any) => sum + n.registeredDevices.length,
         0,
       );
 
-      if (nodeCount === 0 && totalRacksInFile === 0) {
-        setImportStatus(`⚠️ 파일에서 유효한 데이터를 찾지 못했습니다.`);
+      if (nodeCount === 0 || (totalRacksInFile === 0 && totalDevicesInFile === 0)) {
+        setImportStatus(`⚠️ 파일 또는 범위("${effectiveScope === "ALL" ? "전체" : "선택된 노드"}")에서 데이터를 찾지 못했습니다. [제외됨: ${result.ignoredCount}건]`);
         return;
       }
 
@@ -352,12 +369,14 @@ export const ImportExportModal = () => {
   };
 
   // Auto-trigger analysis if file was provided via toolbar
+  const processedFileRef = useRef<File | null>(null);
   useEffect(() => {
-    if (pendingImportFile && importExportModalRackId === "all") {
+    if (pendingImportFile && importExportModalRackId === "all" && pendingImportFile !== processedFileRef.current) {
+      processedFileRef.current = pendingImportFile;
       handleGroupImportFile(pendingImportFile);
       setPendingImportFile(null); // Clear after starting
     }
-  }, [pendingImportFile, importExportModalRackId]);
+  }, [pendingImportFile, importExportModalRackId, selectedScopeId]);
 
   const handleApplyImport = () => {
     if (!importPreview) return;
@@ -433,6 +452,14 @@ export const ImportExportModal = () => {
         0,
       );
       console.log(`[Import] Final verification: Racks=${totalRacks}, RegisteredDevices=${totalDevices}`);
+      
+      if (totalRacks === 0 && totalDevices === 0) {
+        const failMsg = `⚠️ 가져온 데이터가 없습니다. (선택한 범위와 파일의 데이터가 일치하지 않을 수 있습니다.)`;
+        setImportStatus(failMsg);
+        showToast(failMsg, "error");
+        return;
+      }
+
       let successMsg = `✅ Import 완료! (${Object.keys(remappedData).length}개 노드: Racks ${totalRacks}개, Devices ${totalDevices}개)`;
       if (importPreview.ignoredCount > 0) {
         successMsg += ` [범위 외 ${importPreview.ignoredCount}건 제외됨]`;
@@ -445,7 +472,6 @@ export const ImportExportModal = () => {
       });
       setTimeout(() => {
          setImportExportModalRackId(null);
-         alert(successMsg);
       }, 500);
     } catch (err) {
       setImportStatus(`❌ 적용 실패: ${(err as Error).message}`);

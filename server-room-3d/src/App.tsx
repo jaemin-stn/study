@@ -23,7 +23,7 @@ const Toast = () => {
   if (!toast) return null;
 
   return createPortal(
-    <div className="toast-overlay">
+    <div className={`toast-overlay ${toast.type}`}>
       <div className={`toast-card ${toast.type}`}>
         <div className="toast-icon">
           {toast.type === "success" ? (
@@ -58,11 +58,17 @@ const Toast = () => {
 const APP_STYLES = `
 .toast-overlay {
   position: fixed;
-  bottom: 40px;
   left: 50%;
-  transform: translateX(-50%);
   z-index: 9999;
   pointer-events: none;
+}
+.toast-overlay.success {
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.toast-overlay.error {
+  bottom: 40px;
+  transform: translateX(-50%);
 }
 .toast-card {
   display: flex;
@@ -81,6 +87,12 @@ const APP_STYLES = `
   border-color: var(--severity-success);
   background: var(--severity-success-bg);
   color: var(--severity-success-text);
+  padding: 18px 32px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  animation: toast-center-appear 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.toast-card.success .toast-message {
+  font-size: 16px;
 }
 .toast-icon {
   width: 24px;
@@ -98,6 +110,10 @@ const APP_STYLES = `
 @keyframes toast-slide-up {
   from { transform: translateY(20px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
+}
+@keyframes toast-center-appear {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
 }
 `;
 

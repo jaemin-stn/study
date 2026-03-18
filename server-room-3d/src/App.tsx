@@ -145,19 +145,14 @@ function App() {
 
   const handleToolbarImportClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log("[App] Toolbar Import button clicked");
     if (toolbarImportInputRef.current) {
-      console.log("[App] File input ref exists, triggering click");
       toolbarImportInputRef.current.value = "";
       toolbarImportInputRef.current.click();
-    } else {
-      console.error("[App] File input ref is null!");
     }
   };
 
   const handleToolbarImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    console.log("[App] File input onChange fired", file?.name);
     if (file) {
       setPendingImportFile(file);
       setDeviceRegistrationModalOpen(false);

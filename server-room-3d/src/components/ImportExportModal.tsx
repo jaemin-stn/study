@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useStore } from "../store/useStore";
 import type { Rack, RegisteredDevice, HierarchyNode } from "../types";
 import type { ExportScope } from "../utils/storage";
-import { getNodeName, getAncestorPath } from "../utils/nodeUtils";
+import { getNodeName, getAncestorPath, getNodeEquipmentCount } from "../utils/nodeUtils";
 import {
   exportGroupWorkbook,
   importGroupPackage,
@@ -225,6 +225,8 @@ export const ImportExportModal = () => {
     nodes,
     upsertNodes,
     replaceMultipleNodesData,
+    loadState,
+    importedModels,
     showToast,
     setHierarchyCollapsed,
     pendingImportFile,
@@ -250,38 +252,33 @@ export const ImportExportModal = () => {
       { racks: Rack[]; registeredDevices: RegisteredDevice[] }
     >;
     exportScope: { type: "ALL" | "NODE"; nodeId?: string };
+    effectiveScopeId: string | "ALL";
+    nodeIdMap: Record<string, string>;
     ignoredCount: number;
   } | null>(null);
 
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
 
-  // Count preview logic
-  const getNodeCounts = (nodeId: string | "ALL") => {
-    if (nodeId === "ALL") {
+  const selectedNodeCounts = useMemo(() => {
+    if (selectedScopeId === "ALL") {
       const rackCount = racks.length;
-      const deviceCount = registeredDevices.length;
+      const deviceCount = getNodeEquipmentCount(registeredDevices, "ALL");
       const portCount = racks.reduce(
-        (sum, r) =>
-          sum + r.devices.reduce((s, d) => s + d.portStates.length, 0),
+        (sum, r) => sum + r.devices.reduce((s, d) => s + d.portStates.length, 0),
         0,
       );
       return { rackCount, deviceCount, portCount };
     }
-    const nodeRacks = racks.filter((r) => r.nodeId === nodeId);
-    const nodeDevices = registeredDevices.filter((d) => d.nodeId === nodeId);
+
+    const nodeRacks = racks.filter((r) => r.nodeId === selectedScopeId);
     const rackCount = nodeRacks.length;
-    const deviceCount = nodeDevices.length;
+    const deviceCount = getNodeEquipmentCount(registeredDevices, selectedScopeId);
     const portCount = nodeRacks.reduce(
       (sum, r) => sum + r.devices.reduce((s, d) => s + d.portStates.length, 0),
       0,
     );
     return { rackCount, deviceCount, portCount };
-  };
-
-  const selectedNodeCounts = useMemo(
-    () => getNodeCounts(selectedScopeId),
-    [selectedScopeId, racks, registeredDevices],
-  );
+  }, [selectedScopeId, racks, registeredDevices]);
 
   const groupImportRef = useRef<HTMLInputElement>(null);
 
@@ -333,12 +330,11 @@ export const ImportExportModal = () => {
     setImportStatus(`⏳ "${file.name}" 분석 중...`);
 
     try {
-      // If we are in a completely empty state (only root exists or nothing), 
-      // we MUST use "ALL" to allow full reconstruction.
-      const isSystemEmpty = nodes.length <= 1; 
-      const effectiveScope = isSystemEmpty ? "ALL" : selectedScopeId;
+      // Respect the user's selected scope. Only force "ALL" if no specific target is set 
+      // or if it's explicitly "ALL". 
+      const effectiveScope = selectedScopeId;
       
-      console.log(`[IEM] Analyzing with effectiveScope=${effectiveScope} (isSystemEmpty=${isSystemEmpty})`);
+      console.log(`[IEM] Analyzing with effectiveScope=${effectiveScope}`);
       const result = await importGroupPackage(file, nodes, effectiveScope);
       const nodeCount = result.nodes.length;
       const totalRacksInFile = Object.values(result.dataByNode).reduce(
@@ -360,6 +356,8 @@ export const ImportExportModal = () => {
         nodes: result.nodes,
         dataByNode: result.dataByNode,
         exportScope: result.exportScope,
+        effectiveScopeId: result.effectiveScopeId,
+        nodeIdMap: result.nodeIdMap,
         ignoredCount: result.ignoredCount,
       });
       setImportStatus(null);
@@ -383,35 +381,58 @@ export const ImportExportModal = () => {
     setImportStatus("⏳ 데이터 적용 중...");
 
     try {
-      const { nodes: importedNodes, dataByNode } = importPreview;
+      const { nodes: importedRawNodes, dataByNode, nodeIdMap } = importPreview;
 
-      // 1. Upsert nodes
-      const idMap =
-        importedNodes.length > 0
-          ? upsertNodes(importedNodes, overwriteNodes)
-          : {};
+      // 1. Determine Scope & Prepare Data
+      const isNodeImport = importPreview.effectiveScopeId !== "ALL";
+      const targetExistsInStore = nodes.some(n => n.nodeId === importPreview.effectiveScopeId);
 
-      // 2. Remap entity nodeId
-      const remappedData: Record<
+      // 2. Remap Node Hierarchy to Final System IDs
+      const finalNodes = importedRawNodes.map(n => ({
+        ...n,
+        nodeId: nodeIdMap[n.nodeId] || n.nodeId,
+        parentId: n.parentId ? (nodeIdMap[n.parentId] || n.parentId) : null
+      }));
+
+      // 3. Remap entity data using the same mapping
+      const remappedByNode: Record<
         string,
         { racks: Rack[]; registeredDevices: RegisteredDevice[] }
       > = {};
-      Object.entries(dataByNode).forEach(([oldNid, nodeData]) => {
-        const newNid = idMap[oldNid] || oldNid;
-        if (!remappedData[newNid]) {
-          remappedData[newNid] = { racks: [], registeredDevices: [] };
+      
+      Object.entries(dataByNode).forEach(([nid, nodeData]) => {
+        const finalNid = nodeIdMap[nid] || nid;
+        if (!remappedByNode[finalNid]) {
+          remappedByNode[finalNid] = { racks: [], registeredDevices: [] };
         }
-        // Use PUSH instead of overwrite to accumulate data if multiple old IDs map to the same new ID
-        remappedData[newNid].racks.push(
-          ...nodeData.racks.map((r) => ({ ...r, nodeId: newNid })),
+        remappedByNode[finalNid].racks.push(
+          ...nodeData.racks.map((r) => ({ ...r, nodeId: finalNid })),
         );
-        remappedData[newNid].registeredDevices.push(
-          ...nodeData.registeredDevices.map((d) => ({ ...d, nodeId: newNid })),
+        remappedByNode[finalNid].registeredDevices.push(
+          ...nodeData.registeredDevices.map((d) => ({ ...d, nodeId: finalNid })),
         );
       });
 
-      // 3. Store update
-      replaceMultipleNodesData(remappedData);
+      // 4. APPLY TO STORE: 
+      // Scenario A: NEW Node Import -> REPLACE mode to isolate path. (Strict isolation on first render)
+      // Scenario B: EXISTING Node Import (e.g. after ALL import) -> DATA ONLY update to preserve tree.
+      // Scenario C: ALL Import -> MERGE mode to restore full hierarchy.
+      
+      if (isNodeImport) {
+        if (!targetExistsInStore) {
+          // Scenario A: First-render isolation. Replace entire hierarchy with reduced target path.
+          const allRacks = Object.values(remappedByNode).flatMap((n) => (n as any).racks);
+          const allRegDevs = Object.values(remappedByNode).flatMap((n) => (n as any).registeredDevices);
+          loadState(allRacks, importedModels, allRegDevs, finalNodes);
+        } else {
+          // Scenario B: Targeted Content Update. Keep hierarchy as-is, replace only target node's racks/devices.
+          replaceMultipleNodesData(remappedByNode);
+        }
+      } else {
+        // Scenario C: Full system restoration. Merge all nodes and data.
+        upsertNodes(finalNodes, overwriteNodes, false);
+        replaceMultipleNodesData(remappedByNode);
+      }
 
       // 4. Determine Target Node for Focus/Navigation
       let targetNodeId: string | null = null;
@@ -420,12 +441,12 @@ export const ImportExportModal = () => {
         importPreview.exportScope.nodeId
       ) {
         targetNodeId =
-          idMap[importPreview.exportScope.nodeId] ||
+          nodeIdMap[importPreview.exportScope.nodeId] ||
           importPreview.exportScope.nodeId;
       } else {
         // Fallback: use first node with racks in the imported data
         targetNodeId =
-          Object.entries(remappedData).find(
+          Object.entries(remappedByNode).find(
             ([_, data]) => data.racks.length > 0,
           )?.[0] || null;
       }
@@ -443,12 +464,12 @@ export const ImportExportModal = () => {
         }, 100);
       }
 
-      const totalRacks = Object.values(remappedData).reduce(
-        (sum, n) => sum + n.racks.length,
+      const totalRacks = Object.values(remappedByNode).reduce(
+        (sum, n) => sum + (n as any).racks.length,
         0,
       );
-      const totalDevices = Object.values(remappedData).reduce(
-        (sum, n) => sum + n.registeredDevices.length,
+      const totalDevices = Object.values(remappedByNode).reduce(
+        (sum, n) => sum + (n as any).registeredDevices.length,
         0,
       );
       console.log(`[Import] Final verification: Racks=${totalRacks}, RegisteredDevices=${totalDevices}`);
@@ -460,14 +481,14 @@ export const ImportExportModal = () => {
         return;
       }
 
-      let successMsg = `✅ Import 완료! (${Object.keys(remappedData).length}개 노드: Racks ${totalRacks}개, Devices ${totalDevices}개)`;
+      let successMsg = `✅ Import 완료! (${Object.keys(remappedByNode).length}개 노드: Racks ${totalRacks}개, Devices ${totalDevices}개)`;
       if (importPreview.ignoredCount > 0) {
         successMsg += ` [범위 외 ${importPreview.ignoredCount}건 제외됨]`;
       }
       setImportStatus(successMsg);
       showToast(successMsg, "success");
       setImportPreview(null);
-      Object.keys(remappedData).forEach(nid => {
+      Object.keys(remappedByNode).forEach(nid => {
         useStore.getState().toggleNodeExpansion(nid, true);
       });
       setTimeout(() => {

@@ -13,8 +13,6 @@ import {
 } from "../utils/rackGeometry";
 import {
   migrateGroupNameToNodeId,
-  ROOT_NODE_ID,
-  getDefaultNodes,
 } from "../utils/nodeUtils";
 import * as THREE from "three";
 
@@ -38,7 +36,7 @@ export interface AppState {
 
   // Hierarchy
   nodes: HierarchyNode[];
-  activeNodeId: string;
+  activeNodeId: string | null;
   expandedNodeIds: Set<string>;
   isHierarchyCollapsed: boolean;
 
@@ -60,7 +58,7 @@ export interface AppState {
   // Actions
   setCameraRef: (camera: THREE.Camera, controls: any) => void;
   setHoveredRack: (id: string | null) => void;
-  setActiveNode: (nodeId: string) => void;
+  setActiveNode: (nodeId: string | null) => void;
   setImportExportModalRackId: (id: string | null) => void;
   addRack: (
 
@@ -127,10 +125,10 @@ export interface AppState {
   addNode: (node: Omit<HierarchyNode, "nodeId">) => string;
   renameNode: (nodeId: string, name: string) => void;
   deleteNode: (nodeId: string) => void;
-  upsertNodes: (nodes: HierarchyNode[], overwrite: boolean) => Record<string, string>;
+  upsertNodes: (nodes: HierarchyNode[], overwrite: boolean, dryRun?: boolean) => Record<string, string>;
   setExpandedNodeIds: (ids: Set<string>) => void;
   toggleNodeExpansion: (nodeId: string, expand?: boolean) => void;
-  expandNodePath: (nodeId: string) => void;
+  expandNodePath: (nodeId: string | null) => void;
   setHierarchyCollapsed: (collapsed: boolean) => void;
 
   // Data Persistence
@@ -280,9 +278,9 @@ export const useStore = create<AppState>((set, get) => ({
   dragOffset: null,
   isEditMode: false,
   hoveredRackId: null,
-  nodes: getDefaultNodes(),
-  activeNodeId: ROOT_NODE_ID,
-  expandedNodeIds: new Set([ROOT_NODE_ID]),
+  nodes: [],
+  activeNodeId: null,
+  expandedNodeIds: new Set(),
   isHierarchyCollapsed: false,
   importExportModalRackId: null,
   deviceRegistrationModalOpen: false,
@@ -458,6 +456,10 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     const { activeNodeId } = get();
+    if (!activeNodeId) {
+      get().showToast("노드를 먼저 선택하거나 생성해주세요.", "error");
+      return;
+    }
     const nodeRacks = racks.filter((r) => r.nodeId === activeNodeId);
 
     let finalPos = spawnPos;
@@ -485,7 +487,7 @@ export const useStore = create<AppState>((set, get) => ({
 
     const newRack: Rack = {
       id: crypto.randomUUID(),
-      nodeId: activeNodeId,
+      nodeId: activeNodeId!,
       uHeight,
       width,
       position: finalPos,
@@ -751,7 +753,7 @@ export const useStore = create<AppState>((set, get) => ({
       importedModels: newModels ?? [],
       registeredDevices: migratedRegDevices,
       nodes: finalNodes,
-      activeNodeId: rootNode ? rootNode.nodeId : (finalNodes.length > 0 ? finalNodes[0].nodeId : ""),
+      activeNodeId: rootNode ? rootNode.nodeId : (finalNodes.length > 0 ? finalNodes[0].nodeId : null),
       expandedNodeIds,
       selectedRackId: null,
       focusedRackId: null,
@@ -847,8 +849,8 @@ export const useStore = create<AppState>((set, get) => ({
         registeredDevices: state.registeredDevices.filter(
           (d) => !toDelete.has(d.nodeId),
         ),
-        activeNodeId: toDelete.has(state.activeNodeId)
-          ? state.nodes.find((n) => n.parentId === null)?.nodeId || ""
+        activeNodeId: (state.activeNodeId && toDelete.has(state.activeNodeId))
+          ? state.nodes.find((n) => n.parentId === null)?.nodeId || null
           : state.activeNodeId,
       };
     });
@@ -869,6 +871,7 @@ export const useStore = create<AppState>((set, get) => ({
     });
   },
   expandNodePath: (nodeId) => {
+    if (!nodeId) return;
     set((state) => {
       const next = new Set(state.expandedNodeIds);
       const { nodes } = state;
@@ -883,25 +886,23 @@ export const useStore = create<AppState>((set, get) => ({
   },
   setHierarchyCollapsed: (collapsed) => set({ isHierarchyCollapsed: collapsed }),
 
-  upsertNodes: (newNodes, overwrite) => {
+  upsertNodes: (newNodes, overwrite, dryRun = false) => {
     const mapping: Record<string, string> = {};
-    set((state) => {
-      const updatedNodes = [...state.nodes];
+    const process = (stateNodes: HierarchyNode[]) => {
+      const updatedNodes = [...stateNodes];
       
       newNodes.forEach((n) => {
-        mapping[n.nodeId] = n.nodeId; // Default to input ID
+        mapping[n.nodeId] = n.nodeId; 
         const matchIdx = updatedNodes.findIndex((ex) => ex.nodeId === n.nodeId);
         if (matchIdx >= 0) {
           if (overwrite) {
             updatedNodes[matchIdx] = { ...updatedNodes[matchIdx], ...n };
           }
         } else {
-          // Check for duplicate by path/name (parentId + name)
           const duplicateIdx = updatedNodes.findIndex(
             (ex) => ex.parentId === n.parentId && ex.name === n.name
           );
           if (duplicateIdx >= 0) {
-            // Map the input ID to the existing store ID
             mapping[n.nodeId] = updatedNodes[duplicateIdx].nodeId;
             if (overwrite) {
                updatedNodes[duplicateIdx] = { 
@@ -915,9 +916,14 @@ export const useStore = create<AppState>((set, get) => ({
           }
         }
       });
+      return updatedNodes;
+    };
 
-      return { nodes: updatedNodes };
-    });
+    if (dryRun) {
+      process(get().nodes); 
+    } else {
+      set((state) => ({ nodes: process(state.nodes) }));
+    }
     return mapping;
   },
 

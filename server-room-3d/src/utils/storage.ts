@@ -7,7 +7,8 @@ import {
   getNodeDepth, 
   getFullPath,
   resolvePathToNodeId,
-  getAncestorPath
+  getAncestorPath,
+  getSubtreeNodeIds
 } from "./nodeUtils";
 import * as XLSX from "xlsx";
 import {
@@ -16,30 +17,41 @@ import {
   GRID_SPACING,
 } from "../components/constants";
 
-// ─── Data Flattening Helpers ─────────────────────────────────────────────────
+/** Data Flattening Helpers (Unified) */
 
-/** Flatten rack objects into export-friendly rows */
-const flattenRacks = (racks: Rack[]) =>
+const flattenRacks = (racks: Rack[], nodes?: HierarchyNode[]) =>
   racks.map((r) => ({
     rackId: r.id,
+    rackName: r.displayName || r.id.substring(0, 8),
     nodeId: r.nodeId,
+    ...(nodes && {
+      groupName: getNodeName(nodes, r.nodeId),
+      depth: getNodeDepth(nodes, r.nodeId),
+      groupPath: getFullPath(nodes, r.nodeId),
+    }),
     uHeight: r.uHeight,
     width: r.width,
     posX: r.position[0],
     posZ: r.position[1],
-    orientation: r.orientation,
+    orientation: r.orientation ?? 180,
   }));
 
-/** Flatten devices (with parent rackId) into export-friendly rows */
-const flattenDevices = (racks: Rack[]) => {
+const flattenDevices = (racks: Rack[], nodes?: HierarchyNode[], registeredDevices?: RegisteredDevice[]) => {
   const rows: Record<string, unknown>[] = [];
   for (const r of racks) {
     for (const d of r.devices) {
+      const regDev = registeredDevices?.find((rd) => rd.id === d.registeredDeviceId);
       rows.push({
         deviceId: d.id,
+        deviceName: regDev ? regDev.deviceName : d.name,
         rackId: r.id,
+        rackName: r.displayName || r.id.substring(0, 8),
         nodeId: r.nodeId,
-        name: d.name,
+        ...(nodes && {
+          groupName: getNodeName(nodes, r.nodeId),
+          depth: getNodeDepth(nodes, r.nodeId),
+          groupPath: getFullPath(nodes, r.nodeId),
+        }),
         type: d.type,
         uSize: d.uSize,
         uPosition: d.uPosition,
@@ -48,22 +60,29 @@ const flattenDevices = (racks: Rack[]) => {
         ip: d.ip || "",
         mac: d.mac || "",
         vendor: d.vendor || "",
+        registeredDeviceId: d.registeredDeviceId || "",
       });
     }
   }
   return rows;
 };
 
-/** Flatten port states (with parent deviceId) into export-friendly rows */
-const flattenPorts = (racks: Rack[]) => {
+const flattenPorts = (racks: Rack[], nodes?: HierarchyNode[], registeredDevices?: RegisteredDevice[]) => {
   const rows: Record<string, unknown>[] = [];
   for (const r of racks) {
     for (const d of r.devices) {
+      const regDev = registeredDevices?.find((rd) => rd.id === d.registeredDeviceId);
       for (const p of d.portStates) {
         rows.push({
           portId: p.portId,
           deviceId: d.id,
+          deviceName: regDev ? regDev.deviceName : d.name,
+          rackId: r.id,
+          rackName: r.displayName || r.id.substring(0, 8),
           nodeId: r.nodeId,
+          ...(nodes && {
+            groupName: getNodeName(nodes, r.nodeId),
+          }),
           status: p.status,
           errorLevel: p.errorLevel || "",
           errorMessage: p.errorMessage || "",
@@ -132,7 +151,11 @@ const prepareExportData = (racks: Rack[], options?: ExportOptions) => {
   };
 };
 
-export const saveToJSON = (racks: Rack[], options?: ExportOptions) => {
+export const saveToJSON = (
+  racks: Rack[],
+  options?: ExportOptions,
+  filename?: string,
+) => {
   const { rackData, deviceData, portData } = prepareExportData(racks, options);
   const json = JSON.stringify(
     { Rack: rackData, Equipment: deviceData, Ports: portData },
@@ -141,7 +164,7 @@ export const saveToJSON = (racks: Rack[], options?: ExportOptions) => {
   );
   downloadBlob(
     new Blob([json], { type: "application/json" }),
-    `server-room-${Date.now()}.json`,
+    filename || `server-room-${Date.now()}.json`,
   );
 };
 
@@ -184,15 +207,15 @@ const filterData = (data: any[], selectedFields: string[]) => {
   });
 };
 
-export const saveToExcel = (racks: Rack[], options?: ExportOptions) => {
+export const saveToExcel = (
+  racks: Rack[],
+  options?: ExportOptions,
+  filename?: string,
+) => {
   const { rackData, deviceData, portData } = prepareExportData(racks, options);
   const wb = XLSX.utils.book_new();
   if (rackData.length > 0)
-    XLSX.utils.book_append_sheet(
-      wb,
-      XLSX.utils.json_to_sheet(rackData),
-      "Rack",
-    );
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rackData), "Rack");
   if (deviceData.length > 0)
     XLSX.utils.book_append_sheet(
       wb,
@@ -208,7 +231,7 @@ export const saveToExcel = (racks: Rack[], options?: ExportOptions) => {
   try {
     const u8 = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     const blob = new Blob([u8], { type: EXCEL_MIME });
-    downloadBlob(blob, `ALL_${getFormattedDate()}.xlsx`);
+    downloadBlob(blob, filename || `ALL_${getFormattedDate()}.xlsx`);
   } catch (err) {
     console.error("Export failed:", err);
     alert("내보내기에 실패했습니다. 콘솔을 확인해주세요.");
@@ -286,16 +309,8 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
 };
 
 export const saveRackToJSON = (rack: Rack, options?: ExportOptions) => {
-  const { rackData, deviceData, portData } = prepareExportData([rack], options);
-  const json = JSON.stringify(
-    { Rack: rackData, Equipment: deviceData, Ports: portData },
-    null,
-    2,
-  );
-  downloadBlob(
-    new Blob([json], { type: "application/json" }),
-    `rack-${rack.displayName || rack.id.substring(0, 8)}-${Date.now()}.json`,
-  );
+  const filename = `rack-${rack.displayName || rack.id.substring(0, 8)}-${Date.now()}.json`;
+  saveToJSON([rack], options, filename);
 };
 
 export const loadRackFromJSON = (file: File): Promise<Rack> => {
@@ -319,38 +334,9 @@ export const loadRackFromJSON = (file: File): Promise<Rack> => {
 };
 
 export const saveRackToExcel = (rack: Rack, options?: ExportOptions) => {
-  const { rackData, deviceData, portData } = prepareExportData([rack], options);
-  const wb = XLSX.utils.book_new();
-  if (rackData.length > 0)
-    XLSX.utils.book_append_sheet(
-      wb,
-      XLSX.utils.json_to_sheet(rackData),
-      "Rack",
-    );
-  if (deviceData.length > 0)
-    XLSX.utils.book_append_sheet(
-      wb,
-      XLSX.utils.json_to_sheet(deviceData),
-      "Equipment",
-    );
-  if (portData.length > 0)
-    XLSX.utils.book_append_sheet(
-      wb,
-      XLSX.utils.json_to_sheet(portData),
-      "Ports",
-    );
-  try {
-    const u8 = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const blob = new Blob([u8], { type: EXCEL_MIME });
-    const label = rack.displayName || rack.id.substring(0, 8);
-    downloadBlob(
-      blob,
-      `${label.replace(/[\s\>]+/g, "_")}_${getFormattedDate()}.xlsx`,
-    );
-  } catch (err) {
-    console.error("Export failed:", err);
-    alert("내보내기에 실패했습니다. 콘솔을 확인해주세요.");
-  }
+  const label = (rack.displayName || rack.id.substring(0, 8)).replace(/[\s\>]+/g, "_");
+  const filename = `${label}_${getFormattedDate()}.xlsx`;
+  saveToExcel([rack], options, filename);
 };
 
 export const loadRackFromExcel = (file: File): Promise<Partial<Rack>> => {
@@ -420,7 +406,7 @@ export const loadRackFromExcel = (file: File): Promise<Partial<Rack>> => {
   });
 };
 
-// ─── Group ID Mapping (legacy, for backward-compatible import) ──────────────
+const SCHEMA_VERSION = "2.0";
 
 export const GROUP_ID_MAP: Record<string, string> = {
   과천: "GW",
@@ -432,99 +418,26 @@ const GROUP_NAME_MAP: Record<string, string> = {
   DJ: "대전",
 };
 
-const SCHEMA_VERSION = "2.0";
-
-// ─── Group-Scoped Flattening Helpers ────────────────────────────────────────
-
-/** Flatten racks with groupId column */
-const flattenRacksWithGroup = (racks: Rack[], nodes: HierarchyNode[]) =>
-  racks.map((r) => ({
-    rackId: r.id,
-    rackName: r.displayName || r.id.substring(0, 8),
-    nodeId: r.nodeId,
-    groupName: getNodeName(nodes, r.nodeId),
-    depth: getNodeDepth(nodes, r.nodeId),
-    groupPath: getFullPath(nodes, r.nodeId),
-    uHeight: r.uHeight,
-    width: r.width,
-    posX: r.position[0],
-    posZ: r.position[1],
-    orientation: r.orientation ?? 180,
-  }));
-
-/** Flatten devices with groupId column */
-const flattenDevicesWithGroup = (racks: Rack[], nodes: HierarchyNode[], registeredDevices: RegisteredDevice[]) => {
-  const rows: Record<string, unknown>[] = [];
-  for (const r of racks) {
-    for (const d of r.devices) {
-      const regDev = registeredDevices.find(rd => rd.id === d.registeredDeviceId);
-      rows.push({
-        deviceId: d.id,
-        deviceName: regDev ? regDev.deviceName : d.name,
-        rackId: r.id,
-        rackName: r.displayName || r.id.substring(0, 8),
-        nodeId: r.nodeId,
-        groupName: getNodeName(nodes, r.nodeId),
-        depth: getNodeDepth(nodes, r.nodeId),
-        groupPath: getFullPath(nodes, r.nodeId),
-        type: d.type,
-        uSize: d.uSize,
-        uPosition: d.uPosition,
-        imageUrl: d.imageUrl || "",
-        modelName: d.modelName || "",
-        ip: d.ip || "",
-        mac: d.mac || "",
-        vendor: d.vendor || "",
-        registeredDeviceId: d.registeredDeviceId || "",
-      });
-    }
-  }
-  return rows;
-};
-
-/** Flatten ports with groupId column */
-const flattenPortsWithGroup = (racks: Rack[], registeredDevices: RegisteredDevice[]) => {
-  const rows: Record<string, unknown>[] = [];
-  for (const r of racks) {
-    for (const d of r.devices) {
-      const regDev = registeredDevices.find(rd => rd.id === d.registeredDeviceId);
-      for (const p of d.portStates) {
-        rows.push({
-          portId: p.portId,
-          deviceId: d.id,
-          deviceName: regDev ? regDev.deviceName : d.name,
-          rackId: r.id,
-          rackName: r.displayName || r.id.substring(0, 8),
-          nodeId: r.nodeId,
-          status: p.status,
-          errorLevel: p.errorLevel || "",
-          errorMessage: p.errorMessage || "",
-        });
-      }
-    }
-  }
-  return rows;
-};
-
 /** Flatten registered devices */
-const flattenRegisteredDevices = (devices: RegisteredDevice[], nodes: HierarchyNode[]) =>
-  devices.map((d) => {
-    return {
-      id: d.id,
-      nodeId: d.nodeId,
-      groupName: getNodeName(nodes, d.nodeId),
-      nodePath: getFullPath(nodes, d.nodeId),
-      groupPath: getFullPath(nodes, d.nodeId), // Duplicate for robustness
-      depth: getNodeDepth(nodes, d.nodeId),
-      deviceName: d.deviceName,
-      modelName: d.modelName,
-      type: d.type,
-      uSize: d.uSize,
-      ip: d.ip,
-      mac: d.mac,
-      vendor: d.vendor,
-    };
-  });
+const flattenRegisteredDevices = (
+  devices: RegisteredDevice[],
+  nodes: HierarchyNode[],
+) =>
+  devices.map((d) => ({
+    id: d.id,
+    nodeId: d.nodeId,
+    groupName: getNodeName(nodes, d.nodeId),
+    nodePath: getFullPath(nodes, d.nodeId),
+    groupPath: getFullPath(nodes, d.nodeId), // Duplicate for robustness
+    depth: getNodeDepth(nodes, d.nodeId),
+    deviceName: d.deviceName,
+    modelName: d.modelName,
+    type: d.type,
+    uSize: d.uSize,
+    ip: d.ip,
+    mac: d.mac,
+    vendor: d.vendor,
+  }));
 
 // ─── Master Sheet Builders ──────────────────────────────────────────────────
 
@@ -587,11 +500,16 @@ export const exportGroupWorkbook = (
 
   // ── Master sheets (always present) ──
   XLSX.utils.book_append_sheet(wb, buildMetaSheet(request), "_META");
-  XLSX.utils.book_append_sheet(wb, buildGroupsSheet(nodes), "Groups");
+  
+  // Filter nodes for Groups sheet: Include only ancestors and the node itself for targeted export
+  const filteredNodes = isAllScope 
+    ? nodes 
+    : getAncestorPath(nodes, request.scopeId);
+  XLSX.utils.book_append_sheet(wb, buildGroupsSheet(filteredNodes), "Groups");
 
-  const allRackRows = flattenRacksWithGroup(filteredRacks, nodes);
-  const allDeviceRows = flattenDevicesWithGroup(filteredRacks, nodes, filteredRegDevices);
-  const allPortRows = flattenPortsWithGroup(filteredRacks, filteredRegDevices);
+  const allRackRows = flattenRacks(filteredRacks, nodes);
+  const allDeviceRows = flattenDevices(filteredRacks, nodes, filteredRegDevices);
+  const allPortRows = flattenPorts(filteredRacks, nodes, filteredRegDevices);
   const allRegDevRows = flattenRegisteredDevices(filteredRegDevices, nodes);
 
   if (allRackRows.length > 0)
@@ -618,47 +536,6 @@ export const exportGroupWorkbook = (
       XLSX.utils.json_to_sheet(allRegDevRows),
       "RegisteredDevices",
     );
-
-  // ── PKG sheets (only when exporting a specific group) ──
-  if (request.scopeId !== "ALL") {
-    const scope = request.scopeId;
-    const groupId = GROUP_ID_MAP[scope] || scope; // nodeId or legacy group mapping
-    const groupRacks = allRackRows.filter((r) => (r as any).nodeId === scope || (r as any).groupId === groupId);
-    const groupDevices = allDeviceRows.filter((d) => (d as any).nodeId === scope || (d as any).groupId === groupId);
-    const groupPorts = allPortRows.filter((p) => (p as any).nodeId === scope || (p as any).groupId === groupId);
-
-    // PKG metadata sheet (use groupId for sheet names to avoid encoding issues)
-    const pkgMeta = XLSX.utils.json_to_sheet([
-      { key: "packageId", value: generateUUID() },
-      { key: "groupId", value: groupId },
-      { key: "groupName", value: request.scopeLabel },
-      { key: "exportScope", value: "GROUP_ONLY" },
-      { key: "schemaVersion", value: SCHEMA_VERSION },
-      { key: "exportedAt", value: request.exportedAt },
-      { key: "importModeHint", value: "REPLACE" },
-      { key: "requestId", value: request.requestId },
-    ]);
-    XLSX.utils.book_append_sheet(wb, pkgMeta, `PKG_${groupId}`);
-
-    if (groupRacks.length > 0)
-      XLSX.utils.book_append_sheet(
-        wb,
-        XLSX.utils.json_to_sheet(groupRacks),
-        `PKG_${groupId}_Racks`,
-      );
-    if (groupDevices.length > 0)
-      XLSX.utils.book_append_sheet(
-        wb,
-        XLSX.utils.json_to_sheet(groupDevices),
-        `PKG_${groupId}_Devices`,
-      );
-    if (groupPorts.length > 0)
-      XLSX.utils.book_append_sheet(
-        wb,
-        XLSX.utils.json_to_sheet(groupPorts),
-        `PKG_${groupId}_Ports`,
-      );
-  }
 
   try {
     console.log(`[Export] Generating Workbook Bytes - Request: ${request.requestId}`);
@@ -840,7 +717,9 @@ export interface ProcessedImportData {
     type: "ALL" | "NODE";
     nodeId?: string;
   };
+  effectiveScopeId: string | "ALL";
   ignoredCount: number;
+  nodeIdMap: Record<string, string>;
 }
 
 /**
@@ -903,12 +782,6 @@ export const importGroupPackage = (
           }));
         }
 
-        // Resolution Context: Start with system nodes, augment with file nodes
-        const resolutionNodes = [...systemNodes];
-        fileNodes.forEach(fn => {
-           if (!resolutionNodes.some(sn => sn.nodeId === fn.nodeId)) resolutionNodes.push(fn);
-        });
-
         const getValue = (row: any, ...syns: string[]) => {
           for (const s of syns) {
             if (row[s] !== undefined) return row[s];
@@ -918,96 +791,102 @@ export const importGroupPackage = (
           return undefined;
         };
 
-        /**
-         * Resolves the target nodeId for a specific row independently.
-         * Implementation follows strict hierarchy reconstruction per row.
-         */
         const getRowInfo = (row: any) => {
           const path = getValue(row, "groupPath") || getValue(row, "nodePath");
           const nid = getValue(row, "nodeId") || getValue(row, "groupId");
           const name = getValue(row, "groupName") || getValue(row, "nodeName");
-          
           return { path: path ? String(path) : undefined, nid: nid ? String(nid) : undefined, name: name ? String(name) : undefined };
         };
 
-        /**
-         * Resolves the target nodeId for a specific row independently.
-         * Implementation follows strict hierarchy reconstruction per row.
-         */
-        const resolveRowToNodeId = (info: { path?: string, nid?: string, name?: string }, rowIndex: number, type: string): string => {
+        let isTargeted = targetNodeId && targetNodeId !== "ALL";
+
+        const targetPath = isTargeted ? getFullPath(systemNodes, targetNodeId) : null;
+        console.log(`[Import] Target: ${targetNodeId}, Path: ${targetPath}, isTargeted: ${isTargeted}`);
+
+        // --- PRE-RESOLUTION PASS: Map all file nodes to system IDs ---
+        const nodeIdMap: Record<string, string> = {};
+        const resolutionNodes = isTargeted && targetNodeId && targetNodeId !== "ALL"
+          ? getAncestorPath(systemNodes, targetNodeId)
+          : [...systemNodes];
+
+        const getFileNodePath = (nid: string): string => {
+           const pathArr: string[] = [];
+           let currId: string | null = nid;
+           const visited = new Set<string>();
+           while (currId && !visited.has(currId)) {
+             visited.add(currId);
+             const n = fileNodes.find(fn => fn.nodeId === currId);
+             if (!n) break;
+             pathArr.unshift(n.name);
+             currId = n.parentId;
+           }
+           return pathArr.join(" > ");
+        };
+
+        // Resolution: Top-down to ensure parents exist
+        const sortedFileNodes = [...fileNodes].sort((a, b) => getFileNodePath(a.nodeId).split(">").length - getFileNodePath(b.nodeId).split(">").length);
+        
+        sortedFileNodes.forEach(fn => {
+           const fullPath = getFileNodePath(fn.nodeId);
+           const { nodeId: resId, newNodes } = resolvePathToNodeId(systemNodes, fullPath, resolutionNodes);
+           nodeIdMap[fn.nodeId] = resId;
+           newNodes.forEach(nn => {
+             if (!resolutionNodes.some(sn => sn.nodeId === nn.nodeId)) resolutionNodes.push(nn);
+           });
+        });
+
+        let ignoredCount = 0;
+
+        const resolveRowToNodeId = (info: { path?: string, nid?: string, name?: string }): string => {
           const { path, nid, name } = info;
-
-          let resultId = "unassigned";
-
+          
           if (path) {
-            // Priority 1: Full Path Resolution (Creates hierarchy if missing)
             const { nodeId: resId, newNodes } = resolvePathToNodeId(systemNodes, String(path), resolutionNodes);
             newNodes.forEach(nn => {
                if (!resolutionNodes.some(ex => ex.nodeId === nn.nodeId)) resolutionNodes.push(nn);
             });
-            resultId = resId;
-          } else if (nid && resolutionNodes.some(n => n.nodeId === String(nid))) {
-            // Priority 2: Exact NodeID match
-            resultId = String(nid);
-          } else if (name) {
-            // Priority 3: Name match fallback
-            const match = resolutionNodes.find(n => n.name.toLowerCase() === String(name).toLowerCase());
-            if (match) {
-              resultId = match.nodeId;
-            } else {
-              // Create a node at root if only name is known
-              const { nodeId: resId, newNodes } = resolvePathToNodeId(systemNodes, String(name), resolutionNodes);
-              newNodes.forEach(nn => resolutionNodes.push(nn));
-              resultId = resId;
-            }
+            return resId;
           }
 
-          if (rowIndex < 5 || rowIndex % 50 === 0) {
-            console.log(`[Import] Row ${type}[${rowIndex}]: resolved to nodeId=${resultId} (Path: ${path || "N/A"})`);
+          if (nid && nodeIdMap[String(nid)]) return nodeIdMap[String(nid)];
+
+          if (name) {
+             const match = resolutionNodes.find(n => n.name.toLowerCase() === String(name).toLowerCase());
+             if (match) return match.nodeId;
           }
-          return resultId;
+
+          return "unassigned";
         };
-
-        // 4. Data Population & Filtering
-        let ignoredCount = 0;
-        const targetNode = targetNodeId && targetNodeId !== "ALL" ? systemNodes.find(n => n.nodeId === targetNodeId) : null;
-        const isRootTarget = targetNode && (targetNode.parentId === null || targetNode.nodeId === "stn-root");
-
-        let isTargeted = targetNodeId && targetNodeId !== "ALL";
-
-        // If the file being imported is an ALL-scope export and the user is targeting the root node,
-        // we treat it as a non-targeted (full) import to allow full restoration of the hierarchy and data.
-        if (exportScopeType === "ALL" && isRootTarget) {
-          console.log("[Import] ALL-scope file detected with root node target. Bypassing strict filtering for full restoration.");
-          isTargeted = false;
-        }
-
-        // Get target path for strict path-based filtering if still targeted
-        const targetPath = isTargeted ? getFullPath(systemNodes, targetNodeId) : null;
 
         const dataByNode: Record<string, { racks: Rack[]; registeredDevices: RegisteredDevice[] }> = {};
         const ensureNode = (id: string) => {
           if (!dataByNode[id]) dataByNode[id] = { racks: [], registeredDevices: [] };
         };
 
-        racksRaw.forEach((r, idx) => {
+        const targetSubtree = (isTargeted && targetNodeId) ? getSubtreeNodeIds(resolutionNodes, targetNodeId) : null;
+
+        const isTargetMatch = (info: { path?: string, nid?: string }) => {
+          if (!isTargeted) return true;
+          const { path, nid } = info;
+          if (path && targetPath) {
+             return path === targetPath || path.startsWith(targetPath + " > ");
+          }
+          if (nid) {
+             const resolvedId = nodeIdMap[String(nid)] || nid;
+             return resolvedId === targetNodeId || (targetSubtree?.has(resolvedId) ?? false);
+          }
+          return false;
+        };
+
+        racksRaw.forEach((r) => {
           const info = getRowInfo(r);
           
-          // Strict filtering: If targeted, only allow rows matching targetNodeId or EXACT targetPath
-          if (isTargeted) {
-             const rowPath = info.path;
-             if (rowPath) {
-                if (rowPath !== targetPath) {
-                    ignoredCount++;
-                    return;
-                }
-             } else if (info.nid !== targetNodeId) {
-                ignoredCount++;
-                return;
-             }
+          if (!isTargetMatch(info)) {
+             ignoredCount++;
+             return;
           }
 
-          const nodeTarget = resolveRowToNodeId(info, idx, "Rack");
+          const nodeTarget = resolveRowToNodeId(info);
           ensureNode(nodeTarget);
 
           const rId = String(getValue(r, "rackId") || generateUUID());
@@ -1042,7 +921,7 @@ export const importGroupPackage = (
           dataByNode[nodeTarget].racks.push({
             id: rId,
             nodeId: nodeTarget,
-            displayName: String(getValue(r, "rackName", "displayName") || `Rack-${idx}`),
+            displayName: String(getValue(r, "rackName", "displayName") || `Rack`),
             uHeight: Number(getValue(r, "uHeight") || 48) as any,
             width: Number(getValue(r, "width") || RACK_WIDTH_STANDARD),
             position: [Number(getValue(r, "posX") || 0), Number(getValue(r, "posZ") || 0)],
@@ -1051,23 +930,16 @@ export const importGroupPackage = (
           });
         });
 
-        regDevsRaw.forEach((d, idx) => {
+        regDevsRaw.forEach((d) => {
           const info = getRowInfo(d);
           
-          if (isTargeted) {
-             const rowPath = info.path;
-             if (rowPath) {
-                if (rowPath !== targetPath) {
-                    ignoredCount++;
-                    return;
-                }
-             } else if (info.nid !== targetNodeId) {
-                ignoredCount++;
-                return;
-             }
+          // Strict filtering: If targeted, only allow rows matching targetNodeId or DESCENDANTS
+          if (!isTargetMatch(info)) {
+             ignoredCount++;
+             return;
           }
 
-          const nodeTarget = resolveRowToNodeId(info, idx, "RegDev");
+          const nodeTarget = resolveRowToNodeId(info);
           ensureNode(nodeTarget);
 
           dataByNode[nodeTarget].registeredDevices.push({
@@ -1084,20 +956,19 @@ export const importGroupPackage = (
         });
 
         // 5. Final Hierarchy Cleanup
-        // If targeted, only include nodes in the direct ancestor path of the target node.
+        // If targeted, only include nodes in the direct ancestor path of the target node or its subtree.
         let resultNodes = resolutionNodes;
-        if (isTargeted) {
-          const targetNode = resolutionNodes.find(n => n.nodeId === targetNodeId);
-          if (targetNode) {
-            resultNodes = getAncestorPath(resolutionNodes, targetNode.nodeId);
-          } else {
-             // If target node not found in resolutionNodes (shouldn't happen with resolvePathToNodeId), 
-             // but just in case, use direct system path if target is a known system node.
-             const systemTarget = systemNodes.find(n => n.nodeId === targetNodeId);
-             if (systemTarget) {
-                 resultNodes = getAncestorPath(systemNodes, systemTarget.nodeId);
-             }
-          }
+        if (isTargeted && targetNodeId) {
+          // Ancestors must come from systemNodes OR file ancestors
+          const ancestors = getAncestorPath(resolutionNodes, targetNodeId);
+          const ancIds = new Set(ancestors.map(a => a.nodeId));
+          
+          // Subtree (target + descendants)
+          const subtreeIds = getSubtreeNodeIds(resolutionNodes, targetNodeId);
+          
+          resultNodes = resolutionNodes.filter(n => {
+             return ancIds.has(n.nodeId) || subtreeIds.has(n.nodeId);
+          });
         }
 
         console.log(`[Import] Final Summary: ${Object.keys(dataByNode).length} targeted nodes identified. Ignored ${ignoredCount} rows.`);
@@ -1107,6 +978,8 @@ export const importGroupPackage = (
           nodes: resultNodes,
           dataByNode,
           exportScope: { type: exportScopeType, nodeId: exportScopeNodeId },
+          effectiveScopeId: targetNodeId,
+          nodeIdMap,
           ignoredCount
         });
       } catch (err) {

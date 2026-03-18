@@ -1,4 +1,4 @@
-import type { HierarchyNode } from "../types";
+import type { HierarchyNode, RegisteredDevice, Rack } from "../types";
 
 // ─── Default Node IDs (고정 상수) ──────────────────────────────────────────────
 
@@ -123,9 +123,9 @@ export const migrateGroupNameToNodeId = (
 /** 노드 ID를 기반으로 노드 이름을 로버스트하게 반환 (fallback 포함) */
 export const getNodeName = (
   nodes: HierarchyNode[],
-  nodeId: string,
+  nodeId: string | null,
 ): string => {
-  if (!nodeId) return "Unknown";
+  if (!nodeId) return "없음";
   
   // 1. Direct match
   const direct = findNode(nodes, nodeId);
@@ -146,16 +146,47 @@ export const getNodeName = (
 };
 
 /** 노드의 깊이 반환 (root = 1) */
-export const getNodeDepth = (nodes: HierarchyNode[], nodeId: string): number => {
+export const getNodeDepth = (nodes: HierarchyNode[], nodeId: string | null): number => {
+  if (!nodeId) return 0;
   const path = getAncestorPath(nodes, nodeId);
   return path.length;
 };
 
 /** 노드의 전체 경로 이름 반환 (예: "STN > 수도권 > 경기") */
-export const getFullPath = (nodes: HierarchyNode[], nodeId: string): string => {
+export const getFullPath = (nodes: HierarchyNode[], nodeId: string | null): string => {
+  if (!nodeId) return "";
   const path = getAncestorPath(nodes, nodeId);
   if (path.length === 0) return "";
   return path.map((n) => n.name).join(" > ");
+};
+
+/** 특정 노드의 직계 장비 개수 반환 (등록 장비 기준) */
+export const getNodeEquipmentCount = (
+  registeredDevices: RegisteredDevice[],
+  nodeId: string | "ALL",
+): number => {
+  if (nodeId === "ALL") return registeredDevices.length;
+  return registeredDevices.filter((rd) => rd.nodeId === nodeId).length;
+};
+
+/** 특정 노드의 장비 목록 및 배치된 랙 정보 반환 */
+export const getNodeDevices = (
+  nodeId: string,
+  registeredDevices: RegisteredDevice[],
+  racks: Rack[],
+): { device: RegisteredDevice; rackId: string | null }[] => {
+  const nodeRegDevices = registeredDevices.filter((rd) => rd.nodeId === nodeId);
+
+  return nodeRegDevices.map((rd) => {
+    let foundRackId: string | null = null;
+    for (const r of racks) {
+      if (r.devices.some((d) => d.registeredDeviceId === rd.id)) {
+        foundRackId = r.id;
+        break;
+      }
+    }
+    return { device: rd, rackId: foundRackId };
+  });
 };
 
 /**

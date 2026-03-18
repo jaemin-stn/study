@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import type { HierarchyNode } from "../types";
-import { getChildren, getAncestorPath } from "../utils/nodeUtils";
+import { getChildren, getAncestorPath, getNodeEquipmentCount, getNodeDevices } from "../utils/nodeUtils";
 
 // ─── Inline Styles ───────────────────────────────────────────────────────────
 
@@ -446,32 +446,16 @@ export const HierarchyTree = () => {
   // Calculate direct equipment counts (non-recursive)
   const equipmentCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    
-    registeredDevices.forEach((rd) => {
-      counts.set(rd.nodeId, (counts.get(rd.nodeId) || 0) + 1);
+    nodes.forEach((n) => {
+      const count = getNodeEquipmentCount(registeredDevices, n.nodeId);
+      if (count > 0) counts.set(n.nodeId, count);
     });
-
     return counts;
-  }, [registeredDevices]);
+  }, [nodes, registeredDevices]);
 
-  const getNodeDevices = useCallback(
-    (nodeId: string): { device: any; rackId: string | null }[] => {
-      // Find all registered devices for this node
-      const nodeRegDevices = registeredDevices.filter((rd) => rd.nodeId === nodeId);
-
-      return nodeRegDevices.map((rd) => {
-        // Find if this registered device is actually placed in any rack
-        let foundRackId: string | null = null;
-        for (const r of racks) {
-          if (r.devices.some((d) => d.registeredDeviceId === rd.id)) {
-            foundRackId = r.id;
-            break;
-          }
-        }
-        return { device: rd, rackId: foundRackId };
-      });
-    },
-    [registeredDevices, racks],
+  const currentDevices = useMemo(
+    () => (activeNodeId ? getNodeDevices(activeNodeId, registeredDevices, racks) : []),
+    [activeNodeId, registeredDevices, racks],
   );
 
 
@@ -551,7 +535,7 @@ export const HierarchyTree = () => {
 
   const handleRenameConfirm = useCallback(() => {
     if (renamingId && renameValue.trim()) {
-      renameNode(renamingId, renameValue.trim());
+      renameNode(renamingId as string, renameValue.trim());
     }
     setRenamingId(null);
   }, [renamingId, renameValue, renameNode]);
@@ -571,7 +555,7 @@ export const HierarchyTree = () => {
   }, [contextMenu, nodes, deleteNode]);
 
   const rootNodes = getChildren(nodes, null);
-  const breadcrumbPath = getAncestorPath(nodes, activeNodeId);
+  const breadcrumbPath = getAncestorPath(nodes, activeNodeId || "");
   const breadcrumbText = breadcrumbPath.map((n) => n.name).join(" > ");
 
   return (
@@ -665,7 +649,7 @@ export const HierarchyTree = () => {
               node={root}
               depth={0}
               nodes={nodes}
-              activeNodeId={activeNodeId}
+              activeNodeId={activeNodeId || ""}
               expandedIds={expandedNodeIds}
               equipmentCounts={equipmentCounts}
               isEditMode={isEditMode}
@@ -683,7 +667,6 @@ export const HierarchyTree = () => {
       {showEquipment && !isCollapsed && activeNodeId && (
         <div className="equipment-detail-panel">
           {(() => {
-            const currentDevices = getNodeDevices(activeNodeId);
             const nodeName =
               nodes.find((n) => n.nodeId === activeNodeId)?.name || "전체";
 
@@ -696,15 +679,8 @@ export const HierarchyTree = () => {
                   {currentDevices.length > 0 ? (
                     currentDevices.map(({ device, rackId }) => {
                       const rack = rackId ? racks.find((r) => r.id === rackId) : null;
-                      const regDev = registeredDevices.find(
-                        (rd) => (rd.id === device.id || rd.id === device.registeredDeviceId),
-                      );
 
-                      const equipmentLabel =
-                        (regDev?.deviceName ||
-                          device.deviceName ||
-                          device.name ||
-                          device.modelName) || "Device";
+                      const equipmentLabel = device.deviceName || device.modelName || "Device";
 
                       const rackLabel = rack
                         ? (rack.displayName || `Rack-${rack.id.slice(0, 4)}`) + ` (${rack.uHeight}U)`

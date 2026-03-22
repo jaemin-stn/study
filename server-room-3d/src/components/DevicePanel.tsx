@@ -345,6 +345,8 @@ export const DevicePanel = () => {
     updateRackOrientation,
     updateRack,
     highlightedDeviceId,
+    setHighlightedDevice,
+    focusRack,
     showToast,
   } = useStore();
   const rack = racks.find((r) => r.id === selectedRackId);
@@ -390,13 +392,10 @@ export const DevicePanel = () => {
   };
 
   // Registered devices for this rack's exact node scope
-  const groupRegDevices = useMemo(
-    () => {
-      if (!rack) return [];
-      return registeredDevices.filter((rd) => rd.nodeId === rack.nodeId);
-    },
-    [registeredDevices, rack?.nodeId],
-  );
+  const groupRegDevices = useMemo(() => {
+    if (!rack) return [];
+    return registeredDevices.filter((rd) => rd.nodeId === rack.nodeId);
+  }, [registeredDevices, rack?.nodeId]);
 
   // Helper to lookup a registered device by ID
   const findRegDevice = (id?: string): RegisteredDevice | undefined =>
@@ -424,7 +423,10 @@ export const DevicePanel = () => {
     const end = start + regDevice.uSize - 1;
 
     if (start < 1 || end > rack.uHeight) {
-      showToast(`에러: 장비(${regDevice.uSize}U)가 랙 높이를 초과했습니다.`, "error");
+      showToast(
+        `에러: 장비(${regDevice.uSize}U)가 랙 높이를 초과했습니다.`,
+        "error",
+      );
       return;
     }
 
@@ -486,7 +488,10 @@ export const DevicePanel = () => {
         const heightPx = device.uSize * TOTAL_SLOT_HEIGHT - SLOT_MARGIN;
         // Resolve from registered device if available, else fallback
         const regDev = findRegDevice(device.registeredDeviceId);
-        const displayName = (regDev ? (regDev.deviceName || regDev.modelName) : (device.modelName ?? device.name)) || "Device";
+        const displayName =
+          (regDev
+            ? regDev.deviceName || regDev.modelName
+            : (device.modelName ?? device.name)) || "Device";
         const imageSrc = resolveDeviceImage(
           regDev?.modelName ?? device.modelName,
         );
@@ -521,7 +526,13 @@ export const DevicePanel = () => {
                 ? "2px solid var(--severity-critical)"
                 : `1px solid ${borderColor}`,
             }}
-            onClick={() => selectDevice(device.id)}
+            onClick={() => {
+              selectDevice(device.id);
+              if (selectedRackId) {
+                focusRack(selectedRackId);
+              }
+              setHighlightedDevice(device.id, 2500);
+            }}
           >
             {hasImage && <DeviceTileImage src={imageSrc!} alt={displayName} />}
 
@@ -760,8 +771,8 @@ export const DevicePanel = () => {
                   color: "var(--text-secondary)",
                 }}
               >
-                Position: U{addModalSlot} · {getNodeName(nodes, rack.nodeId)} · 가용 공간{" "}
-                {contiguousFreeU}U
+                Position: U{addModalSlot} · {getNodeName(nodes, rack.nodeId)} ·
+                가용 공간 {contiguousFreeU}U
               </span>
             </div>
             <button className="grafana-modal-close" onClick={closeAddModal}>
@@ -826,24 +837,25 @@ export const DevicePanel = () => {
                           )}
                         </div>
                         <div className="reg-device-item-info">
-                          <div 
+                          <div
                             className="reg-device-item-model"
                             style={{ marginBottom: "2px" }}
                           >
                             {rd.deviceName || rd.modelName}
                           </div>
                           <div className="reg-device-item-details">
-                            {rd.deviceName && rd.deviceName !== rd.modelName && (
-                              <span 
-                                className="reg-device-item-badge"
-                                style={{ 
-                                  background: "var(--bg-primary)",
-                                  border: "1px solid var(--border-weak)"
-                                }}
-                              >
-                                {rd.modelName}
-                              </span>
-                            )}
+                            {rd.deviceName &&
+                              rd.deviceName !== rd.modelName && (
+                                <span
+                                  className="reg-device-item-badge"
+                                  style={{
+                                    background: "var(--bg-primary)",
+                                    border: "1px solid var(--border-weak)",
+                                  }}
+                                >
+                                  {rd.modelName}
+                                </span>
+                              )}
                             <span className="reg-device-item-badge">
                               {rd.uSize}U
                             </span>
@@ -1201,39 +1213,49 @@ export const DevicePanel = () => {
       {renderAddDeviceModal()}
 
       {/* Rack Deletion Confirm Modal */}
-      {isDeleteRackModalOpen && createPortal(
-        <div className="confirm-modal-overlay" onClick={() => setIsDeleteRackModalOpen(false)}>
-          <div className="confirm-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="confirm-modal-header">
-              <div className="confirm-modal-icon">🗑️</div>
-              <h3 className="confirm-modal-title">랙 삭제</h3>
+      {isDeleteRackModalOpen &&
+        createPortal(
+          <div
+            className="confirm-modal-overlay"
+            onClick={() => setIsDeleteRackModalOpen(false)}
+          >
+            <div
+              className="confirm-modal-card"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="confirm-modal-header">
+                <div className="confirm-modal-icon">🗑️</div>
+                <h3 className="confirm-modal-title">랙 삭제</h3>
+              </div>
+              <div className="confirm-modal-body">
+                <strong>
+                  {rack.displayName || `Rack ${rack.id.substring(0, 4)}`}
+                </strong>
+                을(를) 삭제하시겠습니까?
+                <br />랙 내부의 모든 장비도 함께 삭제됩니다.
+              </div>
+              <div className="confirm-modal-actions">
+                <button
+                  className="grafana-btn grafana-btn-secondary"
+                  onClick={() => setIsDeleteRackModalOpen(false)}
+                >
+                  취소
+                </button>
+                <button
+                  className="grafana-btn grafana-btn-destructive"
+                  onClick={() => {
+                    deleteRack(rack.id);
+                    setIsDeleteRackModalOpen(false);
+                    showToast("랙이 삭제되었습니다.", "success");
+                  }}
+                >
+                  삭제
+                </button>
+              </div>
             </div>
-            <div className="confirm-modal-body">
-              <strong>{rack.displayName || `Rack ${rack.id.substring(0, 4)}`}</strong>을(를) 삭제하시겠습니까?<br/>
-              랙 내부의 모든 장비도 함께 삭제됩니다.
-            </div>
-            <div className="confirm-modal-actions">
-              <button 
-                className="grafana-btn grafana-btn-secondary"
-                onClick={() => setIsDeleteRackModalOpen(false)}
-              >
-                취소
-              </button>
-              <button 
-                className="grafana-btn grafana-btn-destructive"
-                onClick={() => {
-                  deleteRack(rack.id);
-                  setIsDeleteRackModalOpen(false);
-                  showToast("랙이 삭제되었습니다.", "success");
-                }}
-              >
-                삭제
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };

@@ -1,7 +1,12 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import type { HierarchyNode } from "../types";
-import { getChildren, getAncestorPath, getNodeEquipmentCount, getNodeDevices } from "../utils/nodeUtils";
+import {
+  getChildren,
+  getAncestorPath,
+  getNodeEquipmentCount,
+  getNodeDevices,
+} from "../utils/nodeUtils";
 
 // ─── Inline Styles ───────────────────────────────────────────────────────────
 
@@ -414,6 +419,7 @@ export const HierarchyTree = () => {
   const setShowEquipment = useStore((s) => s.setShowEquipmentInTree);
   const setHighlightedDevice = useStore((s) => s.setHighlightedDevice);
   const highlightedDeviceId = useStore((s) => s.highlightedDeviceId);
+  const showToast = useStore((s) => s.showToast);
   const focusRack = useStore((s) => s.focusRack);
   const selectRack = useStore((s) => s.selectRack);
   const registeredDevices = useStore((s) => s.registeredDevices);
@@ -454,10 +460,12 @@ export const HierarchyTree = () => {
   }, [nodes, registeredDevices]);
 
   const currentDevices = useMemo(
-    () => (activeNodeId ? getNodeDevices(activeNodeId, registeredDevices, racks) : []),
+    () =>
+      activeNodeId
+        ? getNodeDevices(activeNodeId, registeredDevices, racks)
+        : [],
     [activeNodeId, registeredDevices, racks],
   );
-
 
   const handleToggle = useCallback(
     (nodeId: string) => {
@@ -483,18 +491,23 @@ export const HierarchyTree = () => {
     [],
   );
 
-
   const handleDeviceClick = useCallback(
     (deviceId: string, rackId: string | null) => {
-      if (!rackId) return; // Cannot locate unplaced device
+      if (!rackId) {
+        showToast("배치되지 않은 장비입니다. 랙에 먼저 배치해주세요.", "error");
+        return;
+      }
       const rack = racks.find((r) => r.id === rackId);
-      if (!rack) return;
+      if (!rack) {
+        showToast("장비를 찾을 수 없습니다.", "error");
+        return;
+      }
       if (rack.nodeId !== activeNodeId) {
         setActiveNode(rack.nodeId);
       }
       selectRack(rackId);
       focusRack(rackId);
-      setHighlightedDevice(deviceId, 4000); // 4 seconds highlight
+      setHighlightedDevice(deviceId, 2500); // 2.5 seconds highlight
     },
     [
       activeNodeId,
@@ -603,8 +616,8 @@ export const HierarchyTree = () => {
           </div>
           {!isCollapsed && (
             <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div 
-                className="tree-toggle-item" 
+              <div
+                className="tree-toggle-item"
                 onClick={(e) => e.stopPropagation()}
               >
                 <span className="tree-toggle-label">장비</span>
@@ -641,7 +654,6 @@ export const HierarchyTree = () => {
           )}
         </div>
 
-
         <div className="hierarchy-tree-body">
           {rootNodes.map((root) => (
             <TreeNodeItem
@@ -677,20 +689,24 @@ export const HierarchyTree = () => {
                 </div>
                 <div className="equipment-panel-body">
                   {currentDevices.length > 0 ? (
-                    currentDevices.map(({ device, rackId }) => {
-                      const rack = rackId ? racks.find((r) => r.id === rackId) : null;
+                    currentDevices.map(({ device, rackId, instanceId }) => {
+                      const rack = rackId
+                        ? racks.find((r) => r.id === rackId)
+                        : null;
 
-                      const equipmentLabel = device.deviceName || device.modelName || "Device";
+                      const equipmentLabel =
+                        device.deviceName || device.modelName || "Device";
 
                       const rackLabel = rack
-                        ? (rack.displayName || `Rack-${rack.id.slice(0, 4)}`) + ` (${rack.uHeight}U)`
+                        ? (rack.displayName || `Rack-${rack.id.slice(0, 4)}`) +
+                          ` (${rack.uHeight}U)`
                         : "미배치 (Inventory)";
 
                       return (
                         <div
                           key={`${activeNodeId}-${device.id}`}
-                          className={`tree-node tree-node-equipment ${highlightedDeviceId === device.id ? "highlighted" : ""}`}
-                          onClick={() => handleDeviceClick(device.id, rackId)}
+                          className={`tree-node tree-node-equipment ${highlightedDeviceId === (instanceId || device.id) ? "highlighted" : ""}`}
+                          onClick={() => handleDeviceClick(instanceId || device.id, rackId)}
                         >
                           <span className="tree-node-icon">📟</span>
                           <div

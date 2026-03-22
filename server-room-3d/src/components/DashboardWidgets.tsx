@@ -140,7 +140,7 @@ export const DashboardWidgets = () => {
 
   // Mock sensor data per exact active node
   const sensorData: SensorData = useMemo(() => {
-    if (MOCK_SENSOR_DATA[activeNodeId]) return MOCK_SENSOR_DATA[activeNodeId];
+    if (activeNodeId && MOCK_SENSOR_DATA[activeNodeId]) return MOCK_SENSOR_DATA[activeNodeId];
     return { temperature: null, humidity: null };
   }, [activeNodeId]);
 

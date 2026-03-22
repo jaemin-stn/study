@@ -622,13 +622,9 @@ export const DeviceRegistrationModal = () => {
   const selectRack = useStore((s) => s.selectRack);
   const focusRack = useStore((s) => s.focusRack);
   const setHighlightedDevice = useStore((s) => s.setHighlightedDevice);
-  
-  // Track focus timeout to cancel it if a new one starts
-  const highlightTimeoutRef = useRef<any>(null);
 
-  // Form state
   // Form state. Initialize with activeNodeId, later synced by useEffect
-  const [nodeId, setNodeId] = useState<string>(activeNodeId);
+  const [nodeId, setNodeId] = useState<string>(activeNodeId || "");
   const [selectedModelIdx, setSelectedModelIdx] = useState(0);
   const [deviceName, setDeviceName] = useState("");
   const [ip, setIp] = useState("");
@@ -655,13 +651,13 @@ export const DeviceRegistrationModal = () => {
   // Sync state when modal opens ONLY (don't reset on nodes change during session)
   useEffect(() => {
     if (isOpen) {
-      setNodeId(activeNodeId);
-      const activeNode = nodes.find((n) => n.nodeId === activeNodeId);
+      setNodeId(activeNodeId || "");
+      const activeNode = activeNodeId ? nodes.find((n) => n.nodeId === activeNodeId) : undefined;
       // If root/MAIN node (parentId === null), default to "all" devices view
       if (!activeNode || activeNode.parentId === null) {
         setNodeFilter("all");
       } else {
-        setNodeFilter(activeNodeId);
+        setNodeFilter(activeNodeId || "all");
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -706,11 +702,13 @@ export const DeviceRegistrationModal = () => {
   const handleEditClick = (device: (typeof registeredDevices)[0]) => {
     setEditingDeviceId(device.id);
     setNodeId(device.nodeId);
-    
+
     // Find model index by modelName
-    const idx = DEVICE_TEMPLATES.findIndex(t => t.modelName === device.modelName);
+    const idx = DEVICE_TEMPLATES.findIndex(
+      (t) => t.modelName === device.modelName,
+    );
     if (idx >= 0) setSelectedModelIdx(idx);
-    
+
     setDeviceName(device.deviceName);
     setIp(device.ip);
     setMac(device.mac);
@@ -765,7 +763,8 @@ export const DeviceRegistrationModal = () => {
     if (!file) return;
     setIsProcessing(true);
     try {
-      const { devices: parsed, newNodes } = await parseRegisteredDevicesFromExcel(file, nodes);
+      const { devices: parsed, newNodes } =
+        await parseRegisteredDevicesFromExcel(file, nodes);
       if (parsed.length === 0) {
         showToast(
           "파일에서 유효한 장비를 찾을 수 없습니다.",
@@ -774,14 +773,14 @@ export const DeviceRegistrationModal = () => {
         );
         return;
       }
-      
+
       // If there are new nodes in the path, upsert them first and apply mapping
       if (newNodes.length > 0) {
         const idMap = useStore.getState().upsertNodes(newNodes, false);
-        parsed.forEach(d => {
-            if (idMap[d.nodeId]) {
-                d.nodeId = idMap[d.nodeId];
-            }
+        parsed.forEach((d) => {
+          if (idMap[d.nodeId]) {
+            d.nodeId = idMap[d.nodeId];
+          }
         });
       }
 
@@ -807,8 +806,7 @@ export const DeviceRegistrationModal = () => {
     const selectedDevices = registeredDevices.filter((d) =>
       selectedIds.has(d.id),
     );
-    const scope =
-      nodeFilter === "all" ? "ALL" : getNodeName(nodes, nodeFilter);
+    const scope = nodeFilter === "all" ? "ALL" : getNodeName(nodes, nodeFilter);
     exportRegisteredDevicesToExcel(selectedDevices, nodes, scope);
     showToast("선택한 장비 데이터가 내보내졌습니다.", "success", "export");
   };
@@ -829,7 +827,7 @@ export const DeviceRegistrationModal = () => {
 
     // MAC uniqueness check (exclude current device if editing)
     const existing = registeredDevices.find(
-      (d) => d.mac === mac.trim().toUpperCase() && d.id !== editingDeviceId
+      (d) => d.mac === mac.trim().toUpperCase() && d.id !== editingDeviceId,
     );
     if (existing) {
       setErrors((prev) => ({ ...prev, mac: "이미 존재하는 MAC입니다." }));
@@ -850,7 +848,7 @@ export const DeviceRegistrationModal = () => {
       showToast(
         `장비 "${deviceName.trim()}" 정보가 수정되었습니다.`,
         "success",
-        "add"
+        "add",
       );
       cancelEdit();
     } else {
@@ -908,7 +906,7 @@ export const DeviceRegistrationModal = () => {
     );
     setDeleteConfirm(null);
   };
-  
+
   const handleLocateDevice = (device: (typeof registeredDevices)[0]) => {
     // 1. Find placement data
     let targetRackId: string | null = null;
@@ -916,7 +914,9 @@ export const DeviceRegistrationModal = () => {
     let targetNodeId: string | null = null;
 
     for (const rack of racks) {
-      const placed = rack.devices.find((d) => d.registeredDeviceId === device.id);
+      const placed = rack.devices.find(
+        (d) => d.registeredDeviceId === device.id,
+      );
       if (placed) {
         targetRackId = rack.id;
         targetDeviceId = placed.id;
@@ -931,7 +931,7 @@ export const DeviceRegistrationModal = () => {
     }
 
     // 2. Validate nodeId existence in nodes list
-    if (!nodes.find(n => n.nodeId === targetNodeId)) {
+    if (!nodes.find((n) => n.nodeId === targetNodeId)) {
       showToast("노드 정보를 찾을 수 없습니다.", "error");
       return;
     }
@@ -939,27 +939,16 @@ export const DeviceRegistrationModal = () => {
     // 3. Navigation sequence
     // First switch node
     setActiveNode(targetNodeId);
-    
+
     // Select rack (this opens the DevicePanel)
     selectRack(targetRackId);
-    
+
     // Also focus camera
     focusRack(targetRackId);
-    
-    // Trigger highlight
-    setHighlightedDevice(targetDeviceId);
 
-    // Cancel any existing timeout
-    if (highlightTimeoutRef.current) {
-      clearTimeout(highlightTimeoutRef.current);
-    }
+    // Trigger highlight and use store-based auto-clear (2.5s)
+    setHighlightedDevice(targetDeviceId, 2500);
 
-    // Auto-clear highlight after 5 seconds
-    highlightTimeoutRef.current = setTimeout(() => {
-      setHighlightedDevice(null);
-      highlightTimeoutRef.current = null;
-    }, 5000);
-    
     // We stay in the modal according to "keep open" recommendation, 
     // but the background view changes.
   };
@@ -1030,52 +1019,239 @@ export const DeviceRegistrationModal = () => {
       {/* Modal */}
       {createPortal(
         <div className="drm-overlay" onClick={() => setOpen(false)}>
-        <div className="drm-modal" onClick={(e) => e.stopPropagation()}>
-          {/* Header */}
-          <div className="drm-header">
-            <h2>
-              <div className="icon-wrap">📋</div>
-              장비
-            </h2>
-            <button
-              className="drm-close"
-              onClick={() => setOpen(false)}
-              aria-label="Close"
-            >
-              <svg
-                width="14"
-                height="14"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+          <div className="drm-modal" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="drm-header">
+              <h2>
+                <div className="icon-wrap">📋</div>
+                장비
+              </h2>
+              <button
+                className="drm-close"
+                onClick={() => setOpen(false)}
+                aria-label="Close"
               >
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
-          </div>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
 
-          {/* Body */}
-          <div className="drm-body">
-            {/* Part A: Registration Form */}
-            <div className="drm-section-card">
-              <div className="drm-form-title">
-                <span className="icon">{editingDeviceId ? "✏️" : "➕"}</span>{" "}
-                {editingDeviceId ? "장비 정보 수정" : "새 장비 등록"}
+            {/* Body */}
+            <div className="drm-body">
+              {/* Part A: Registration Form */}
+              <div className="drm-section-card">
+                <div className="drm-form-title">
+                  <span className="icon">{editingDeviceId ? "✏️" : "➕"}</span>{" "}
+                  {editingDeviceId ? "장비 정보 수정" : "새 장비 등록"}
+                </div>
+                <div className="drm-form-grid">
+                  {/* Group */}
+                  <div className="drm-field">
+                    <label>
+                      위치<span className="drm-required">*</span>
+                    </label>
+                    <select
+                      value={nodeId}
+                      onChange={(e) => setNodeId(e.target.value)}
+                    >
+                      {nodes
+                        .filter((n) => n.parentId !== null)
+                        .map((n) => (
+                          <option key={n.nodeId} value={n.nodeId}>
+                            {n.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+
+                  {/* Model */}
+                  <div className="drm-field">
+                    <label>
+                      모델<span className="drm-required">*</span>
+                    </label>
+                    <select
+                      value={selectedModelIdx}
+                      onChange={(e) =>
+                        setSelectedModelIdx(parseInt(e.target.value))
+                      }
+                    >
+                      {DEVICE_TEMPLATES.map((t, i) => (
+                        <option key={i} value={i}>
+                          [{t.uSize}U] {t.modelName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Device Name */}
+                  <div className="drm-field">
+                    <label>
+                      장비명<span className="drm-required">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={deviceName}
+                      onChange={(e) => {
+                        setDeviceName(e.target.value);
+                        if (errors.deviceName)
+                          setErrors((p) => ({ ...p, deviceName: "" }));
+                      }}
+                      placeholder="장비 이름 입력"
+                    />
+                    {errors.deviceName && (
+                      <span className="drm-error-hint">
+                        {errors.deviceName}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* IP */}
+                  <div className="drm-field">
+                    <label>
+                      IP<span className="drm-required">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={ip}
+                      onChange={(e) => {
+                        setIp(e.target.value);
+                        if (errors.ip) setErrors((p) => ({ ...p, ip: "" }));
+                      }}
+                      placeholder="10.0.0.1"
+                    />
+                    {errors.ip && (
+                      <span className="drm-error-hint">{errors.ip}</span>
+                    )}
+                  </div>
+
+                  {/* MAC */}
+                  <div className="drm-field">
+                    <label>
+                      MAC<span className="drm-required">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={mac}
+                      onChange={(e) => {
+                        setMac(e.target.value);
+                        if (errors.mac) setErrors((p) => ({ ...p, mac: "" }));
+                      }}
+                      placeholder="AA:BB:CC:DD:EE:FF"
+                    />
+                    {errors.mac && (
+                      <span className="drm-error-hint">{errors.mac}</span>
+                    )}
+                  </div>
+
+                  {/* Vendor */}
+                  <div className="drm-field">
+                    <label>
+                      벤더<span className="drm-required">*</span>
+                    </label>
+                    <select
+                      value={vendor}
+                      onChange={(e) => setVendor(e.target.value as VendorName)}
+                    >
+                      {VENDORS.map((v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="drm-form-actions" style={{ gap: "12px" }}>
+                  {editingDeviceId && (
+                    <button
+                      className="grafana-btn grafana-btn-secondary"
+                      onClick={cancelEdit}
+                      style={{
+                        height: "38px",
+                        borderRadius: "10px",
+                        padding: "0 20px",
+                      }}
+                    >
+                      취소
+                    </button>
+                  )}
+                  <button className="drm-submit-btn" onClick={handleSubmit}>
+                    <span>{editingDeviceId ? "💾" : "✨"}</span>{" "}
+                    {editingDeviceId ? "저장하기" : "등록하기"}
+                  </button>
+                </div>
               </div>
-              <div className="drm-form-grid">
-                {/* Group */}
-                <div className="drm-field">
-                  <label>
-                    위치<span className="drm-required">*</span>
-                  </label>
+
+              {/* Part B: Device Table */}
+              <div className="drm-section-card">
+                <div className="drm-table-topbar">
+                  <div className="drm-table-title-group">
+                    <div className="drm-form-title" style={{ marginBottom: 0 }}>
+                      <span className="icon">📦</span> 등록 장비 목록
+                    </div>
+                    <div className="drm-badge">{filteredDevices.length}건</div>
+                    {selectedIds.size > 0 && (
+                      <div className="drm-badge highlight">
+                        {selectedIds.size}개 선택됨
+                      </div>
+                    )}
+                  </div>
+                  <div className="drm-table-actions">
+                    <input
+                      type="file"
+                      accept=".xlsx"
+                      ref={fileInputRef}
+                      style={{ display: "none" }}
+                      onChange={handleFileChange}
+                    />
+                    <button
+                      className="grafana-btn grafana-btn-secondary"
+                      onClick={handleExportExcel}
+                    >
+                      <span>📥</span> 선택 장비 내보내기
+                    </button>
+                    <button
+                      className="grafana-btn grafana-btn-primary"
+                      onClick={handleImportExcel}
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <span>📤</span> 일괄 등록 (Excel)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="drm-table-filters">
+                  <div className="drm-search-wrap">
+                    <span className="drm-search-icon">🔍</span>
+                    <input
+                      className="drm-search-input"
+                      type="text"
+                      placeholder="검색 (장비명, 모델명, IP, MAC, 벤더)"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                  </div>
                   <select
-                    value={nodeId}
-                    onChange={(e) => setNodeId(e.target.value)}
+                    className="drm-group-filter"
+                    value={nodeFilter}
+                    onChange={(e) => setNodeFilter(e.target.value)}
                   >
+                    <option value="all">전체 노드</option>
                     {nodes
                       .filter((n) => n.parentId !== null)
                       .map((n) => (
@@ -1086,327 +1262,163 @@ export const DeviceRegistrationModal = () => {
                   </select>
                 </div>
 
-                {/* Model */}
-                <div className="drm-field">
-                  <label>
-                    모델<span className="drm-required">*</span>
-                  </label>
-                  <select
-                    value={selectedModelIdx}
-                    onChange={(e) =>
-                      setSelectedModelIdx(parseInt(e.target.value))
-                    }
-                  >
-                    {DEVICE_TEMPLATES.map((t, i) => (
-                      <option key={i} value={i}>
-                        [{t.uSize}U] {t.modelName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Device Name */}
-                <div className="drm-field">
-                  <label>
-                    장비명<span className="drm-required">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={deviceName}
-                    onChange={(e) => {
-                      setDeviceName(e.target.value);
-                      if (errors.deviceName)
-                        setErrors((p) => ({ ...p, deviceName: "" }));
-                    }}
-                    placeholder="장비 이름 입력"
-                  />
-                  {errors.deviceName && (
-                    <span className="drm-error-hint">{errors.deviceName}</span>
-                  )}
-                </div>
-
-                {/* IP */}
-                <div className="drm-field">
-                  <label>
-                    IP<span className="drm-required">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={ip}
-                    onChange={(e) => {
-                      setIp(e.target.value);
-                      if (errors.ip) setErrors((p) => ({ ...p, ip: "" }));
-                    }}
-                    placeholder="10.0.0.1"
-                  />
-                  {errors.ip && (
-                    <span className="drm-error-hint">{errors.ip}</span>
-                  )}
-                </div>
-
-                {/* MAC */}
-                <div className="drm-field">
-                  <label>
-                    MAC<span className="drm-required">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={mac}
-                    onChange={(e) => {
-                      setMac(e.target.value);
-                      if (errors.mac) setErrors((p) => ({ ...p, mac: "" }));
-                    }}
-                    placeholder="AA:BB:CC:DD:EE:FF"
-                  />
-                  {errors.mac && (
-                    <span className="drm-error-hint">{errors.mac}</span>
-                  )}
-                </div>
-
-                {/* Vendor */}
-                <div className="drm-field">
-                  <label>
-                    벤더<span className="drm-required">*</span>
-                  </label>
-                  <select
-                    value={vendor}
-                    onChange={(e) => setVendor(e.target.value as VendorName)}
-                  >
-                    {VENDORS.map((v) => (
-                      <option key={v} value={v}>
-                        {v}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="drm-form-actions" style={{ gap: "12px" }}>
-                {editingDeviceId && (
-                  <button
-                    className="grafana-btn grafana-btn-secondary"
-                    onClick={cancelEdit}
-                    style={{ height: "38px", borderRadius: "10px", padding: "0 20px" }}
-                  >
-                    취소
-                  </button>
-                )}
-                <button className="drm-submit-btn" onClick={handleSubmit}>
-                  <span>{editingDeviceId ? "💾" : "✨"}</span>{" "}
-                  {editingDeviceId ? "저장하기" : "등록하기"}
-                </button>
-              </div>
-            </div>
-
-            {/* Part B: Device Table */}
-            <div className="drm-section-card">
-              <div className="drm-table-topbar">
-                <div className="drm-table-title-group">
-                  <div className="drm-form-title" style={{ marginBottom: 0 }}>
-                    <span className="icon">📦</span> 등록 장비 목록
-                  </div>
-                  <div className="drm-badge">{filteredDevices.length}건</div>
-                  {selectedIds.size > 0 && (
-                    <div className="drm-badge highlight">
-                      {selectedIds.size}개 선택됨
-                    </div>
-                  )}
-                </div>
-                <div className="drm-table-actions">
-                  <input
-                    type="file"
-                    accept=".xlsx"
-                    ref={fileInputRef}
-                    style={{ display: "none" }}
-                    onChange={handleFileChange}
-                  />
-                  <button
-                    className="grafana-btn grafana-btn-secondary"
-                    onClick={handleExportExcel}
-                  >
-                    <span>📥</span> 선택 장비 내보내기
-                  </button>
-                  <button
-                    className="grafana-btn grafana-btn-primary"
-                    onClick={handleImportExcel}
-                    style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "8px"
-                    }}
-                  >
-                    <span>📤</span> 일괄 등록 (Excel)
-                  </button>
-                </div>
-              </div>
-
-              <div className="drm-table-filters">
-                <div className="drm-search-wrap">
-                  <span className="drm-search-icon">🔍</span>
-                  <input
-                    className="drm-search-input"
-                    type="text"
-                    placeholder="검색 (장비명, 모델명, IP, MAC, 벤더)"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </div>
-                <select
-                  className="drm-group-filter"
-                  value={nodeFilter}
-                  onChange={(e) => setNodeFilter(e.target.value)}
-                >
-                  <option value="all">전체 노드</option>
-                  {nodes
-                    .filter((n) => n.parentId !== null)
-                    .map((n) => (
-                      <option key={n.nodeId} value={n.nodeId}>
-                        {n.name}
-                      </option>
-                    ))}
-                </select>
-              </div>
-
-              <div className="drm-table-container">
-                <div className="drm-table-scroll">
-                  {filteredDevices.length > 0 ? (
-                    <table className="drm-table">
-                      <thead>
-                        <tr>
-                          <th style={{ width: 40, textAlign: "center" }}>
-                            <input
-                              type="checkbox"
-                              checked={isAllSelected}
-                              onChange={(e) => {
-                                e.stopPropagation();
-                                handleSelectAll(e.target.checked);
-                              }}
-                            />
-                          </th>
-                          <th>그룹</th>
-                          <th>장비명</th>
-                          <th>모델명</th>
-                          <th>IP 주소</th>
-                          <th>MAC 주소</th>
-                          <th>벤더</th>
-                           <th style={{ width: 60, textAlign: "center" }}>
-                            수정
-                          </th>
-                          <th style={{ width: 60, textAlign: "center" }}>
-                            삭제
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredDevices.map((device) => (
-                          <tr 
-                            key={device.id}
-                            onClick={() => handleLocateDevice(device)}
-                          >
-                            <td style={{ textAlign: "center" }}>
+                <div className="drm-table-container">
+                  <div className="drm-table-scroll">
+                    {filteredDevices.length > 0 ? (
+                      <table className="drm-table">
+                        <thead>
+                          <tr>
+                            <th style={{ width: 40, textAlign: "center" }}>
                               <input
                                 type="checkbox"
-                                checked={selectedIds.has(device.id)}
+                                checked={isAllSelected}
                                 onChange={(e) => {
                                   e.stopPropagation();
-                                  handleSelectRow(device.id, e.target.checked);
+                                  handleSelectAll(e.target.checked);
                                 }}
                               />
-                            </td>
-                            <td>
-                              <span className="drm-group-tag group-gwacheon">
-                                {getNodeName(nodes, device.nodeId)}
-                              </span>
-                            </td>
-                            <td style={{ fontWeight: 600 }}>
-                              {device.deviceName || device.modelName}
-                            </td>
-                            <td>{device.modelName}</td>
-                            <td
-                              style={{
-                                fontFamily: "var(--font-family-mono)",
-                                fontSize: "12px",
-                              }}
-                            >
-                              {device.ip}
-                            </td>
-                            <td
-                              style={{
-                                fontFamily: "var(--font-family-mono)",
-                                fontSize: "12px",
-                              }}
-                            >
-                              {device.mac}
-                            </td>
-                            <td>
-                              <span className="drm-vendor-tag">
-                                {device.vendor}
-                              </span>
-                            </td>
-                             <td style={{ textAlign: "center" }}>
-                              <button
-                                className="drm-edit-btn"
-                                title="수정"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditClick(device);
-                                }}
-                              >
-                                ✏️
-                              </button>
-                            </td>
-                            <td style={{ textAlign: "center" }}>
-                              <button
-                                className="drm-delete-btn"
-                                title="삭제"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteClick(e, device);
-                                }}
-                              >
-                                🗑️
-                              </button>
-                            </td>
+                            </th>
+                            <th>그룹</th>
+                            <th>장비명</th>
+                            <th>모델명</th>
+                            <th>IP 주소</th>
+                            <th>MAC 주소</th>
+                            <th>벤더</th>
+                            <th style={{ width: 60, textAlign: "center" }}>
+                              수정
+                            </th>
+                            <th style={{ width: 60, textAlign: "center" }}>
+                              삭제
+                            </th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div
-                      style={{
-                        padding: "60px",
-                        textAlign: "center",
-                        color: "var(--text-tertiary)",
-                      }}
-                    >
-                      <div style={{ fontSize: "40px", marginBottom: "16px" }}>
-                        Empty
+                        </thead>
+                        <tbody>
+                          {filteredDevices.map((device) => (
+                            <tr
+                              key={device.id}
+                              onClick={() => handleLocateDevice(device)}
+                            >
+                              <td style={{ textAlign: "center" }}>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedIds.has(device.id)}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    handleSelectRow(
+                                      device.id,
+                                      e.target.checked,
+                                    );
+                                  }}
+                                />
+                              </td>
+                              <td>
+                                <span className="drm-group-tag group-gwacheon">
+                                  {getNodeName(nodes, device.nodeId)}
+                                </span>
+                              </td>
+                              <td style={{ fontWeight: 600 }}>
+                                {device.deviceName || device.modelName}
+                              </td>
+                              <td>{device.modelName}</td>
+                              <td
+                                style={{
+                                  fontFamily: "var(--font-family-mono)",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                {device.ip}
+                              </td>
+                              <td
+                                style={{
+                                  fontFamily: "var(--font-family-mono)",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                {device.mac}
+                              </td>
+                              <td>
+                                <span className="drm-vendor-tag">
+                                  {device.vendor}
+                                </span>
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                <button
+                                  className="drm-edit-btn"
+                                  title="수정"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditClick(device);
+                                  }}
+                                >
+                                  ✏️
+                                </button>
+                              </td>
+                              <td style={{ textAlign: "center" }}>
+                                <button
+                                  className="drm-delete-btn"
+                                  title="삭제"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteClick(e, device);
+                                  }}
+                                >
+                                  🗑️
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div
+                        style={{
+                          padding: "60px",
+                          textAlign: "center",
+                          color: "var(--text-tertiary)",
+                        }}
+                      >
+                        <div style={{ fontSize: "40px", marginBottom: "16px" }}>
+                          Empty
+                        </div>
+                        {search
+                          ? "검색 결과가 없습니다."
+                          : "등록된 장비가 없습니다."}
                       </div>
-                      {search
-                        ? "검색 결과가 없습니다."
-                        : "등록된 장비가 없습니다."}
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
-      </div>,
+        </div>,
         document.body,
       )}
 
       {/* Processing Overlay */}
-      {isProcessing && createPortal(
-        <div className="drm-overlay" style={{ zIndex: 3000, background: 'rgba(0,0,0,0.7)' }}>
-          <div className="drm-toast" style={{ padding: '40px' }}>
-            <div style={{ fontSize: '40px', marginBottom: '16px', animation: 'spin 2s linear infinite' }}>⏳</div>
-            <h3 style={{ margin: 0 }}>일괄 등록 처리 중...</h3>
-            <p style={{ marginTop: '8px', opacity: 0.7 }}>잠시만 기다려 주세요.</p>
-          </div>
-        </div>,
-        document.body
-      )}
+      {isProcessing &&
+        createPortal(
+          <div
+            className="drm-overlay"
+            style={{ zIndex: 3000, background: "rgba(0,0,0,0.7)" }}
+          >
+            <div className="drm-toast" style={{ padding: "40px" }}>
+              <div
+                style={{
+                  fontSize: "40px",
+                  marginBottom: "16px",
+                  animation: "spin 2s linear infinite",
+                }}
+              >
+                ⏳
+              </div>
+              <h3 style={{ margin: 0 }}>일괄 등록 처리 중...</h3>
+              <p style={{ marginTop: "8px", opacity: 0.7 }}>
+                잠시만 기다려 주세요.
+              </p>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Toast (Centered Popup) - Rendered last to fix backdrop-filter stacking context bug */}
       {toast &&

@@ -629,16 +629,17 @@ const DeviceMesh = ({
 
     if (isHighlighted) {
       // Soft blue pulse for localized highlight (approx 1.25s per pulse cycle)
-      const pulse = 0.5 + Math.sin(clock.getElapsedTime() * Math.PI * 1.6) * 0.5;
+      const pulse =
+        0.5 + Math.sin(clock.getElapsedTime() * Math.PI * 1.6) * 0.5;
       const highlightColor = new THREE.Color("#4dabf7"); // Soft theme-like blue
 
       if (bodyMat instanceof THREE.MeshStandardMaterial) {
         bodyMat.emissive.set(highlightColor);
-        bodyMat.emissiveIntensity = pulse * 2;
+        bodyMat.emissiveIntensity = pulse * 4;
       }
       if (faceMat instanceof THREE.MeshStandardMaterial) {
         faceMat.emissive.set(highlightColor);
-        faceMat.emissiveIntensity = pulse * 2;
+        faceMat.emissiveIntensity = pulse * 4;
       }
     } else if (hasError && errorColor) {
       // 1 second interval blink (uniform transition)

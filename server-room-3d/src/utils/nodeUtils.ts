@@ -72,8 +72,9 @@ export const getSubtreeNodeIds = (
 /** root까지 조상 경로 배열 반환 [root, ..., parent, self] (breadcrumb용) */
 export const getAncestorPath = (
   nodes: HierarchyNode[],
-  nodeId: string,
+  nodeId: string | null,
 ): HierarchyNode[] => {
+  if (!nodeId) return [];
   const path: HierarchyNode[] = [];
   let current = nodes.find((n) => n.nodeId === nodeId);
   while (current) {
@@ -93,8 +94,11 @@ export const getRootNode = (
 /** 노드 ID로 노드 찾기 */
 export const findNode = (
   nodes: HierarchyNode[],
-  nodeId: string,
-): HierarchyNode | undefined => nodes.find((n) => n.nodeId === nodeId);
+  nodeId: string | null,
+): HierarchyNode | undefined => {
+  if (!nodeId) return undefined;
+  return nodes.find((n) => n.nodeId === nodeId);
+};
 
 /** 특정 노드가 leaf인지 (자식 없는지) 확인 */
 export const isLeafNode = (
@@ -174,18 +178,21 @@ export const getNodeDevices = (
   nodeId: string,
   registeredDevices: RegisteredDevice[],
   racks: Rack[],
-): { device: RegisteredDevice; rackId: string | null }[] => {
+): { device: RegisteredDevice; rackId: string | null; instanceId: string | null }[] => {
   const nodeRegDevices = registeredDevices.filter((rd) => rd.nodeId === nodeId);
 
   return nodeRegDevices.map((rd) => {
     let foundRackId: string | null = null;
+    let foundInstanceId: string | null = null;
     for (const r of racks) {
-      if (r.devices.some((d) => d.registeredDeviceId === rd.id)) {
+      const deviceInstance = r.devices.find((d) => d.registeredDeviceId === rd.id);
+      if (deviceInstance) {
         foundRackId = r.id;
+        foundInstanceId = deviceInstance.id;
         break;
       }
     }
-    return { device: rd, rackId: foundRackId };
+    return { device: rd, rackId: foundRackId, instanceId: foundInstanceId };
   });
 };
 

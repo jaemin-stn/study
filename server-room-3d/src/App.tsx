@@ -9,6 +9,7 @@ import { ImportExportModal } from "./components/ImportExportModal";
 import { ModelImporter } from "./components/ModelImporter";
 import { DeviceRegistrationModal } from "./components/DeviceRegistrationModal";
 import { Breadcrumb } from "./components/Breadcrumb";
+import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
 import { useStore } from "./store/useStore";
 import {
   sampleRacks,
@@ -130,7 +131,27 @@ function App() {
     importExportModalRackId,
     selectedDeviceId,
     setPendingImportFile,
+    undo,
   } = useStore();
+
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
+        // Prevent undo when typing in inputs/textareas
+        const activeElem = document.activeElement;
+        const isInput = activeElem instanceof HTMLInputElement || 
+                        activeElem instanceof HTMLTextAreaElement ||
+                        (activeElem as HTMLElement)?.isContentEditable;
+        
+        if (!isInput) {
+          e.preventDefault();
+          undo();
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [undo]);
 
   const toolbarImportInputRef = useRef<HTMLInputElement>(null);
 
@@ -376,6 +397,8 @@ function App() {
 
       {/* Rack Navigation Carousel (Normal Mode) */}
       <FocusCarousel />
+
+      <UnsavedChangesDialog />
 
       <Toast />
       <style>{APP_STYLES}</style>

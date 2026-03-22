@@ -16,6 +16,7 @@ export const CameraController = () => {
   const { camera, controls } = useThree();
   const selectedRackId = useStore((state) => state.selectedRackId);
   const focusedRackId = useStore((state) => state.focusedRackId);
+  const highlightedDeviceId = useStore((state) => state.highlightedDeviceId);
   const racks = useStore((state) => state.racks);
   const isEditMode = useStore((state) => state.isEditMode);
 
@@ -99,11 +100,15 @@ export const CameraController = () => {
     const rackId = selectedRackId || focusedRackId;
     const { isDragging } = useStore.getState();
 
+    // Reset lastProcessedRackId when highlightedDeviceId changes to force re-calculation
+    // if it's the same rack but a different device
+    lastProcessedRackId.current = null;
+
     // Focus if a rack is identified AND (we are NOT in edit mode OR it's a manual focus request) AND we are NOT currently dragging
     if ((focusedRackId || !isEditMode) && !isDragging) {
       setupFocus(rackId);
     }
-  }, [selectedRackId, focusedRackId, isEditMode]);
+  }, [selectedRackId, focusedRackId, isEditMode, highlightedDeviceId]);
 
   useFrame((state, delta) => {
     if (!isAnimating.current || !controls) return;

@@ -659,6 +659,8 @@ export const DeviceRegistrationModal = () => {
       } else {
         setNodeFilter(activeNodeId || "all");
       }
+      // Reset selection when modal opens
+      setSelectedIds(new Set());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -1249,7 +1251,10 @@ export const DeviceRegistrationModal = () => {
                   <select
                     className="drm-group-filter"
                     value={nodeFilter}
-                    onChange={(e) => setNodeFilter(e.target.value)}
+                    onChange={(e) => {
+                      setNodeFilter(e.target.value);
+                      setSelectedIds(new Set());
+                    }}
                   >
                     <option value="all">전체 노드</option>
                     {nodes

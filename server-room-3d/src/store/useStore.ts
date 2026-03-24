@@ -39,6 +39,9 @@ export interface AppState {
   expandedNodeIds: Set<string>;
   isHierarchyCollapsed: boolean;
 
+  // Node-Specific 3D Layouts
+  layouts: Record<string, { racks: Rack[]; importedModels: ImportedModel[] }>;
+
   // Camera reference for viewport-center spawning
   _cameraRef: THREE.Camera | null;
   _controlsRef: any | null;
@@ -308,6 +311,7 @@ export const useStore = create<AppState>((set, get) => ({
   activeNodeId: null,
   expandedNodeIds: new Set(),
   isHierarchyCollapsed: false,
+  layouts: {},
   importExportModalRackId: null,
   deviceRegistrationModalOpen: false,
   highlightedDeviceId: null,
@@ -389,15 +393,23 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   saveChanges: () => {
-    const { pendingAction, racks, importedModels, setActiveNode, setEditMode } =
+    const { pendingAction, racks, importedModels, setActiveNode, setEditMode, activeNodeId } =
       get();
 
-    set({
-      baselineRacks: JSON.parse(JSON.stringify(racks)),
-      baselineModels: JSON.parse(JSON.stringify(importedModels)),
-      undoStack: [],
-      showUnsavedDialog: false,
-      pendingAction: null,
+    set((state) => {
+      const updatedLayouts = activeNodeId ? {
+        ...state.layouts,
+        [activeNodeId]: { racks, importedModels }
+      } : state.layouts;
+
+      return {
+        layouts: updatedLayouts,
+        baselineRacks: JSON.parse(JSON.stringify(racks)),
+        baselineModels: JSON.parse(JSON.stringify(importedModels)),
+        undoStack: [],
+        showUnsavedDialog: false,
+        pendingAction: null,
+      };
     });
 
     if (pendingAction) {
@@ -416,9 +428,11 @@ export const useStore = create<AppState>((set, get) => ({
       baselineModels,
       setActiveNode,
       setEditMode,
+      activeNodeId,
     } = get();
 
     if (baselineRacks && baselineModels) {
+      // Restore from baseline
       set({
         racks: JSON.parse(JSON.stringify(baselineRacks)),
         importedModels: JSON.parse(JSON.stringify(baselineModels)),
@@ -426,6 +440,19 @@ export const useStore = create<AppState>((set, get) => ({
         showUnsavedDialog: false,
         pendingAction: null,
       });
+      
+      // If we are discarding while in a node, ensure layouts map is also refreshed if it was used as runtime cache
+      if (activeNodeId) {
+        set((state) => ({
+          layouts: {
+            ...state.layouts,
+            [activeNodeId]: {
+              racks: JSON.parse(JSON.stringify(baselineRacks)),
+              importedModels: JSON.parse(JSON.stringify(baselineModels)),
+            }
+          }
+        }));
+      }
     } else {
       set({
         undoStack: [],
@@ -451,7 +478,7 @@ export const useStore = create<AppState>((set, get) => ({
     set({ _cameraRef: camera, _controlsRef: controls }),
   setHoveredRack: (id) => set({ hoveredRackId: id }),
   setActiveNode: (nodeId) => {
-    const { isEditMode, getIsDirty, expandNodePath } = get();
+    const { isEditMode, getIsDirty, expandNodePath, layouts } = get();
 
     if (isEditMode && getIsDirty() && nodeId !== get().activeNodeId) {
       set({
@@ -462,8 +489,18 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     expandNodePath(nodeId);
+    
+    // Switch Layout
+    const newNodeLayout = nodeId ? layouts[nodeId] || { racks: [], importedModels: [] } : { racks: [], importedModels: [] };
+
     set({
       activeNodeId: nodeId,
+      racks: newNodeLayout.racks,
+      importedModels: newNodeLayout.importedModels,
+      // If in edit mode, the new node's layout becomes the new baseline for dirty checks
+      baselineRacks: isEditMode ? JSON.parse(JSON.stringify(newNodeLayout.racks)) : get().baselineRacks,
+      baselineModels: isEditMode ? JSON.parse(JSON.stringify(newNodeLayout.importedModels)) : get().baselineModels,
+      undoStack: [], // Clear undo stack on node switch to prevent mixing node states
       selectedRackId: null,
       focusedRackId: null,
       selectedDeviceId: null,
@@ -536,18 +573,29 @@ export const useStore = create<AppState>((set, get) => ({
       return {
         registeredDevices: updatedRegDevices,
         racks: updatedRacks,
+        layouts: state.activeNodeId ? {
+          ...state.layouts,
+          [state.activeNodeId]: { ...state.layouts[state.activeNodeId], racks: updatedRacks }
+        } : state.layouts
       };
     });
   },
 
   removeRegisteredDevice: (id) => {
-    set((state) => ({
-      registeredDevices: state.registeredDevices.filter((d) => d.id !== id),
-      racks: state.racks.map((rack) => ({
+    set((state) => {
+      const updatedRacks = state.racks.map((rack) => ({
         ...rack,
         devices: rack.devices.filter((d) => d.registeredDeviceId !== id),
-      })),
-    }));
+      }));
+      return {
+        registeredDevices: state.registeredDevices.filter((d) => d.id !== id),
+        racks: updatedRacks,
+        layouts: state.activeNodeId ? {
+          ...state.layouts,
+          [state.activeNodeId]: { ...state.layouts[state.activeNodeId], racks: updatedRacks }
+        } : state.layouts
+      };
+    });
   },
 
   upsertRegisteredDevices: (devices) => {
@@ -654,9 +702,22 @@ export const useStore = create<AppState>((set, get) => ({
     };
 
     if (isEditMode) {
-      set({ racks: [...racks, newRack], selectedRackId: newRack.id });
+      set((state) => ({
+        racks: [...state.racks, newRack],
+        selectedRackId: newRack.id,
+        layouts: activeNodeId ? {
+          ...state.layouts,
+          [activeNodeId]: { ...state.layouts[activeNodeId] || { racks: [], importedModels: [] }, racks: [...state.racks, newRack] }
+        } : state.layouts
+      }));
     } else {
-      set({ racks: [...racks, newRack] });
+      set((state) => ({
+        racks: [...state.racks, newRack],
+        layouts: activeNodeId ? {
+          ...state.layouts,
+          [activeNodeId]: { ...state.layouts[activeNodeId] || { racks: [], importedModels: [] }, racks: [...state.racks, newRack] }
+        } : state.layouts
+      }));
     }
   },
 
@@ -674,22 +735,37 @@ export const useStore = create<AppState>((set, get) => ({
       return false;
     }
 
-    set({
-      racks: racks.map((r) =>
-        r.id === id ? { ...r, position: newPosition } : r,
-      ),
-    });
+    const updatedRacks = racks.map((r) =>
+      r.id === id ? { ...r, position: newPosition } : r,
+    );
+    set((state) => ({
+      racks: updatedRacks,
+      layouts: rack.nodeId ? {
+        ...state.layouts,
+        [rack.nodeId]: { ...state.layouts[rack.nodeId], racks: updatedRacks }
+      } : state.layouts
+    }));
     return true;
   },
 
   deleteRack: (id) => {
     const { isEditMode, pushUndoState } = get();
     if (isEditMode) pushUndoState();
-    set((state) => ({
-      racks: state.racks.filter((r) => r.id !== id),
-      selectedRackId: state.selectedRackId === id ? null : state.selectedRackId,
-      focusedRackId: state.focusedRackId === id ? null : state.focusedRackId,
-    }));
+    set((state) => {
+      const updatedRacks = state.racks.filter((r) => r.id !== id);
+      const rackToDelete = state.racks.find(r => r.id === id);
+      const nid = rackToDelete?.nodeId;
+
+      return {
+        racks: updatedRacks,
+        selectedRackId: state.selectedRackId === id ? null : state.selectedRackId,
+        focusedRackId: state.focusedRackId === id ? null : state.focusedRackId,
+        layouts: nid ? {
+          ...state.layouts,
+          [nid]: { ...state.layouts[nid], racks: updatedRacks }
+        } : state.layouts
+      };
+    });
   },
 
   selectRack: (id) => {
@@ -826,9 +902,16 @@ export const useStore = create<AppState>((set, get) => ({
       return;
     }
 
-    set((state) => ({
-      racks: state.racks.map((r) => (r.id === id ? { ...r, orientation } : r)),
-    }));
+    set((state) => {
+      const updatedRacks = state.racks.map((r) => (r.id === id ? { ...r, orientation } : r));
+      return {
+        racks: updatedRacks,
+        layouts: rack.nodeId ? {
+          ...state.layouts,
+          [rack.nodeId]: { ...state.layouts[rack.nodeId], racks: updatedRacks }
+        } : state.layouts
+      };
+    });
   },
 
   setEditMode: (enabled) => {
@@ -908,32 +991,57 @@ export const useStore = create<AppState>((set, get) => ({
       portStates: deviceData.portStates || [],
     };
 
-    set({
-      racks: racks.map((r) =>
-        r.id === rackId ? { ...r, devices: [...r.devices, newDevice] } : r,
-      ),
-    });
+    const updatedRacks = racks.map((r) =>
+      r.id === rackId ? { ...r, devices: [...r.devices, newDevice] } : r,
+    );
+    set((state) => ({
+      racks: updatedRacks,
+      layouts: rack.nodeId ? {
+        ...state.layouts,
+        [rack.nodeId]: { ...state.layouts[rack.nodeId], racks: updatedRacks }
+      } : state.layouts
+    }));
     return true;
   },
 
   removeDevice: (rackId, deviceId) => {
     const { isEditMode, pushUndoState } = get();
     if (isEditMode) pushUndoState();
-    set((state) => ({
-      racks: state.racks.map((r) =>
+    set((state) => {
+      const updatedRacks = state.racks.map((r) =>
         r.id === rackId
           ? { ...r, devices: r.devices.filter((d) => d.id !== deviceId) }
           : r,
-      ),
-    }));
+      );
+      const rack = state.racks.find(r => r.id === rackId);
+      const nid = rack?.nodeId;
+
+      return {
+        racks: updatedRacks,
+        layouts: nid ? {
+          ...state.layouts,
+          [nid]: { ...state.layouts[nid], racks: updatedRacks }
+        } : state.layouts
+      };
+    });
   },
 
   updateRack: (id, updates) => {
     const { isEditMode, pushUndoState } = get();
     if (isEditMode) pushUndoState();
-    set((state) => ({
-      racks: state.racks.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-    }));
+    set((state) => {
+      const updatedRacks = state.racks.map((r) => (r.id === id ? { ...r, ...updates } : r));
+      const rack = state.racks.find(r => r.id === id);
+      const nid = rack?.nodeId;
+
+      return {
+        racks: updatedRacks,
+        layouts: nid ? {
+          ...state.layouts,
+          [nid]: { ...state.layouts[nid], racks: updatedRacks }
+        } : state.layouts
+      };
+    });
   },
 
   loadState: (newRacks, newModels, newRegisteredDevices, newNodes) => {
@@ -954,16 +1062,39 @@ export const useStore = create<AppState>((set, get) => ({
     const expandedNodeIds = new Set<string>();
     if (rootNode) expandedNodeIds.add(rootNode.nodeId);
 
+    const activeNodeId = rootNode
+      ? rootNode.nodeId
+      : finalNodes.length > 0
+        ? finalNodes[0].nodeId
+        : null;
+
+    // Group racks and models by nodeId
+    const layouts: Record<string, { racks: Rack[]; importedModels: ImportedModel[] }> = {};
+    
+    migratedRacks.forEach(r => {
+      if (!layouts[r.nodeId]) layouts[r.nodeId] = { racks: [], importedModels: [] };
+      layouts[r.nodeId].racks.push(r);
+    });
+    
+    (newModels ?? []).forEach(m => {
+      // If model doesn't have nodeId, we might need a default or use active one.
+      // For now assume they have them or assign to active if missing
+      const nid = (m as any).nodeId || activeNodeId;
+      if (nid) {
+        if (!layouts[nid]) layouts[nid] = { racks: [], importedModels: [] };
+        layouts[nid].importedModels.push(m);
+      }
+    });
+
+    const activeLayout = activeNodeId ? layouts[activeNodeId] || { racks: [], importedModels: [] } : { racks: [], importedModels: [] };
+
     set({
-      racks: migratedRacks,
-      importedModels: newModels ?? [],
+      layouts,
+      racks: activeLayout.racks,
+      importedModels: activeLayout.importedModels,
       registeredDevices: migratedRegDevices,
       nodes: finalNodes,
-      activeNodeId: rootNode
-        ? rootNode.nodeId
-        : finalNodes.length > 0
-          ? finalNodes[0].nodeId
-          : null,
+      activeNodeId,
       expandedNodeIds,
       selectedRackId: null,
       focusedRackId: null,
@@ -974,20 +1105,43 @@ export const useStore = create<AppState>((set, get) => ({
   replaceNodeData: (nodeId, newRacks, newRegisteredDevices) => {
     set((state) => {
       if (nodeId === "ALL") {
+        // Handle ALL - ideally we should group newRacks by nodeId
+        const newLayouts: Record<string, { racks: Rack[]; importedModels: ImportedModel[] }> = {};
+        newRacks.forEach(r => {
+          if (!newLayouts[r.nodeId]) newLayouts[r.nodeId] = { racks: [], importedModels: [] };
+          newLayouts[r.nodeId].racks.push(r);
+        });
+        
+        const activeLayout = state.activeNodeId ? newLayouts[state.activeNodeId] || { racks: [], importedModels: [] } : { racks: [], importedModels: [] };
+
         return {
-          racks: newRacks,
+          layouts: newLayouts,
+          racks: activeLayout.racks,
+          importedModels: activeLayout.importedModels,
           registeredDevices: newRegisteredDevices || [],
           selectedRackId: null,
           focusedRackId: null,
           selectedDeviceId: null,
         };
       }
-      const otherRacks = state.racks.filter((r) => r.nodeId !== nodeId);
+      
       const otherRegDevices = state.registeredDevices.filter(
         (d) => d.nodeId !== nodeId,
       );
+      
+      const updatedLayouts = {
+        ...state.layouts,
+        [nodeId]: {
+          racks: newRacks,
+          importedModels: state.layouts[nodeId]?.importedModels || []
+        }
+      };
+      
+      const isCurrentNode = state.activeNodeId === nodeId;
+
       return {
-        racks: [...otherRacks, ...newRacks],
+        layouts: updatedLayouts,
+        racks: isCurrentNode ? newRacks : state.racks,
         registeredDevices: newRegisteredDevices
           ? [...otherRegDevices, ...newRegisteredDevices]
           : state.registeredDevices,
@@ -1000,23 +1154,27 @@ export const useStore = create<AppState>((set, get) => ({
 
   replaceMultipleNodesData: (data) => {
     set((state) => {
-      let updatedRacks = [...state.racks];
       let updatedRegDevices = [...state.registeredDevices];
+      let updatedLayouts = { ...state.layouts };
 
       Object.entries(data).forEach(([nodeId, nodeData]) => {
-        // Remove existing items for this node
-        updatedRacks = updatedRacks.filter((r) => r.nodeId !== nodeId);
         updatedRegDevices = updatedRegDevices.filter(
           (d) => d.nodeId !== nodeId,
         );
-
-        // Add new items
-        updatedRacks.push(...nodeData.racks);
         updatedRegDevices.push(...nodeData.registeredDevices);
+        
+        updatedLayouts[nodeId] = {
+          racks: nodeData.racks,
+          importedModels: updatedLayouts[nodeId]?.importedModels || []
+        };
       });
 
+      const activeLayout = state.activeNodeId ? updatedLayouts[state.activeNodeId] || { racks: [], importedModels: [] } : { racks: [], importedModels: [] };
+
       return {
-        racks: updatedRacks,
+        layouts: updatedLayouts,
+        racks: activeLayout.racks,
+        importedModels: activeLayout.importedModels,
         registeredDevices: updatedRegDevices,
         selectedRackId: null,
         focusedRackId: null,
@@ -1053,12 +1211,16 @@ export const useStore = create<AppState>((set, get) => ({
       }
 
       // 2. But for data isolation, only clean data bound *exactly* to nodes being structurally deleted.
+      const updatedLayouts = { ...state.layouts };
+      toDelete.forEach(id => delete updatedLayouts[id]);
+
       return {
         nodes: state.nodes.filter((n) => !toDelete.has(n.nodeId)),
         racks: state.racks.filter((r) => !toDelete.has(r.nodeId)),
         registeredDevices: state.registeredDevices.filter(
           (d) => !toDelete.has(d.nodeId),
         ),
+        layouts: updatedLayouts,
         activeNodeId:
           state.activeNodeId && toDelete.has(state.activeNodeId)
             ? state.nodes.find((n) => n.parentId === null)?.nodeId || null
@@ -1141,7 +1303,7 @@ export const useStore = create<AppState>((set, get) => ({
 
   // Imported Model Actions
   addImportedModel: (modelData) => {
-    const { _cameraRef, importedModels, isEditMode, pushUndoState } = get();
+    const { _cameraRef, isEditMode, pushUndoState } = get();
     if (isEditMode) pushUndoState();
     let spawnPos: [number, number, number] = modelData.position;
 
@@ -1167,13 +1329,24 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     const newId = crypto.randomUUID();
+    const activeNodeId = get().activeNodeId;
     const model: ImportedModel = {
       ...modelData,
       id: newId,
       position: spawnPos,
       isMoveEnabled: modelData.isMoveEnabled ?? false,
     };
-    set({ importedModels: [...importedModels, model] });
+    
+    set((state) => {
+      const updatedModels: ImportedModel[] = [...state.importedModels, model];
+      return {
+        importedModels: updatedModels,
+        layouts: activeNodeId ? {
+          ...state.layouts,
+          [activeNodeId]: { ...state.layouts[activeNodeId] || { racks: [], importedModels: [] }, importedModels: updatedModels }
+        } : state.layouts
+      };
+    });
     return newId;
   },
 
@@ -1186,23 +1359,37 @@ export const useStore = create<AppState>((set, get) => ({
     }),
 
   deleteModel: (id) => {
-    const { isEditMode, pushUndoState } = get();
+    const { isEditMode, pushUndoState, activeNodeId } = get();
     if (isEditMode) pushUndoState();
-    set((state) => ({
-      importedModels: state.importedModels.filter((m) => m.id !== id),
-      selectedModelId:
-        state.selectedModelId === id ? null : state.selectedModelId,
-    }));
+    set((state) => {
+      const updatedModels: ImportedModel[] = state.importedModels.filter((m) => m.id !== id);
+      return {
+        importedModels: updatedModels,
+        selectedModelId:
+          state.selectedModelId === id ? null : state.selectedModelId,
+        layouts: activeNodeId ? {
+          ...state.layouts,
+          [activeNodeId]: { ...state.layouts[activeNodeId] || { racks: [], importedModels: [] }, importedModels: updatedModels }
+        } : state.layouts
+      };
+    });
   },
 
   updateModel: (id, updates) => {
-    const { isEditMode, pushUndoState } = get();
+    const { isEditMode, pushUndoState, activeNodeId } = get();
     if (isEditMode) pushUndoState();
-    set((state) => ({
-      importedModels: state.importedModels.map((m) =>
+    set((state) => {
+      const updatedModels: ImportedModel[] = state.importedModels.map((m) =>
         m.id === id ? { ...m, ...updates } : m,
-      ),
-    }));
+      );
+      return {
+        importedModels: updatedModels,
+        layouts: activeNodeId ? {
+          ...state.layouts,
+          [activeNodeId]: { ...state.layouts[activeNodeId] || { racks: [], importedModels: [] }, importedModels: updatedModels }
+        } : state.layouts
+      };
+    });
   },
 
   setModelDragging: (modelId, pos = null, offset = null) =>
@@ -1215,18 +1402,25 @@ export const useStore = create<AppState>((set, get) => ({
   updateModelDragPosition: (pos) => set({ modelDragPosition: pos }),
 
   endModelDrag: (id, position) => {
-    const { isEditMode, pushUndoState } = get();
+    const { isEditMode, pushUndoState, activeNodeId } = get();
     if (isEditMode) pushUndoState();
-    set((state) => ({
-      importedModels: state.importedModels.map((m) =>
+    set((state) => {
+      const updatedModels: ImportedModel[] = state.importedModels.map((m) =>
         m.id === id
-          ? { ...m, position: [position[0], m.position[1], position[1]] }
+          ? { ...m, position: [position[0], m.position[1], position[1]] as [number, number, number] }
           : m,
-      ),
-      draggingModelId: null,
-      modelDragPosition: null,
-      modelDragOffset: null,
-    }));
+      );
+      return {
+        importedModels: updatedModels,
+        draggingModelId: null,
+        modelDragPosition: null,
+        modelDragOffset: null,
+        layouts: activeNodeId ? {
+          ...state.layouts,
+          [activeNodeId]: { ...state.layouts[activeNodeId] || { racks: [], importedModels: [] }, importedModels: updatedModels }
+        } : state.layouts
+      };
+    });
   },
 
   toggleModelMove: (id) => {
@@ -1245,10 +1439,18 @@ export const useStore = create<AppState>((set, get) => ({
       document.body.style.cursor = "auto";
     }
 
-    set((s) => ({
-      importedModels: s.importedModels.map((m) =>
+    set((s) => {
+      const updatedModels: ImportedModel[] = s.importedModels.map((m) =>
         m.id === id ? { ...m, isMoveEnabled: newEnabled } : m,
-      ),
-    }));
+      );
+      const activeNodeId = s.activeNodeId;
+      return {
+        importedModels: updatedModels,
+        layouts: activeNodeId ? {
+          ...s.layouts,
+          [activeNodeId]: { ...s.layouts[activeNodeId] || { racks: [], importedModels: [] }, importedModels: updatedModels }
+        } : s.layouts
+      };
+    });
   },
 }));

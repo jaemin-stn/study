@@ -4,8 +4,9 @@ import type { HierarchyNode } from "../types";
 import {
   getChildren,
   getAncestorPath,
-  getNodeEquipmentCount,
-  getNodeDevices,
+  getSubtreeEquipmentCount,
+  getSubtreeDevices,
+  isLeafNode,
 } from "../utils/nodeUtils";
 
 // ─── Inline Styles ───────────────────────────────────────────────────────────
@@ -70,7 +71,7 @@ const TREE_STYLES = `
 .equipment-panel-body {
   flex: 1;
   overflow-y: auto;
-  padding: 4px 0;
+  padding: 0;
 }
 .equipment-panel-empty {
   padding: 40px 20px;
@@ -297,6 +298,31 @@ input:checked + .slider:before {
   from { box-shadow: inset 0 0 0px var(--theme-primary); }
   to { box-shadow: inset 0 0 4px var(--theme-primary); }
 }
+.equipment-subgroup {
+  margin-bottom: 4px;
+}
+.equipment-subgroup-header {
+  padding: 6px 14px;
+  background: var(--bg-tertiary);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border-bottom: 1px solid var(--border-weak);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--bg-secondary);
+}
+.equipment-subgroup-icon {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
 `;
 
 const NODE_ICONS: Record<string, string> = {
@@ -417,12 +443,11 @@ export const HierarchyTree = () => {
   const deleteNode = useStore((s) => s.deleteNode);
   const showEquipment = useStore((s) => s.showEquipmentInTree);
   const setShowEquipment = useStore((s) => s.setShowEquipmentInTree);
-  const setHighlightedDevice = useStore((s) => s.setHighlightedDevice);
   const highlightedDeviceId = useStore((s) => s.highlightedDeviceId);
+  const locateDevice = useStore((s) => s.locateDevice);
   const showToast = useStore((s) => s.showToast);
-  const focusRack = useStore((s) => s.focusRack);
-  const selectRack = useStore((s) => s.selectRack);
   const registeredDevices = useStore((s) => s.registeredDevices);
+  const layouts = useStore((s) => s.layouts);
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -449,23 +474,65 @@ export const HierarchyTree = () => {
     }
   }, [renamingId]);
 
-  // Calculate direct equipment counts (non-recursive)
+  // Calculate recursive (subtree) equipment counts
   const equipmentCounts = useMemo(() => {
     const counts = new Map<string, number>();
     nodes.forEach((n) => {
-      const count = getNodeEquipmentCount(registeredDevices, n.nodeId);
+      const count = getSubtreeEquipmentCount(nodes, registeredDevices, n.nodeId);
       if (count > 0) counts.set(n.nodeId, count);
     });
     return counts;
   }, [nodes, registeredDevices]);
 
-  const currentDevices = useMemo(
-    () =>
-      activeNodeId
-        ? getNodeDevices(activeNodeId, registeredDevices, racks)
-        : [],
-    [activeNodeId, registeredDevices, racks],
-  );
+  // Consolidated racks from all node layouts for accurate equipment mapping in parent nodes
+  const allRacksForMapping = useMemo(() => {
+    const fromLayouts = Object.entries(layouts)
+      .filter(([nid]) => nid !== activeNodeId)
+      .flatMap(([_, l]) => l.racks || []);
+    return [...fromLayouts, ...racks];
+  }, [layouts, racks, activeNodeId]);
+
+  const totalDeviceCount = useMemo(() => {
+    if (!activeNodeId) return 0;
+    return getSubtreeEquipmentCount(nodes, registeredDevices, activeNodeId);
+  }, [nodes, activeNodeId, registeredDevices]);
+
+  const deviceGroups = useMemo(() => {
+    if (!activeNodeId) return [];
+    // Key fix: Use allRacksForMapping instead of just current racks to find placements in descendant nodes
+    const flat = getSubtreeDevices(
+      nodes,
+      activeNodeId,
+      registeredDevices,
+      allRacksForMapping,
+    );
+
+    // Grouping by actual nodeId
+    const groups: Record<string, typeof flat> = {};
+    flat.forEach((item) => {
+      const nid = item.device.nodeId;
+      if (!groups[nid]) groups[nid] = [];
+      groups[nid].push(item);
+    });
+
+    // Extract ordered list of groups based on node tree order
+    const result: {
+      nodeId: string;
+      nodeName: string;
+      devices: typeof flat;
+    }[] = [];
+    nodes.forEach((n) => {
+      if (groups[n.nodeId]) {
+        result.push({
+          nodeId: n.nodeId,
+          nodeName: n.name,
+          devices: groups[n.nodeId],
+        });
+      }
+    });
+
+    return result;
+  }, [nodes, activeNodeId, registeredDevices, racks]);
 
   const handleToggle = useCallback(
     (nodeId: string) => {
@@ -492,31 +559,13 @@ export const HierarchyTree = () => {
   );
 
   const handleDeviceClick = useCallback(
-    (deviceId: string, rackId: string | null) => {
-      if (!rackId) {
+    (registeredDeviceId: string) => {
+      const found = locateDevice(registeredDeviceId);
+      if (!found) {
         showToast("배치되지 않은 장비입니다. 랙에 먼저 배치해주세요.", "error");
-        return;
       }
-      const rack = racks.find((r) => r.id === rackId);
-      if (!rack) {
-        showToast("장비를 찾을 수 없습니다.", "error");
-        return;
-      }
-      if (rack.nodeId !== activeNodeId) {
-        setActiveNode(rack.nodeId);
-      }
-      selectRack(rackId);
-      focusRack(rackId);
-      setHighlightedDevice(deviceId, 2500); // 2.5 seconds highlight
     },
-    [
-      activeNodeId,
-      racks,
-      setActiveNode,
-      selectRack,
-      focusRack,
-      setHighlightedDevice,
-    ],
+    [locateDevice, showToast],
   );
 
   const handleAddChild = useCallback(() => {
@@ -685,51 +734,70 @@ export const HierarchyTree = () => {
             return (
               <>
                 <div className="equipment-panel-header">
-                  📦 장비: {nodeName} ({currentDevices.length})
+                  📦 장비: {nodeName} ({totalDeviceCount})
                 </div>
                 <div className="equipment-panel-body">
-                  {currentDevices.length > 0 ? (
-                    currentDevices.map(({ device, rackId, instanceId }) => {
-                      const rack = rackId
-                        ? racks.find((r) => r.id === rackId)
-                        : null;
-
-                      const equipmentLabel =
-                        device.deviceName || device.modelName || "Device";
-
-                      const rackLabel = rack
-                        ? (rack.displayName || `Rack-${rack.id.slice(0, 4)}`) +
-                          ` (${rack.uHeight}U)`
-                        : "미배치 (Inventory)";
+                  {deviceGroups.length > 0 ? (
+                    deviceGroups.map((group) => {
+                      const isLeaf = isLeafNode(nodes, activeNodeId);
 
                       return (
-                        <div
-                          key={`${activeNodeId}-${device.id}`}
-                          className={`tree-node tree-node-equipment ${highlightedDeviceId === (instanceId || device.id) ? "highlighted" : ""}`}
-                          onClick={() => handleDeviceClick(instanceId || device.id, rackId)}
-                        >
-                          <span className="tree-node-icon">📟</span>
-                          <div
-                            className="tree-node-name"
-                            style={{ display: "flex", flexDirection: "column" }}
-                          >
-                            <span style={{ fontWeight: 600 }}>
-                              {equipmentLabel}
-                            </span>
-                            <span
-                              style={{
-                                fontSize: "9px",
-                                opacity: 0.5,
-                                color: "var(--text-tertiary)",
-                                marginTop: "1px",
-                              }}
-                            >
-                              📍 {rackLabel}
-                            </span>
-                          </div>
-                          <span className="tree-node-count">
-                            {device.uSize}U
-                          </span>
+                        <div key={group.nodeId} className="equipment-subgroup">
+                          {/* Show header if not a leaf view OR if there are multiple groups (though usually leaf implies 1 group) */}
+                          {!isLeaf && (
+                            <div className="equipment-subgroup-header">
+                              <span className="equipment-subgroup-icon">📂</span>
+                              {group.nodeName} ({group.devices.length})
+                            </div>
+                          )}
+                          {group.devices.map(({ device, rackId, instanceId }) => {
+                            const rack = rackId
+                              ? allRacksForMapping.find((r) => r.id === rackId)
+                              : null;
+
+                            const equipmentLabel =
+                              device.deviceName || device.modelName || "Device";
+
+                            const rackLabel = rack
+                              ? (rack.displayName ||
+                                  `Rack-${rack.id.slice(0, 4)}`) +
+                                ` (${rack.uHeight}U)`
+                              : "미배치 (Inventory)";
+
+                            return (
+                              <div
+                                key={`${activeNodeId}-${device.id}`}
+                                className={`tree-node tree-node-equipment ${highlightedDeviceId === (instanceId || device.id) ? "highlighted" : ""}`}
+                                onClick={() => handleDeviceClick(device.id)}
+                              >
+                                <span className="tree-node-icon">📟</span>
+                                <div
+                                  className="tree-node-name"
+                                  style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                  }}
+                                >
+                                  <span style={{ fontWeight: 600 }}>
+                                    {equipmentLabel}
+                                  </span>
+                                  <span
+                                    style={{
+                                      fontSize: "9px",
+                                      opacity: 0.5,
+                                      color: "var(--text-tertiary)",
+                                      marginTop: "1px",
+                                    }}
+                                  >
+                                    📍 {rackLabel}
+                                  </span>
+                                </div>
+                                <span className="tree-node-count">
+                                  {device.uSize}U
+                                </span>
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })

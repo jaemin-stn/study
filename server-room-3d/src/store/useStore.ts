@@ -139,6 +139,7 @@ export interface AppState {
   addNode: (node: Omit<HierarchyNode, "nodeId">) => string;
   renameNode: (nodeId: string, name: string) => void;
   deleteNode: (nodeId: string) => void;
+  locateDevice: (registeredDeviceId: string) => boolean;
   upsertNodes: (
     nodes: HierarchyNode[],
     overwrite: boolean,
@@ -532,6 +533,47 @@ export const useStore = create<AppState>((set, get) => ({
       }, duration);
       set({ blinkTimeoutId: timeoutId as unknown as number });
     }
+  },
+
+  locateDevice: (registeredDeviceId) => {
+    const { layouts, setActiveNode, selectRack, focusRack, setHighlightedDevice } = get();
+    
+    let foundNodeId: string | null = null;
+    let foundRackId: string | null = null;
+    let foundDeviceId: string | null = null;
+
+    // Global search across all node layouts
+    for (const [nodeId, layout] of Object.entries(layouts)) {
+      if (!layout.racks) continue;
+      for (const rack of layout.racks) {
+        const placed = rack.devices.find(d => d.registeredDeviceId === registeredDeviceId);
+        if (placed) {
+          foundNodeId = nodeId;
+          foundRackId = rack.id;
+          foundDeviceId = placed.id;
+          break;
+        }
+      }
+      if (foundNodeId) break;
+    }
+
+    if (foundNodeId && foundRackId && foundDeviceId) {
+      // 1. Switch Node if needed
+      if (get().activeNodeId !== foundNodeId) {
+        setActiveNode(foundNodeId);
+      }
+      
+      // 2. Select and Focus Rack
+      selectRack(foundRackId);
+      focusRack(foundRackId);
+      
+      // 3. Highlight Device
+      setHighlightedDevice(foundDeviceId, 2500);
+      
+      return true;
+    }
+    
+    return false;
   },
   setShowEquipmentInTree: (show) => set({ showEquipmentInTree: show }),
 

@@ -7,7 +7,14 @@ import {
   exportRegisteredDevicesToExcel,
   parseRegisteredDevicesFromExcel,
 } from "../utils/storage";
-import { getNodeName } from "../utils/nodeUtils";
+import {
+  getNodeName,
+  getChildren,
+  getAncestorPath,
+  getSubtreeEquipmentCount,
+  getSubtreeNodeIds,
+} from "../utils/nodeUtils";
+import type { HierarchyNode } from "../types";
 
 const VENDORS: VendorName[] = [
   "코위버PTN",
@@ -47,9 +54,9 @@ const MODAL_STYLES = `
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-lg);
   box-shadow: var(--elevation-3);
-  width: 1000px;
+  width: 1400px;
   max-width: 95vw;
-  max-height: 85vh;
+  height: 85vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -116,11 +123,189 @@ const MODAL_STYLES = `
 }
 .drm-body {
   flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  padding: 0;
+}
+.drm-sidebar {
+  width: 280px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-weak);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+}
+.drm-sidebar-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--border-weak);
+}
+.drm-sidebar-search-wrap {
+  position: relative;
+}
+.drm-sidebar-search {
+  width: 100%;
+  height: 34px;
+  padding: 0 12px 0 32px;
+  border: 1px solid var(--border-medium);
+  border-radius: 8px;
+  font-size: 13px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  outline: none;
+}
+.drm-sidebar-search:focus {
+  border-color: var(--theme-primary);
+  background: var(--bg-primary);
+}
+.drm-sidebar-search-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  color: var(--text-tertiary);
+}
+.drm-sidebar-content {
+  flex: 1;
   overflow-y: auto;
-  padding: 20px 24px;
+  padding: 12px 0;
+}
+.drm-content {
+  flex: 1;
+  overflow: hidden;
+  padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  background: var(--bg-primary);
+}
+
+/* Node Tree Styles */
+.drm-tree-node {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-secondary);
+  transition: all 0.15s;
+  gap: 6px;
+  border-left: 3px solid transparent;
+}
+.drm-tree-node:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+.drm-tree-node.selected {
+  background: var(--selected-bg);
+  color: var(--theme-primary);
+  border-left-color: var(--theme-primary);
+  font-weight: 600;
+}
+.drm-tree-node-toggle {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  transition: transform 0.2s;
+}
+.drm-tree-node-toggle.expanded {
+  transform: rotate(90deg);
+}
+.drm-tree-node-icon {
+  font-size: 14px;
+}
+.drm-tree-node-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drm-tree-node-count {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  background: var(--bg-tertiary);
+  padding: 1px 6px;
+  border-radius: 10px;
+}
+.drm-tree-node.match {
+  color: var(--text-primary);
+}
+.drm-tree-node.match .drm-tree-node-name {
+  text-decoration: underline;
+  text-decoration-color: var(--theme-primary);
+  text-underline-offset: 3px;
+}
+
+/* Registration Modal Layer (Separate from main modal) */
+.drm-reg-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2100; /* Higher than main modal */
+  backdrop-filter: blur(4px);
+  animation: drm-fade-in 0.2s ease-out;
+}
+.drm-reg-modal {
+  background: var(--modal-bg);
+  border: 1px solid var(--border-medium);
+  border-radius: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  width: 600px;
+  max-width: 90vw;
+  padding: 32px;
+  animation: drm-zoom-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Table Horizontal Clipping & Responsiveness */
+.drm-table-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto; /* Handles both x and y scrolls in one container */
+  background: var(--bg-primary);
+  border: 1px solid var(--border-weak);
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+  position: relative;
+}
+.drm-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  min-width: 1000px; /* Force minimum width for small screens */
+}
+
+/* Fixed Column Widths */
+.col-check { width: 44px; }
+.col-group { width: 110px; }
+.col-name { width: auto; min-width: 180px; }
+.col-model { width: 130px; }
+.col-ip { width: 110px; }
+.col-mac { width: 150px; }
+.col-vendor { width: 100px; }
+.col-actions { width: 66px; }
+
+/* 2-Line Name Clamping */
+.drm-device-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+  max-height: 2.8em; /* Exactly 2 lines */
+  text-align: center;
+  word-break: break-all;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
 /* Card-like Sections */
@@ -130,36 +315,41 @@ const MODAL_STYLES = `
   border-radius: var(--radius-lg);
   padding: var(--spacing-md);
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.02);
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 
-/* Form section */
+/* ... existing form styles preserved for use in the new modal ... */
 .drm-form-title {
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
+  font-size: 20px;
+  font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: var(--spacing-md);
+  margin-bottom: 24px;
   display: flex;
   align-items: center;
   gap: 12px;
 }
-.drm-form-title .icon {
-  font-size: 20px;
-}
 .drm-form-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 16px;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 32px;
+}
+.drm-field-full {
+  grid-column: span 2;
 }
 .drm-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 .drm-field label {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-tertiary);
-  letter-spacing: 0.02em;
 }
 .drm-field label .drm-required {
   color: var(--severity-critical);
@@ -167,88 +357,168 @@ const MODAL_STYLES = `
 }
 .drm-field input,
 .drm-field select {
-  height: 38px;
-  padding: 0 var(--spacing-sm);
+  height: 40px;
+  padding: 0 12px;
   border: 1px solid var(--border-medium);
-  border-radius: var(--radius-md);
-  font-size: 13px;
+  border-radius: 10px;
+  font-size: 14px;
   background-color: var(--bg-tertiary);
   color: var(--text-primary);
-  font-family: inherit;
-  transition: all 0.2s ease;
-}
-.drm-field select {
-  appearance: none;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  padding-right: 36px;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 12px center;
-  background-size: 16px;
-}
-.drm-field input:focus,
-.drm-field select:focus {
-  outline: none;
-  border-color: var(--theme-primary);
-  box-shadow: 0 0 0 4px rgba(110, 159, 255, 0.1);
-  background-color: var(--bg-primary);
+  transition: all 0.2s;
 }
 .drm-field .drm-error-hint {
-  font-size: 12px;
-  color: var(--severity-critical-text);
+  font-size: 11px;
+  color: var(--severity-critical);
   margin-top: 4px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
+  font-weight: 500;
 }
 .drm-form-actions {
   display: flex;
   justify-content: flex-end;
-  margin-top: 16px;
+  gap: 12px;
 }
 .drm-submit-btn {
-  height: 38px;
+  height: 42px;
   padding: 0 24px;
-  background: linear-gradient(135deg, var(--theme-primary), #4872d8);
+  background: linear-gradient(135deg, #4f83fd, #2c52c0);
   color: white;
   border: none;
-  border-radius: 10px;
-  font-size: 14px;
+  border-radius: 12px;
+  font-size: 15px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(110, 159, 255, 0.2);
+  box-shadow: 0 8px 20px rgba(79, 131, 253, 0.35);
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.drm-submit-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(110, 159, 255, 0.35);
-  filter: brightness(1.1);
-}
 
-/* Table section */
-.drm-table-topbar {
+/* Node Picker Styles */
+.drm-node-picker {
+  position: relative;
+  width: 100%;
+}
+.drm-node-picker-trigger {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--border-medium);
+  border-radius: 10px;
+  font-size: 14px;
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
-  flex-wrap: wrap;
-  gap: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
 }
-.drm-table-title-group {
+.drm-node-picker-trigger:hover {
+  background: var(--bg-secondary);
+  border-color: var(--theme-primary);
+}
+.drm-node-picker-trigger.open {
+  border-color: var(--theme-primary);
+  box-shadow: 0 0 0 4px rgba(110, 159, 255, 0.1);
+  background: var(--bg-primary);
+}
+.drm-node-picker-trigger .chevron {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  transition: transform 0.2s;
+}
+.drm-node-picker-trigger.open .chevron {
+  transform: rotate(180deg);
+}
+.drm-node-picker-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  background: var(--modal-bg);
+  border: 1px solid var(--border-medium);
+  border-radius: 12px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4);
+  z-index: 2200;
+  overflow: hidden;
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  animation: drm-pop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
-.drm-badge {
-  padding: 4px 10px;
+.drm-node-picker-search {
+  padding: 12px;
+  border-bottom: 1px solid var(--border-weak);
+  background: var(--bg-secondary);
+}
+.drm-node-picker-search input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px 0 30px;
+  border: 1px solid var(--border-medium);
+  border-radius: 6px;
+  font-size: 12px;
   background: var(--bg-tertiary);
+  color: var(--text-primary);
+  outline: none;
+}
+.drm-node-picker-search .search-icon {
+  position: absolute;
+  left: 22px;
+  top: 21px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+.drm-node-picker-tree {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.drm-node-picker-tree .drm-tree-node {
+  border-left: none;
+  padding-right: 12px;
+  margin: 0 4px;
+  border-radius: 6px;
+}
+.drm-node-picker-tree .drm-tree-node.selected {
+  background: var(--theme-primary);
+  color: white;
+}
+.drm-node-picker-tree .drm-tree-node.selected .drm-tree-node-count {
+  background: rgba(255,255,255,0.2);
+  color: white;
+}
+.drm-node-picker-tree .drm-tree-node.selected .drm-tree-node-toggle {
+  color: rgba(255,255,255,0.7);
+}
+
+/* Table Refinement */
+.drm-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-weak);
+  font-size: 12px;
+  vertical-align: middle;
+  height: 52px; /* Force consistent row height for 2-line names */
+}
+.drm-table th {
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  font-size: 11px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: inset 0 -1px 0 var(--border-weak);
+}
+.drm-table tr:hover {
+  background: rgba(110, 159, 255, 0.05);
+}
+
+.drm-badge {
+  padding: 3px 10px;
+  background: var(--bg-secondary);
   color: var(--text-secondary);
-  border-radius: 100px;
-  font-size: 13px;
+  border-radius: 6px;
+  font-size: 12px;
   font-weight: 600;
   border: 1px solid var(--border-weak);
 }
@@ -257,23 +527,108 @@ const MODAL_STYLES = `
   color: var(--theme-primary);
   border-color: rgba(110, 159, 255, 0.3);
 }
-.drm-table-actions {
+/* --- New Structured Header & Toolbar --- */
+.drm-table-header {
   display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-shrink: 0;
+}
+.drm-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
 }
-.drm-table-actions .grafana-btn {
-  height: 36px;
-  border-radius: 8px;
-  font-weight: 600;
+.drm-metadata-cluster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.drm-metadata-cluster .drm-form-title {
+  margin-bottom: 0;
+  font-size: 18px;
+}
+.drm-action-cluster {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Button Hierarchy */
+.drm-btn-primary {
+  height: 38px;
+  padding: 0 20px;
+  background: linear-gradient(135deg, #4f83fd, #2c52c0);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
   display: flex;
   align-items: center;
   gap: 8px;
+  box-shadow: 0 4px 12px rgba(79, 131, 253, 0.3);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.drm-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(79, 131, 253, 0.45);
+  filter: brightness(1.1);
+}
+.drm-btn-primary:active {
+  transform: translateY(0);
 }
 
-.drm-table-filters {
+.drm-btn-secondary {
+  height: 38px;
+  padding: 0 16px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
   display: flex;
-  gap: 12px;
-  margin-bottom: 16px;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+.drm-btn-secondary:hover {
+  background: var(--bg-secondary);
+  border-color: var(--theme-primary);
+  color: var(--theme-primary);
+}
+
+/* Search Row */
+.drm-search-container {
+  max-width: 500px;
+  width: 100%;
+}
+
+/* Spacing Refinement */
+.drm-section-card {
+  padding: 24px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Empty State centering */
+.drm-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  color: var(--text-tertiary);
 }
 .drm-search-wrap {
   flex: 1;
@@ -363,12 +718,13 @@ const MODAL_STYLES = `
   /* Removed backdrop-filter to prevent CSS stacking context bugs with fixed modal overlays */
 }
 .drm-table td {
-  padding: 8px 16px;
+  padding: 4px 12px;
   border-bottom: 1px solid var(--border-weak);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 12px;
   vertical-align: middle;
   text-align: center;
+  line-height: 1.4;
 }
 .drm-table tr:last-child td {
   border-bottom: none;
@@ -392,12 +748,11 @@ const MODAL_STYLES = `
 .drm-group-tag {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
-  border-radius: 8px;
-  font-size: 13px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
-  letter-spacing: 0.02em;
 }
 .drm-group-tag.group-gwacheon {
   background: var(--tag-gwacheon-bg);
@@ -413,12 +768,12 @@ const MODAL_STYLES = `
 .drm-vendor-tag {
   display: inline-flex;
   align-items: center;
-  padding: 4px 10px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  color: var(--text-primary);
-  border-radius: 8px;
-  font-size: 12px;
+  padding: 2px 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-weak);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 11px;
   font-weight: 600;
 }
 .drm-delete-btn {
@@ -605,6 +960,437 @@ interface DeleteConfirm {
   rect: DOMRect;
 }
 
+const TreeNodeItem = ({
+  node,
+  depth,
+  nodes,
+  selectedNodeId,
+  expandedIds,
+  nodeSearch,
+  registeredDevices,
+  onToggle,
+  onSelect,
+}: {
+  node: HierarchyNode;
+  depth: number;
+  nodes: HierarchyNode[];
+  selectedNodeId: string;
+  expandedIds: Set<string>;
+  nodeSearch: string;
+  registeredDevices: any[];
+  onToggle: (id: string) => void;
+  onSelect: (id: string) => void;
+}) => {
+  const children = getChildren(nodes, node.nodeId);
+  const hasChildren = children.length > 0;
+  const isExpanded = expandedIds.has(node.nodeId);
+  const isSelected = selectedNodeId === node.nodeId;
+  const count = getSubtreeEquipmentCount(nodes, registeredDevices, node.nodeId);
+
+  const isMatch =
+    nodeSearch && node.name.toLowerCase().includes(nodeSearch.toLowerCase());
+
+  return (
+    <>
+      <div
+        className={`drm-tree-node ${isSelected ? "selected" : ""} ${isMatch ? "match" : ""}`}
+        style={{ paddingLeft: `${12 + depth * 16}px` }}
+        onClick={() => onSelect(node.nodeId)}
+      >
+        <span
+          className={`drm-tree-node-toggle ${isExpanded ? "expanded" : ""}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (hasChildren) onToggle(node.nodeId);
+          }}
+          style={{ visibility: hasChildren ? "visible" : "hidden" }}
+        >
+          ▶
+        </span>
+        <span className="drm-tree-node-icon">
+          {node.type === "root"
+            ? "🏢"
+            : node.type === "group"
+              ? "📦"
+              : node.type === "site"
+                ? "📍"
+                : "📁"}
+        </span>
+        <span className="drm-tree-node-name">{node.name}</span>
+        {count > 0 && <span className="drm-tree-node-count">{count}</span>}
+      </div>
+      {isExpanded &&
+        children.map((child) => (
+          <TreeNodeItem
+            key={child.nodeId}
+            node={child}
+            depth={depth + 1}
+            nodes={nodes}
+            selectedNodeId={selectedNodeId}
+            expandedIds={expandedIds}
+            nodeSearch={nodeSearch}
+            registeredDevices={registeredDevices}
+            onToggle={onToggle}
+            onSelect={onSelect}
+          />
+        ))}
+    </>
+  );
+};
+
+// --- Custom Hierarchical Node Picker Component ---
+const NodePicker = ({
+  nodes,
+  selectedNodeId,
+  registeredDevices,
+  onSelect,
+}: {
+  nodes: HierarchyNode[];
+  selectedNodeId: string;
+  registeredDevices: any[];
+  onSelect: (id: string) => void;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  const selectedNodeName = useMemo(() => {
+    if (!selectedNodeId) return "선택하세요";
+    return getNodeName(nodes, selectedNodeId);
+  }, [nodes, selectedNodeId]);
+
+  // Handle click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  // Expand parents if searching or if selected
+  useEffect(() => {
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      const toExpand = new Set<string>();
+      nodes.forEach((n) => {
+        if (n.name.toLowerCase().includes(q)) {
+          let curr = n;
+          while (curr.parentId) {
+            toExpand.add(curr.parentId);
+            const parent = nodes.find((p) => p.nodeId === curr.parentId);
+            if (!parent) break;
+            curr = parent;
+          }
+        }
+      });
+      if (toExpand.size > 0) {
+        setExpandedIds((prev) => {
+          const next = new Set(prev);
+          toExpand.forEach((id) => next.add(id));
+          return next;
+        });
+      }
+    }
+  }, [search, nodes]);
+
+  // Expand ancestors of selected node on open
+  useEffect(() => {
+    if (isOpen && selectedNodeId) {
+      const path = getAncestorPath(nodes, selectedNodeId);
+      setExpandedIds((prev) => {
+        const next = new Set(prev);
+        path.forEach((n) => next.add(n.nodeId));
+        return next;
+      });
+    }
+  }, [isOpen, selectedNodeId, nodes]);
+
+  return (
+    <div className="drm-node-picker" ref={pickerRef}>
+      <div
+        className={`drm-node-picker-trigger ${isOpen ? "open" : ""}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+      >
+        <span>{selectedNodeName}</span>
+        <span className="chevron">▼</span>
+      </div>
+
+      {isOpen && (
+        <div className="drm-node-picker-popover" onClick={(e) => e.stopPropagation()}>
+          <div className="drm-node-picker-search">
+            <span className="search-icon">🔍</span>
+            <input
+              type="text"
+              placeholder="노드 검색..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="drm-node-picker-tree">
+            {nodes
+              .filter((n) => n.parentId === null)
+              .map((root) => (
+                <TreeNodeItem
+                  key={root.nodeId}
+                  node={root}
+                  depth={0}
+                  nodes={nodes}
+                  selectedNodeId={selectedNodeId}
+                  expandedIds={expandedIds}
+                  nodeSearch={search}
+                  registeredDevices={registeredDevices}
+                  onToggle={(id) =>
+                    setExpandedIds((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(id)) next.delete(id);
+                      else next.add(id);
+                      return next;
+                    })
+                  }
+                  onSelect={(id) => {
+                    onSelect(id);
+                    setIsOpen(false);
+                  }}
+                />
+              ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- Registration Form Modal (Separate Overlay) ---
+const RegistrationFormModal = ({
+  isOpen,
+  onClose,
+  editingDeviceId,
+  activeNodeId,
+  nodes,
+  registeredDevices,
+  onSuccess,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  editingDeviceId: string | null;
+  activeNodeId: string;
+  nodes: HierarchyNode[];
+  registeredDevices: any[];
+  onSuccess: (deviceName: string, isEdit: boolean) => void;
+}) => {
+  const addRegisteredDevice = useStore((s) => s.addRegisteredDevice);
+  const updateRegisteredDevice = useStore((s) => s.updateRegisteredDevice);
+
+  // Form state
+  const [nodeId, setNodeId] = useState<string>(activeNodeId || "");
+  const [selectedModelIdx, setSelectedModelIdx] = useState(0);
+  const [deviceName, setDeviceName] = useState("");
+  const [ip, setIp] = useState("");
+  const [mac, setMac] = useState("");
+  const [vendor, setVendor] = useState<VendorName>("Nokia");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const selectedTemplate = DEVICE_TEMPLATES[selectedModelIdx];
+
+  useEffect(() => {
+    if (isOpen) {
+      if (editingDeviceId) {
+        const device = registeredDevices.find((d) => d.id === editingDeviceId);
+        if (device) {
+          setNodeId(device.nodeId);
+          const idx = DEVICE_TEMPLATES.findIndex(
+            (t) => t.modelName === device.modelName,
+          );
+          if (idx >= 0) setSelectedModelIdx(idx);
+          setDeviceName(device.deviceName);
+          setIp(device.ip);
+          setMac(device.mac);
+          setVendor(device.vendor);
+        }
+      } else {
+        setNodeId(activeNodeId || "");
+        setDeviceName("");
+        setIp("");
+        setMac("");
+        setErrors({});
+      }
+    }
+  }, [isOpen, editingDeviceId, activeNodeId, registeredDevices]);
+
+  const validate = (): boolean => {
+    const newErrors: Record<string, string> = {};
+    if (!deviceName.trim()) newErrors.deviceName = "필수 입력";
+    if (!nodeId || nodeId === "") newErrors.nodeId = "위치를 선택하세요";
+    if (!ip.trim()) newErrors.ip = "필수 입력";
+    else if (!isValidIP(ip.trim())) newErrors.ip = "형식: X.X.X.X";
+    if (!mac.trim()) newErrors.mac = "필수 입력";
+    else if (!isValidMAC(mac.trim())) newErrors.mac = "형식: XX:XX:XX:XX:XX:XX";
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = () => {
+    if (!validate()) return;
+
+    const macTrimmed = mac.trim().toUpperCase();
+    const existing = registeredDevices.find(
+      (d) => d.mac === macTrimmed && d.id !== editingDeviceId,
+    );
+    if (existing) {
+      setErrors((prev) => ({ ...prev, mac: "이미 존재하는 MAC입니다." }));
+      return;
+    }
+
+    const payload = {
+      nodeId: nodeId,
+      deviceName: deviceName.trim(),
+      modelName: selectedTemplate.modelName,
+      type: selectedTemplate.type,
+      uSize: selectedTemplate.uSize,
+      ip: ip.trim(),
+      mac: macTrimmed,
+      vendor,
+    };
+
+    if (editingDeviceId) {
+      updateRegisteredDevice(editingDeviceId, payload);
+      onSuccess(deviceName.trim(), true);
+    } else {
+      addRegisteredDevice(payload);
+      onSuccess(deviceName.trim(), false);
+    }
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div className="drm-reg-modal-overlay" onClick={onClose}>
+      <div className="drm-reg-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="drm-form-title">
+          <span className="icon">{editingDeviceId ? "✏️" : "➕"}</span>{" "}
+          {editingDeviceId ? "장비 정보 수정" : "새 장비 등록"}
+        </div>
+
+        <div className="drm-form-grid">
+          <div className="drm-field">
+            <label>
+              위치<span className="drm-required">*</span>
+            </label>
+            <NodePicker
+              nodes={nodes}
+              selectedNodeId={nodeId}
+              registeredDevices={registeredDevices}
+              onSelect={(id) => setNodeId(id)}
+            />
+            {errors.nodeId && (
+              <span className="drm-error-hint">{errors.nodeId}</span>
+            )}
+          </div>
+
+          <div className="drm-field">
+            <label>
+              모델<span className="drm-required">*</span>
+            </label>
+            <select
+              value={selectedModelIdx}
+              onChange={(e) => setSelectedModelIdx(parseInt(e.target.value))}
+            >
+              {DEVICE_TEMPLATES.map((t, i) => (
+                <option key={i} value={i}>
+                  [{t.uSize}U] {t.modelName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="drm-field">
+            <label>
+              장비명<span className="drm-required">*</span>
+            </label>
+            <input
+              type="text"
+              value={deviceName}
+              onChange={(e) => setDeviceName(e.target.value)}
+              placeholder="장비 이름 입력"
+            />
+            {errors.deviceName && (
+              <span className="drm-error-hint">{errors.deviceName}</span>
+            )}
+          </div>
+
+          <div className="drm-field">
+            <label>
+              IP<span className="drm-required">*</span>
+            </label>
+            <input
+              type="text"
+              value={ip}
+              onChange={(e) => setIp(e.target.value)}
+              placeholder="10.0.0.1"
+            />
+            {errors.ip && <span className="drm-error-hint">{errors.ip}</span>}
+          </div>
+
+          <div className="drm-field">
+            <label>
+              MAC<span className="drm-required">*</span>
+            </label>
+            <input
+              type="text"
+              value={mac}
+              onChange={(e) => setMac(e.target.value)}
+              placeholder="AA:BB:CC:DD:EE:FF"
+            />
+            {errors.mac && <span className="drm-error-hint">{errors.mac}</span>}
+          </div>
+
+          <div className="drm-field">
+            <label>
+              벤더<span className="drm-required">*</span>
+            </label>
+            <select
+              value={vendor}
+              onChange={(e) => setVendor(e.target.value as VendorName)}
+            >
+              {VENDORS.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="drm-form-actions">
+          <button
+            className="grafana-btn grafana-btn-secondary"
+            onClick={onClose}
+            style={{ height: "42px", borderRadius: "12px", padding: "0 24px" }}
+          >
+            취소
+          </button>
+          <button className="drm-submit-btn" onClick={handleSubmit}>
+            <span>{editingDeviceId ? "💾" : "✨"}</span>{" "}
+            {editingDeviceId ? "저장하기" : "등록하기"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+};
+
 const ModalStyles = React.memo(() => <style>{MODAL_STYLES}</style>);
 
 export const DeviceRegistrationModal = () => {
@@ -612,29 +1398,16 @@ export const DeviceRegistrationModal = () => {
   const setOpen = useStore((s) => s.setDeviceRegistrationModalOpen);
   const registeredDevices = useStore((s) => s.registeredDevices);
   const racks = useStore((s) => s.racks);
-  const addRegisteredDevice = useStore((s) => s.addRegisteredDevice);
   const removeRegisteredDevice = useStore((s) => s.removeRegisteredDevice);
-  const updateRegisteredDevice = useStore((s) => s.updateRegisteredDevice);
   const upsertRegisteredDevices = useStore((s) => s.upsertRegisteredDevices);
   const activeNodeId = useStore((s) => s.activeNodeId);
   const nodes = useStore((s) => s.nodes);
-  const setActiveNode = useStore((s) => s.setActiveNode);
-  const selectRack = useStore((s) => s.selectRack);
-  const focusRack = useStore((s) => s.focusRack);
-  const setHighlightedDevice = useStore((s) => s.setHighlightedDevice);
-
-  // Form state. Initialize with activeNodeId, later synced by useEffect
-  const [nodeId, setNodeId] = useState<string>(activeNodeId || "");
-  const [selectedModelIdx, setSelectedModelIdx] = useState(0);
-  const [deviceName, setDeviceName] = useState("");
-  const [ip, setIp] = useState("");
-  const [mac, setMac] = useState("");
-  const [vendor, setVendor] = useState<VendorName>("Nokia");
+  const locateDevice = useStore((s) => s.locateDevice);
 
   // Table state
   const [search, setSearch] = useState("");
   // Table filter state
-  const [nodeFilter, setNodeFilter] = useState<string>("all");
+  const [nodeFilter, setNodeFilter] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // UI state
@@ -645,22 +1418,67 @@ export const DeviceRegistrationModal = () => {
     null,
   );
 
-  // Validation errors
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  // New Redesign States
+  const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
+  const [nodeSearch, setNodeSearch] = useState("");
+  const [nodeExpandedIds, setNodeExpandedIds] = useState<Set<string>>(
+    new Set(),
+  );
+
+  // Redesign: Expand parents if searching or if activeNodeId exists
+  useEffect(() => {
+    if (nodeSearch.trim()) {
+      const q = nodeSearch.toLowerCase();
+      const toExpand = new Set<string>();
+
+      nodes.forEach((n) => {
+        if (n.name.toLowerCase().includes(q)) {
+          let curr = n;
+          while (curr.parentId) {
+            toExpand.add(curr.parentId);
+            const parent = nodes.find((p) => p.nodeId === curr.parentId);
+            if (!parent) break;
+            curr = parent;
+          }
+        }
+      });
+
+      if (toExpand.size > 0) {
+        setNodeExpandedIds((prev) => {
+          const next = new Set(prev);
+          toExpand.forEach((id) => next.add(id));
+          return next;
+        });
+      }
+    }
+  }, [nodeSearch, nodes]);
+
+  // Expand parents of active node when opening
+  useEffect(() => {
+    if (isOpen && activeNodeId) {
+      const path = getAncestorPath(nodes, activeNodeId);
+      setNodeExpandedIds((prev) => {
+        const next = new Set(prev);
+        path.forEach((n) => next.add(n.nodeId));
+        return next;
+      });
+    }
+  }, [isOpen, activeNodeId, nodes]);
 
   // Sync state when modal opens ONLY (don't reset on nodes change during session)
   useEffect(() => {
     if (isOpen) {
-      setNodeId(activeNodeId || "");
-      const activeNode = activeNodeId ? nodes.find((n) => n.nodeId === activeNodeId) : undefined;
-      // If root/MAIN node (parentId === null), default to "all" devices view
-      if (!activeNode || activeNode.parentId === null) {
-        setNodeFilter("all");
+      if (activeNodeId) {
+        setNodeFilter(activeNodeId);
       } else {
-        setNodeFilter(activeNodeId || "all");
+        const root = nodes.find((n) => n.parentId === null);
+        if (root) setNodeFilter(root.nodeId);
       }
       // Reset selection when modal opens
       setSelectedIds(new Set());
+      // Redesign: Close registration modal by default
+      setIsRegistrationModalOpen(false);
+      setEditingDeviceId(null);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
@@ -668,8 +1486,9 @@ export const DeviceRegistrationModal = () => {
   // Filtered list — respects nodeFilter selection
   const filteredDevices = useMemo(() => {
     let list = registeredDevices;
-    if (nodeFilter !== "all") {
-      list = list.filter((d) => d.nodeId === nodeFilter);
+    if (nodeFilter !== "all" && nodeFilter !== "") {
+      const descendantIds = getSubtreeNodeIds(nodes, nodeFilter);
+      list = list.filter((d) => descendantIds.has(d.nodeId));
     }
 
     if (search.trim()) {
@@ -690,8 +1509,6 @@ export const DeviceRegistrationModal = () => {
 
   if (!isOpen) return null;
 
-  const selectedTemplate = DEVICE_TEMPLATES[selectedModelIdx];
-
   const showToast = (
     message: string,
     type: "success" | "error",
@@ -703,27 +1520,7 @@ export const DeviceRegistrationModal = () => {
 
   const handleEditClick = (device: (typeof registeredDevices)[0]) => {
     setEditingDeviceId(device.id);
-    setNodeId(device.nodeId);
-
-    // Find model index by modelName
-    const idx = DEVICE_TEMPLATES.findIndex(
-      (t) => t.modelName === device.modelName,
-    );
-    if (idx >= 0) setSelectedModelIdx(idx);
-
-    setDeviceName(device.deviceName);
-    setIp(device.ip);
-    setMac(device.mac);
-    setVendor(device.vendor);
-    setErrors({});
-  };
-
-  const cancelEdit = () => {
-    setEditingDeviceId(null);
-    setDeviceName("");
-    setIp("");
-    setMac("");
-    setErrors({});
+    setIsRegistrationModalOpen(true);
   };
 
   const handleSelectAll = (checked: boolean) => {
@@ -813,69 +1610,14 @@ export const DeviceRegistrationModal = () => {
     showToast("선택한 장비 데이터가 내보내졌습니다.", "success", "export");
   };
 
-  const validate = (): boolean => {
-    const newErrors: Record<string, string> = {};
-    if (!deviceName.trim()) newErrors.deviceName = "필수 입력";
-    if (!ip.trim()) newErrors.ip = "필수 입력";
-    else if (!isValidIP(ip.trim())) newErrors.ip = "형식: X.X.X.X";
-    if (!mac.trim()) newErrors.mac = "필수 입력";
-    else if (!isValidMAC(mac.trim())) newErrors.mac = "형식: XX:XX:XX:XX:XX:XX";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = () => {
-    if (!validate()) return;
-
-    // MAC uniqueness check (exclude current device if editing)
-    const existing = registeredDevices.find(
-      (d) => d.mac === mac.trim().toUpperCase() && d.id !== editingDeviceId,
+  const handleRegistrationSuccess = (deviceName: string, isEdit: boolean) => {
+    showToast(
+      `장비 "${deviceName}" 정보가 ${isEdit ? "수정" : "등록"}되었습니다.`,
+      "success",
+      "add",
     );
-    if (existing) {
-      setErrors((prev) => ({ ...prev, mac: "이미 존재하는 MAC입니다." }));
-      return;
-    }
-
-    if (editingDeviceId) {
-      updateRegisteredDevice(editingDeviceId, {
-        nodeId: nodeId,
-        deviceName: deviceName.trim(),
-        modelName: selectedTemplate.modelName,
-        type: selectedTemplate.type,
-        uSize: selectedTemplate.uSize,
-        ip: ip.trim(),
-        mac: mac.trim().toUpperCase(),
-        vendor,
-      });
-      showToast(
-        `장비 "${deviceName.trim()}" 정보가 수정되었습니다.`,
-        "success",
-        "add",
-      );
-      cancelEdit();
-    } else {
-      addRegisteredDevice({
-        nodeId: nodeId,
-        deviceName: deviceName.trim(),
-        modelName: selectedTemplate.modelName,
-        type: selectedTemplate.type,
-        uSize: selectedTemplate.uSize,
-        ip: ip.trim(),
-        mac: mac.trim().toUpperCase(),
-        vendor,
-      });
-
-      showToast(
-        `장비 "${deviceName.trim()}" 이(가) 등록되었습니다.`,
-        "success",
-        "add",
-      );
-      // Reset form
-      setDeviceName("");
-      setIp("");
-      setMac("");
-      setErrors({});
-    }
+    setIsRegistrationModalOpen(false);
+    setEditingDeviceId(null);
   };
 
   const handleDeleteClick = (
@@ -910,49 +1652,18 @@ export const DeviceRegistrationModal = () => {
   };
 
   const handleLocateDevice = (device: (typeof registeredDevices)[0]) => {
-    // 1. Find placement data
-    let targetRackId: string | null = null;
-    let targetDeviceId: string | null = null;
-    let targetNodeId: string | null = null;
-
-    for (const rack of racks) {
-      const placed = rack.devices.find(
-        (d) => d.registeredDeviceId === device.id,
-      );
-      if (placed) {
-        targetRackId = rack.id;
-        targetDeviceId = placed.id;
-        targetNodeId = rack.nodeId;
-        break;
+    const found = locateDevice(device.id);
+    if (!found) {
+      showToast("해당 장비는 랙에 탑재되어 있지 않습니다.", "error");
+    } else {
+      // Sync modal filter if navigation happened
+      const newActiveId = useStore.getState().activeNodeId;
+      if (newActiveId) {
+        setNodeFilter(newActiveId);
+        // Clear selection to avoid confusion
+        setSelectedIds(new Set());
       }
     }
-
-    if (!targetRackId || !targetDeviceId || !targetNodeId) {
-      showToast("해당 장비는 랙에 탑재되어 있지 않습니다.", "error");
-      return;
-    }
-
-    // 2. Validate nodeId existence in nodes list
-    if (!nodes.find((n) => n.nodeId === targetNodeId)) {
-      showToast("노드 정보를 찾을 수 없습니다.", "error");
-      return;
-    }
-
-    // 3. Navigation sequence
-    // First switch node
-    setActiveNode(targetNodeId);
-
-    // Select rack (this opens the DevicePanel)
-    selectRack(targetRackId);
-
-    // Also focus camera
-    focusRack(targetRackId);
-
-    // Trigger highlight and use store-based auto-clear (2.5s)
-    setHighlightedDevice(targetDeviceId, 2500);
-
-    // We stay in the modal according to "keep open" recommendation, 
-    // but the background view changes.
   };
 
   return (
@@ -1051,229 +1762,144 @@ export const DeviceRegistrationModal = () => {
 
             {/* Body */}
             <div className="drm-body">
-              {/* Part A: Registration Form */}
-              <div className="drm-section-card">
-                <div className="drm-form-title">
-                  <span className="icon">{editingDeviceId ? "✏️" : "➕"}</span>{" "}
-                  {editingDeviceId ? "장비 정보 수정" : "새 장비 등록"}
-                </div>
-                <div className="drm-form-grid">
-                  {/* Group */}
-                  <div className="drm-field">
-                    <label>
-                      위치<span className="drm-required">*</span>
-                    </label>
-                    <select
-                      value={nodeId}
-                      onChange={(e) => setNodeId(e.target.value)}
-                    >
-                      {nodes
-                        .filter((n) => n.parentId !== null)
-                        .map((n) => (
-                          <option key={n.nodeId} value={n.nodeId}>
-                            {n.name}
-                          </option>
-                        ))}
-                    </select>
-                  </div>
-
-                  {/* Model */}
-                  <div className="drm-field">
-                    <label>
-                      모델<span className="drm-required">*</span>
-                    </label>
-                    <select
-                      value={selectedModelIdx}
-                      onChange={(e) =>
-                        setSelectedModelIdx(parseInt(e.target.value))
-                      }
-                    >
-                      {DEVICE_TEMPLATES.map((t, i) => (
-                        <option key={i} value={i}>
-                          [{t.uSize}U] {t.modelName}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Device Name */}
-                  <div className="drm-field">
-                    <label>
-                      장비명<span className="drm-required">*</span>
-                    </label>
+              {/* Left Sidebar: Node Hierarchy */}
+              <div className="drm-sidebar">
+                <div className="drm-sidebar-header">
+                  <div className="drm-sidebar-search-wrap">
+                    <span className="drm-sidebar-search-icon">🔍</span>
                     <input
                       type="text"
-                      value={deviceName}
-                      onChange={(e) => {
-                        setDeviceName(e.target.value);
-                        if (errors.deviceName)
-                          setErrors((p) => ({ ...p, deviceName: "" }));
-                      }}
-                      placeholder="장비 이름 입력"
+                      className="drm-sidebar-search"
+                      placeholder="노드 검색..."
+                      value={nodeSearch}
+                      onChange={(e) => setNodeSearch(e.target.value)}
                     />
-                    {errors.deviceName && (
-                      <span className="drm-error-hint">
-                        {errors.deviceName}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* IP */}
-                  <div className="drm-field">
-                    <label>
-                      IP<span className="drm-required">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={ip}
-                      onChange={(e) => {
-                        setIp(e.target.value);
-                        if (errors.ip) setErrors((p) => ({ ...p, ip: "" }));
-                      }}
-                      placeholder="10.0.0.1"
-                    />
-                    {errors.ip && (
-                      <span className="drm-error-hint">{errors.ip}</span>
-                    )}
-                  </div>
-
-                  {/* MAC */}
-                  <div className="drm-field">
-                    <label>
-                      MAC<span className="drm-required">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={mac}
-                      onChange={(e) => {
-                        setMac(e.target.value);
-                        if (errors.mac) setErrors((p) => ({ ...p, mac: "" }));
-                      }}
-                      placeholder="AA:BB:CC:DD:EE:FF"
-                    />
-                    {errors.mac && (
-                      <span className="drm-error-hint">{errors.mac}</span>
-                    )}
-                  </div>
-
-                  {/* Vendor */}
-                  <div className="drm-field">
-                    <label>
-                      벤더<span className="drm-required">*</span>
-                    </label>
-                    <select
-                      value={vendor}
-                      onChange={(e) => setVendor(e.target.value as VendorName)}
-                    >
-                      {VENDORS.map((v) => (
-                        <option key={v} value={v}>
-                          {v}
-                        </option>
-                      ))}
-                    </select>
                   </div>
                 </div>
-
-                <div className="drm-form-actions" style={{ gap: "12px" }}>
-                  {editingDeviceId && (
-                    <button
-                      className="grafana-btn grafana-btn-secondary"
-                      onClick={cancelEdit}
-                      style={{
-                        height: "38px",
-                        borderRadius: "10px",
-                        padding: "0 20px",
-                      }}
-                    >
-                      취소
-                    </button>
-                  )}
-                  <button className="drm-submit-btn" onClick={handleSubmit}>
-                    <span>{editingDeviceId ? "💾" : "✨"}</span>{" "}
-                    {editingDeviceId ? "저장하기" : "등록하기"}
-                  </button>
+                <div className="drm-sidebar-content">
+                  {nodes
+                    .filter((n) => n.parentId === null)
+                    .map((root) => (
+                      <TreeNodeItem
+                        key={root.nodeId}
+                        node={root}
+                        depth={0}
+                        nodes={nodes}
+                        selectedNodeId={nodeFilter}
+                        expandedIds={nodeExpandedIds}
+                        nodeSearch={nodeSearch}
+                        registeredDevices={registeredDevices}
+                        onToggle={(id) =>
+                          setNodeExpandedIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(id)) next.delete(id);
+                            else next.add(id);
+                            return next;
+                          })
+                        }
+                        onSelect={(id) => {
+                          setNodeFilter(id);
+                          setSelectedIds(new Set());
+                        }}
+                      />
+                    ))}
                 </div>
               </div>
 
-              {/* Part B: Device Table */}
-              <div className="drm-section-card">
-                <div className="drm-table-topbar">
-                  <div className="drm-table-title-group">
-                    <div className="drm-form-title" style={{ marginBottom: 0 }}>
-                      <span className="icon">📦</span> 등록 장비 목록
-                    </div>
-                    <div className="drm-badge">{filteredDevices.length}건</div>
-                    {selectedIds.size > 0 && (
-                      <div className="drm-badge highlight">
-                        {selectedIds.size}개 선택됨
+              {/* Right Content: Equipment List */}
+              <div className="drm-content">
+                <RegistrationFormModal
+                  isOpen={isRegistrationModalOpen}
+                  onClose={() => {
+                    setIsRegistrationModalOpen(false);
+                    setEditingDeviceId(null);
+                  }}
+                  editingDeviceId={editingDeviceId}
+                  activeNodeId={
+                    (nodeFilter !== "all" ? nodeFilter : activeNodeId) || ""
+                  }
+                  nodes={nodes}
+                  registeredDevices={registeredDevices}
+                  onSuccess={handleRegistrationSuccess}
+                />
+
+                {/* Device Table */}
+                <div className="drm-section-card" style={{ flex: 1 }}>
+                  <div className="drm-table-header">
+                    {/* First Row: Metadata & Actions */}
+                    <div className="drm-header-row">
+                      <div className="drm-metadata-cluster">
+                        <div className="drm-form-title">
+                          <span className="icon">📦</span> 등록 장비 목록
+                        </div>
+                        <div className="drm-badge highlight">
+                          {getNodeName(nodes, nodeFilter)}
+                        </div>
+                        <div className="drm-badge">
+                          {filteredDevices.length}건
+                        </div>
+                        {selectedIds.size > 0 && (
+                          <div className="drm-badge highlight">
+                            {selectedIds.size}개 선택됨
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <div className="drm-table-actions">
-                    <input
-                      type="file"
-                      accept=".xlsx"
-                      ref={fileInputRef}
-                      style={{ display: "none" }}
-                      onChange={handleFileChange}
-                    />
-                    <button
-                      className="grafana-btn grafana-btn-secondary"
-                      onClick={handleExportExcel}
-                    >
-                      <span>📥</span> 선택 장비 내보내기
-                    </button>
-                    <button
-                      className="grafana-btn grafana-btn-primary"
-                      onClick={handleImportExcel}
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "8px",
-                      }}
-                    >
-                      <span>📤</span> 일괄 등록 (Excel)
-                    </button>
-                  </div>
-                </div>
 
-                <div className="drm-table-filters">
-                  <div className="drm-search-wrap">
-                    <span className="drm-search-icon">🔍</span>
-                    <input
-                      className="drm-search-input"
-                      type="text"
-                      placeholder="검색 (장비명, 모델명, IP, MAC, 벤더)"
-                      value={search}
-                      onChange={(e) => setSearch(e.target.value)}
-                    />
-                  </div>
-                  <select
-                    className="drm-group-filter"
-                    value={nodeFilter}
-                    onChange={(e) => {
-                      setNodeFilter(e.target.value);
-                      setSelectedIds(new Set());
-                    }}
-                  >
-                    <option value="all">전체 노드</option>
-                    {nodes
-                      .filter((n) => n.parentId !== null)
-                      .map((n) => (
-                        <option key={n.nodeId} value={n.nodeId}>
-                          {n.name}
-                        </option>
-                      ))}
-                  </select>
-                </div>
+                      <div className="drm-action-cluster">
+                        <input
+                          type="file"
+                          accept=".xlsx"
+                          ref={fileInputRef}
+                          style={{ display: "none" }}
+                          onChange={handleFileChange}
+                        />
+                        <button
+                          className="drm-btn-primary"
+                          onClick={() => {
+                            setEditingDeviceId(null);
+                            setIsRegistrationModalOpen(true);
+                          }}
+                        >
+                          <span>➕</span> 새 장비 등록
+                        </button>
+                        <button
+                          className="drm-btn-secondary"
+                          onClick={handleExportExcel}
+                        >
+                          <span>📥</span> 내보내기
+                        </button>
+                        <button
+                          className="drm-btn-secondary"
+                          onClick={handleImportExcel}
+                        >
+                          <span>📤</span> 일괄 등록
+                        </button>
+                      </div>
+                    </div>
 
-                <div className="drm-table-container">
-                  <div className="drm-table-scroll">
+                    {/* Second Row: Search */}
+                    <div className="drm-header-row">
+                      <div className="drm-search-container">
+                        <div className="drm-search-wrap">
+                          <span className="drm-search-icon">🔍</span>
+                          <input
+                            className="drm-search-input"
+                            type="text"
+                            placeholder="목록에서 검색 (장비명, 모델명, IP, MAC, 벤더)"
+                            value={search}
+                            onChange={(e) => setSearch(e.target.value)}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="drm-table-content">
                     {filteredDevices.length > 0 ? (
                       <table className="drm-table">
                         <thead>
                           <tr>
-                            <th style={{ width: 40, textAlign: "center" }}>
+                            <th className="col-check">
                               <input
                                 type="checkbox"
                                 checked={isAllSelected}
@@ -1283,18 +1909,14 @@ export const DeviceRegistrationModal = () => {
                                 }}
                               />
                             </th>
-                            <th>그룹</th>
-                            <th>장비명</th>
-                            <th>모델명</th>
-                            <th>IP 주소</th>
-                            <th>MAC 주소</th>
-                            <th>벤더</th>
-                            <th style={{ width: 60, textAlign: "center" }}>
-                              수정
-                            </th>
-                            <th style={{ width: 60, textAlign: "center" }}>
-                              삭제
-                            </th>
+                            <th className="col-group">그룹</th>
+                            <th className="col-name">장비명</th>
+                            <th className="col-model">모델명</th>
+                            <th className="col-ip">IP 주소</th>
+                            <th className="col-mac">MAC 주소</th>
+                            <th className="col-vendor">벤더</th>
+                            <th className="col-actions">수정</th>
+                            <th className="col-actions">삭제</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1321,8 +1943,10 @@ export const DeviceRegistrationModal = () => {
                                   {getNodeName(nodes, device.nodeId)}
                                 </span>
                               </td>
-                              <td style={{ fontWeight: 600 }}>
-                                {device.deviceName || device.modelName}
+                              <td>
+                                <div className="drm-device-name">
+                                  {device.deviceName || device.modelName}
+                                </div>
                               </td>
                               <td>{device.modelName}</td>
                               <td
@@ -1375,13 +1999,7 @@ export const DeviceRegistrationModal = () => {
                         </tbody>
                       </table>
                     ) : (
-                      <div
-                        style={{
-                          padding: "60px",
-                          textAlign: "center",
-                          color: "var(--text-tertiary)",
-                        }}
-                      >
+                      <div className="drm-empty-state">
                         <div style={{ fontSize: "40px", marginBottom: "16px" }}>
                           Empty
                         </div>

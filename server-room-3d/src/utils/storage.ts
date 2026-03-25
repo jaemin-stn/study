@@ -27,7 +27,7 @@ const flattenRacks = (racks: Rack[], nodes?: HierarchyNode[]) =>
     ...(nodes && {
       groupName: getNodeName(nodes, r.nodeId),
       depth: getNodeDepth(nodes, r.nodeId),
-      groupPath: getFullPath(nodes, r.nodeId),
+      nodePath: getFullPath(nodes, r.nodeId),
     }),
     uHeight: r.uHeight,
     width: r.width,
@@ -50,7 +50,7 @@ const flattenDevices = (racks: Rack[], nodes?: HierarchyNode[], registeredDevice
         ...(nodes && {
           groupName: getNodeName(nodes, r.nodeId),
           depth: getNodeDepth(nodes, r.nodeId),
-          groupPath: getFullPath(nodes, r.nodeId),
+          nodePath: getFullPath(nodes, r.nodeId),
         }),
         type: d.type,
         uSize: d.uSize,
@@ -428,7 +428,6 @@ const flattenRegisteredDevices = (
     nodeId: d.nodeId,
     groupName: getNodeName(nodes, d.nodeId),
     nodePath: getFullPath(nodes, d.nodeId),
-    groupPath: getFullPath(nodes, d.nodeId), // Duplicate for robustness
     depth: getNodeDepth(nodes, d.nodeId),
     deviceName: d.deviceName,
     modelName: d.modelName,

@@ -164,6 +164,16 @@ export const getFullPath = (nodes: HierarchyNode[], nodeId: string | null): stri
   return path.map((n) => n.name).join(" > ");
 };
 
+/** 특정 노드 및 모든 하위 노드의 전체 장비 개수 합산 반환 */
+export const getSubtreeEquipmentCount = (
+  nodes: HierarchyNode[],
+  registeredDevices: RegisteredDevice[],
+  nodeId: string,
+): number => {
+  const descendantIds = getSubtreeNodeIds(nodes, nodeId);
+  return registeredDevices.filter((rd) => descendantIds.has(rd.nodeId)).length;
+};
+
 /** 특정 노드의 직계 장비 개수 반환 (등록 장비 기준) */
 export const getNodeEquipmentCount = (
   registeredDevices: RegisteredDevice[],
@@ -195,6 +205,32 @@ export const getNodeDevices = (
     return { device: rd, rackId: foundRackId, instanceId: foundInstanceId };
   });
 };
+
+/** 특정 노드 및 모든 하위 노드에 속한 장비 목록 및 배치 정보를 반환 (누적) */
+export const getSubtreeDevices = (
+  nodes: HierarchyNode[],
+  nodeId: string,
+  registeredDevices: RegisteredDevice[],
+  racks: Rack[],
+): { device: RegisteredDevice; rackId: string | null; instanceId: string | null }[] => {
+  const descendantIds = getSubtreeNodeIds(nodes, nodeId);
+  const nodeRegDevices = registeredDevices.filter((rd) => descendantIds.has(rd.nodeId));
+
+  return nodeRegDevices.map((rd) => {
+    let foundRackId: string | null = null;
+    let foundInstanceId: string | null = null;
+    for (const r of racks) {
+      const deviceInstance = r.devices.find((d) => d.registeredDeviceId === rd.id);
+      if (deviceInstance) {
+        foundRackId = r.id;
+        foundInstanceId = deviceInstance.id;
+        break;
+      }
+    }
+    return { device: rd, rackId: foundRackId, instanceId: foundInstanceId };
+  });
+};
+
 
 /**
  * 특정 경로 문자열(예: "STN > 수도권 > 경기")을 기반으로 노드들을 조회하거나 생성 정보를 생성합니다.

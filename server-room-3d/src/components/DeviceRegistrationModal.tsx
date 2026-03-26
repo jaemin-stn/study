@@ -631,7 +631,8 @@ const MODAL_STYLES = `
   color: var(--text-tertiary);
 }
 .drm-search-wrap {
-  flex: 1;
+  flex: 2;
+  min-width: 380px;
   position: relative;
 }
 .drm-search-input {
@@ -944,6 +945,133 @@ const MODAL_STYLES = `
   height: 38px;
   border-radius: 10px;
   font-weight: 600;
+}
+.drm-filter-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+.drm-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  user-select: none;
+  background: var(--bg-tertiary);
+  padding: 0 12px;
+  height: 38px;
+  border-radius: 10px;
+  border: 1px solid var(--border-medium);
+  transition: all 0.2s;
+}
+.drm-checkbox-label:hover {
+  background: var(--bg-secondary);
+  border-color: var(--text-tertiary);
+}
+.drm-checkbox-label input {
+  margin: 0;
+  width: 14px;
+  height: 14px;
+}
+.drm-child-multi-picker {
+  position: relative;
+  width: 200px;
+}
+.drm-cmp-trigger {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-medium);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.2s;
+  user-select: none;
+}
+.drm-cmp-trigger:hover {
+  background: var(--bg-secondary);
+  border-color: var(--text-tertiary);
+}
+.drm-cmp-trigger.open {
+  border-color: var(--theme-primary);
+  background: var(--bg-primary);
+}
+.drm-cmp-trigger .count-badge {
+  background: var(--theme-primary);
+  color: white;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  margin-left: 6px;
+}
+.drm-cmp-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 100;
+  width: 240px;
+  background: var(--modal-bg);
+  border: 1px solid var(--border-medium);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+.drm-cmp-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.drm-cmp-option .indent {
+  display: inline-block;
+  width: 16px;
+  border-left: 1px dashed var(--border-medium);
+  height: 14px;
+  margin-right: -4px;
+}
+.drm-cmp-option:hover {
+  background: var(--bg-tertiary);
+}
+.drm-cmp-option input {
+  margin: 0;
+  width: 14px;
+  height: 14px;
+}
+.drm-cmp-option .name {
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.drm-cmp-option.active .name {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+.drm-search-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
 }
 `;
 
@@ -1393,6 +1521,112 @@ const RegistrationFormModal = ({
 
 const ModalStyles = React.memo(() => <style>{MODAL_STYLES}</style>);
 
+const MultiPickerItem = ({
+  node,
+  depth = 0,
+  selected,
+  onToggle,
+}: {
+  node: HierarchyNode;
+  depth?: number;
+  selected: boolean;
+  onToggle: () => void;
+}) => {
+  return (
+    <div
+      className={`drm-cmp-option ${selected ? "active" : ""}`}
+      style={{ paddingLeft: `${10 + depth * 16}px` }}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+        {depth > 0 &&
+          Array.from({ length: depth }).map((_, i) => (
+            <span key={i} className="indent" />
+          ))}
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={(e) => {
+            e.stopPropagation();
+            onToggle();
+          }}
+        />
+        <span className="name">{node.name}</span>
+      </div>
+    </div>
+  );
+};
+
+const ChildMultiPicker = ({
+  options,
+  selectedIds,
+  onToggle,
+}: {
+  options: { node: HierarchyNode; depth: number }[];
+  selectedIds: Set<string>;
+  onToggle: (nodeId: string) => void;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+    if (isOpen) window.addEventListener("mousedown", handleClickOutside);
+    return () => window.removeEventListener("mousedown", handleClickOutside);
+  }, [isOpen]);
+
+  return (
+    <div className="drm-child-multi-picker" ref={containerRef}>
+      <div
+        className={`drm-cmp-trigger ${isOpen ? "open" : ""}`}
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <div style={{ display: "flex", alignItems: "center" }}>
+          <span>하위 자식 필터</span>
+          {selectedIds.size > 0 && (
+            <span className="count-badge">{selectedIds.size}</span>
+          )}
+        </div>
+        <span className="chevron" style={{ fontSize: "10px", marginLeft: "8px" }}>
+          {isOpen ? "▲" : "▼"}
+        </span>
+      </div>
+
+      {isOpen && (
+        <div className="drm-cmp-popover">
+          {options.length === 0 ? (
+            <div
+              style={{ padding: "10px", textAlign: "center", fontSize: "12px", color: "var(--text-tertiary)" }}
+            >
+              자식 노드가 없습니다.
+            </div>
+          ) : (
+            options.map(({ node, depth }) => (
+              <MultiPickerItem
+                key={node.nodeId}
+                node={node}
+                depth={depth}
+                selected={selectedIds.has(node.nodeId)}
+                onToggle={() => onToggle(node.nodeId)}
+              />
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const DeviceRegistrationModal = () => {
   const isOpen = useStore((s) => s.deviceRegistrationModalOpen);
   const setOpen = useStore((s) => s.setDeviceRegistrationModalOpen);
@@ -1424,6 +1658,41 @@ export const DeviceRegistrationModal = () => {
   const [nodeExpandedIds, setNodeExpandedIds] = useState<Set<string>>(
     new Set(),
   );
+
+  // Scope Filtering States
+  const [directNodeOnly, setDirectNodeOnly] = useState(false);
+  const [selectedChildNodeIds, setSelectedChildNodeIds] = useState<Set<string>>(
+    new Set(),
+  );
+
+  const descendantsOfFilter = useMemo(() => {
+    if (!nodeFilter || nodeFilter === "all") return [];
+
+    const result: { node: HierarchyNode; depth: number }[] = [];
+    const collect = (id: string, depth: number) => {
+      const children = getChildren(nodes, id);
+      children.forEach((c) => {
+        result.push({ node: c, depth });
+        collect(c.nodeId, depth + 1);
+      });
+    };
+    collect(nodeFilter, 0);
+    return result;
+  }, [nodes, nodeFilter]);
+
+  const hasDescendants = descendantsOfFilter.length > 0;
+
+  // Reset filters and selection when node changes
+  useEffect(() => {
+    setDirectNodeOnly(false);
+    setSelectedChildNodeIds(new Set());
+    setSelectedIds(new Set());
+  }, [nodeFilter]);
+
+  // Reset selection when scope filters change
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [directNodeOnly, selectedChildNodeIds]);
 
   // Redesign: Expand parents if searching or if activeNodeId exists
   useEffect(() => {
@@ -1486,9 +1755,19 @@ export const DeviceRegistrationModal = () => {
   // Filtered list — respects nodeFilter selection
   const filteredDevices = useMemo(() => {
     let list = registeredDevices;
+
     if (nodeFilter !== "all" && nodeFilter !== "") {
-      const descendantIds = getSubtreeNodeIds(nodes, nodeFilter);
-      list = list.filter((d) => descendantIds.has(d.nodeId));
+      if (directNodeOnly) {
+        // Mode 1: Show only equipment directly in this node
+        list = list.filter((d) => d.nodeId === nodeFilter);
+      } else if (selectedChildNodeIds.size > 0) {
+        // Mode 2: Show only equipment directly assigned to the selected nodes
+        list = list.filter((d) => selectedChildNodeIds.has(d.nodeId));
+      } else {
+        // Mode 3: Show full subtree (default when no specific filter is picked)
+        const descendantIds = getSubtreeNodeIds(nodes, nodeFilter);
+        list = list.filter((d) => descendantIds.has(d.nodeId));
+      }
     }
 
     if (search.trim()) {
@@ -1503,7 +1782,14 @@ export const DeviceRegistrationModal = () => {
       );
     }
     return list;
-  }, [registeredDevices, nodeFilter, search]);
+  }, [
+    registeredDevices,
+    nodeFilter,
+    search,
+    directNodeOnly,
+    selectedChildNodeIds,
+    nodes,
+  ]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1890,6 +2176,37 @@ export const DeviceRegistrationModal = () => {
                             onChange={(e) => setSearch(e.target.value)}
                           />
                         </div>
+
+                        {/* Scope Filtering Controls */}
+                        {hasDescendants && (
+                          <div className="drm-filter-controls">
+                            <label className="drm-checkbox-label">
+                              <input
+                                type="checkbox"
+                                checked={directNodeOnly}
+                                onChange={(e) =>
+                                  setDirectNodeOnly(e.target.checked)
+                                }
+                              />
+                              현재 노드 장비만 보기
+                            </label>
+
+                            {!directNodeOnly && (
+                              <ChildMultiPicker
+                                options={descendantsOfFilter}
+                                selectedIds={selectedChildNodeIds}
+                                onToggle={(id) => {
+                                  setSelectedChildNodeIds((prev) => {
+                                    const next = new Set(prev);
+                                    if (next.has(id)) next.delete(id);
+                                    else next.add(id);
+                                    return next;
+                                  });
+                                }}
+                              />
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

@@ -1073,7 +1073,41 @@ const MODAL_STYLES = `
   gap: 12px;
   width: 100%;
 }
+.drm-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  min-height: 0;
+}
+.drm-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(110, 159, 255, 0.1);
+  border: 1px solid rgba(110, 159, 255, 0.2);
+  color: var(--theme-primary);
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  animation: drm-pop-in 0.2s ease-out;
+}
+.drm-tag:hover {
+  background: var(--theme-primary);
+  color: white;
+  border-color: var(--theme-primary);
+  transform: translateY(-1px);
+}
+.drm-tag-remove {
+  font-size: 14px;
+  font-weight: 400;
+  opacity: 0.7;
+}
 `;
+
 
 interface ToastState {
   message: string;
@@ -1665,6 +1699,21 @@ export const DeviceRegistrationModal = () => {
     new Set(),
   );
 
+  const selectedChildTags = useMemo(() => {
+    return Array.from(selectedChildNodeIds).map((id) => {
+      const node = nodes.find((n) => n.nodeId === id);
+      return { id, name: node?.name || id };
+    });
+  }, [selectedChildNodeIds, nodes]);
+
+  const handleRemoveChildTag = (id: string) => {
+    setSelectedChildNodeIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
+
   const descendantsOfFilter = useMemo(() => {
     if (!nodeFilter || nodeFilter === "all") return [];
 
@@ -2209,6 +2258,23 @@ export const DeviceRegistrationModal = () => {
                         )}
                       </div>
                     </div>
+
+                    {/* Tags row */}
+                    {selectedChildTags.length > 0 && !directNodeOnly && (
+                      <div className="drm-tag-list">
+                        {selectedChildTags.map((tag) => (
+                          <div
+                            key={tag.id}
+                            className="drm-tag"
+                            onClick={() => handleRemoveChildTag(tag.id)}
+                            title="클릭하여 필터 제거"
+                          >
+                            <span>{tag.name}</span>
+                            <span className="drm-tag-remove">×</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div className="drm-table-content">

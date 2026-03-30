@@ -1119,6 +1119,38 @@ const MODAL_STYLES = `
   background: rgba(255, 255, 255, 0.03) !important;
   transform: translateY(0);
 }
+.drm-tree-node.drop-before {
+  border-top: 2px solid var(--theme-primary);
+  background: rgba(110, 159, 255, 0.05);
+}
+.drm-tree-node.drop-after {
+  border-bottom: 2px solid var(--theme-primary);
+  background: rgba(110, 159, 255, 0.05);
+}
+.drm-context-menu {
+  position: fixed;
+  z-index: 10000;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: var(--radius-md);
+  box-shadow: var(--elevation-3);
+  padding: 4px 0;
+  min-width: 140px;
+}
+.drm-context-item {
+  padding: 8px 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+.drm-context-item:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
+}
+.drm-context-item.danger {
+  color: var(--severity-critical);
+}
 `;
 
 
@@ -1152,9 +1184,12 @@ const TreeNodeItem = ({
   onDragOver,
   onDragLeave,
   onDrop,
+  onContextMenu,
   onAddSubNode,
   onDeleteNode,
   onRenameNode,
+  renamingId,
+  setRenamingId,
 }: {
   node: HierarchyNode;
   depth: number;
@@ -1170,12 +1205,15 @@ const TreeNodeItem = ({
   draggedNodeId: string | null;
   dragOverNodeId: string | null;
   onDragStart: (id: string) => void;
-  onDragOver: (e: React.DragEvent, id: string) => void;
+  onDragOver: (e: React.DragEvent, id: string, position: "before" | "after" | "inside") => void;
   onDragLeave: () => void;
-  onDrop: (e: React.DragEvent, targetId: string) => void;
+  onDrop: (e: React.DragEvent, targetId: string, position: "before" | "after" | "inside") => void;
+  onContextMenu: (e: React.MouseEvent, nodeId: string) => void;
   onAddSubNode: (parentId: string) => void;
   onDeleteNode: (e: React.MouseEvent, node: HierarchyNode) => void;
   onRenameNode: (node: HierarchyNode) => void;
+  renamingId: string | null;
+  setRenamingId: (id: string | null) => void;
 }) => {
   const children = getChildren(nodes, node.nodeId);
   const hasChildren = children.length > 0;
@@ -1187,7 +1225,7 @@ const TreeNodeItem = ({
     nodeSearch && node.name.toLowerCase().includes(nodeSearch.toLowerCase());
 
   // Local edit states for renaming
-  const [isRenaming, setIsRenaming] = useState(false);
+  const isRenaming = renamingId === node.nodeId;
   const [renameValue, setRenameValue] = useState(node.name);
 
   // Focus input when renaming starts
@@ -1201,31 +1239,77 @@ const TreeNodeItem = ({
     if (renameValue.trim() && renameValue !== node.name) {
       onRenameNode({ ...node, name: renameValue.trim() });
     }
-    setIsRenaming(false);
+    setRenamingId(null);
   };
 
   const isDragged = draggedNodeId === node.nodeId;
-  const isDragTarget = dragOverNodeId === node.nodeId;
-  const canBeDroppedOn = draggedNodeId && draggedNodeId !== node.nodeId;
+
+  const [dropPos, setDropPos] = useState<"before" | "after" | "inside" | null>(null);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!isEditMode || isDragged) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    // Safety: Cannot drop on own children
+    const getDescendantIds = (id: string): string[] => {
+      const childrenNodes = nodes.filter(n => n.parentId === id);
+      return [id, ...childrenNodes.flatMap(c => getDescendantIds(c.nodeId))];
+    }
+    if (draggedNodeId && getDescendantIds(draggedNodeId).includes(node.nodeId)) {
+      setDropPos(null);
+      return;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const relativeY = e.clientY - rect.top;
+    const height = rect.height;
+
+    let position: "before" | "after" | "inside";
+    if (node.parentId === null) {
+      position = "inside";
+    } else if (relativeY < height * 0.25) {
+      position = "before";
+    } else if (relativeY > height * 0.75) {
+      position = "after";
+    } else {
+      position = "inside";
+    }
+
+    setDropPos(position);
+    onDragOver(e, node.nodeId, position);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (!isEditMode || !dropPos) return;
+    e.preventDefault();
+    e.stopPropagation();
+    onDrop(e, node.nodeId, dropPos);
+    setDropPos(null);
+  };
 
   return (
     <>
       <div
-        className={`drm-tree-node ${isSelected ? "selected" : ""} ${isMatch ? "match" : ""} ${isDragged ? "dragging" : ""} ${isDragTarget && canBeDroppedOn ? "drop-target" : ""}`}
+        className={`drm-tree-node ${isSelected ? "selected" : ""} ${isMatch ? "match" : ""} ${isDragged ? "dragging" : ""} ${dropPos === "inside" ? "drop-target" : ""} ${dropPos === "before" ? "drop-before" : ""} ${dropPos === "after" ? "drop-after" : ""}`}
         style={{ paddingLeft: `${12 + depth * 16}px` }}
         onClick={() => onSelect(node.nodeId)}
-        draggable={isEditMode && node.type !== "root"}
+        onContextMenu={(e) => onContextMenu(e, node.nodeId)}
+        draggable={isEditMode && node.parentId !== null}
         onDragStart={(e) => {
-          if (!isEditMode || node.type === "root") {
+          if (!isEditMode || node.parentId === null) {
             e.preventDefault();
             return;
           }
           e.stopPropagation();
           onDragStart(node.nodeId);
         }}
-        onDragOver={(e) => canBeDroppedOn && onDragOver(e, node.nodeId)}
-        onDragLeave={onDragLeave}
-        onDrop={(e) => canBeDroppedOn && onDrop(e, node.nodeId)}
+        onDragOver={handleDragOver}
+        onDragLeave={() => {
+          setDropPos(null);
+          onDragLeave();
+        }}
+        onDrop={handleDrop}
       >
         <span
           className={`drm-tree-node-toggle ${isExpanded ? "expanded" : ""}`}
@@ -1257,7 +1341,7 @@ const TreeNodeItem = ({
             onBlur={handleRenameComplete}
             onKeyDown={(e) => {
               if (e.key === "Enter") handleRenameComplete();
-              if (e.key === "Escape") setIsRenaming(false);
+              if (e.key === "Escape") setRenamingId(null);
             }}
             onClick={(e) => e.stopPropagation()}
             onDragStart={(e) => e.preventDefault()}
@@ -1276,36 +1360,12 @@ const TreeNodeItem = ({
           <span className="drm-tree-node-name" onDoubleClick={(e) => {
             if (isEditMode) {
               e.stopPropagation();
-              setIsRenaming(true);
+              setRenamingId(node.nodeId);
             }
           }}>{node.name}</span>
         )}
 
-        {isEditMode && !isRenaming && (
-          <div className="tree-node-actions" style={{ display: "none", alignItems: "center", gap: "2px", marginLeft: "auto" }}>
-            <button className="tree-action-btn" title="하위 추가" onClick={(e) => {
-              e.stopPropagation();
-              onAddSubNode(node.nodeId);
-            }}>
-              <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-            </button>
-            <button className="tree-action-btn" title="삭제" onClick={(e) => {
-              e.stopPropagation();
-              onDeleteNode(e, node);
-            }}>
-              <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 6h18"></path>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-              </svg>
-            </button>
-          </div>
-        )}
-        
         {count > 0 && !isRenaming && <span className="drm-tree-node-count" style={{ marginLeft: isEditMode ? '4px' : 'auto' }}>{count}</span>}
-        <style>{`.drm-tree-node:hover .tree-node-actions { display: flex !important; }`}</style>
       </div>
       {isExpanded &&
         children.map((child) => (
@@ -1327,9 +1387,12 @@ const TreeNodeItem = ({
             onDragOver={onDragOver}
             onDragLeave={onDragLeave}
             onDrop={onDrop}
+            onContextMenu={onContextMenu}
             onAddSubNode={onAddSubNode}
             onDeleteNode={onDeleteNode}
             onRenameNode={onRenameNode}
+            renamingId={renamingId}
+            setRenamingId={setRenamingId}
           />
         ))}
     </>
@@ -1466,9 +1529,12 @@ const NodePicker = ({
                   onDragOver={() => {}}
                   onDragLeave={() => {}}
                   onDrop={() => {}}
+                  onContextMenu={() => {}}
                   onAddSubNode={() => {}}
                   onDeleteNode={() => {}}
                   onRenameNode={() => {}}
+                  renamingId={null}
+                  setRenamingId={() => {}}
                 />
               ))}
           </div>
@@ -1824,23 +1890,42 @@ export const DeviceRegistrationModal = () => {
   const [nodeFilter, setNodeFilter] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // UI state
-  const [toast, setToast] = useState<ToastState | null>(null);
-  const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(
-    null,
-  );
-  
   // Node Management State
   const isEditMode = useStore((s) => s.isEditMode);
   const addNode = useStore((s) => s.addNode);
   const deleteNode = useStore((s) => s.deleteNode);
   const renameNode = useStore((s) => s.renameNode);
-  const reparentNode = useStore((s) => s.reparentNode);
+  const reorderNode = useStore((s) => s.reorderNode);
+
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
   const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null);
   const [nodeDeleteConfirm, setNodeDeleteConfirm] = useState<{ node: HierarchyNode; rect: DOMRect } | null>(null);
+
+  // New Redesign States
+  const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
+  const [nodeSearch, setNodeSearch] = useState("");
+  const [nodeExpandedIds, setNodeExpandedIds] = useState<Set<string>>(new Set());
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+
+  // UI state
+  const [toast, setToast] = useState<ToastState | null>(null);
+  const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null);
+
+  const showToast = useCallback((
+    message: string,
+    type: "success" | "error",
+    action?: ToastState["action"],
+  ) => {
+    setToast({ message, type, action });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  // Scope Filtering States
+  const [directNodeOnly, setDirectNodeOnly] = useState(false);
+  const [selectedChildNodeIds, setSelectedChildNodeIds] = useState<Set<string>>(new Set());
 
   // Drag Handlers
   const handleDragStart = useCallback((nodeId: string) => {
@@ -1848,49 +1933,73 @@ export const DeviceRegistrationModal = () => {
     setDragOverNodeId(null);
   }, []);
 
-  const handleDragOver = useCallback((e: React.DragEvent, nodeId: string) => {
+  const handleDragOver = useCallback((e: React.DragEvent, id: string, _position: "before" | "after" | "inside") => {
     e.preventDefault();
-    if (draggedNodeId === nodeId) return;
-    setDragOverNodeId(nodeId);
+    if (draggedNodeId === id) return;
+    setDragOverNodeId(id);
   }, [draggedNodeId]);
 
   const handleDragLeave = useCallback(() => {
     setDragOverNodeId(null);
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent, targetNodeId: string) => {
+  const handleDrop = useCallback((e: React.DragEvent, targetId: string, position: "before" | "after" | "inside") => {
     e.preventDefault();
     const sourceId = draggedNodeId;
     setDraggedNodeId(null);
     setDragOverNodeId(null);
-    if (sourceId && sourceId !== targetNodeId) {
-      reparentNode(sourceId, targetNodeId);
+    if (sourceId && sourceId !== targetId) {
+      reorderNode(sourceId, targetId, position);
     }
-  }, [draggedNodeId, reparentNode]);
+  }, [draggedNodeId, reorderNode]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, nodeId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu({ x: e.clientX, y: e.clientY, nodeId });
+  }, []);
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest(".drm-context-menu")) return;
+      setContextMenu(null);
+    };
+    window.addEventListener("click", handleClick, { capture: true });
+    return () => window.removeEventListener("click", handleClick, { capture: true });
+  }, []);
 
   // Node Editing
   const handleAddSubNode = useCallback((parentId: string) => {
-    const siblings = nodes.filter(n => n.parentId === parentId);
+    console.log(`[DRM] Adding sub-node to parent: ${parentId}`);
     
-    // Auto expand parent
-    setNodeExpandedIds(prev => new Set([...prev, parentId]));
+    // Auto expand parent for visibility
+    setNodeExpandedIds(prev => {
+      const next = new Set(prev);
+      next.add(parentId);
+      return next;
+    });
 
-    addNode({
+    const siblings = nodes.filter(n => n.parentId === parentId);
+    const newId = addNode({
       parentId,
       name: "새 노드",
       type: "group",
       order: siblings.length,
     });
-  }, [nodes, addNode]);
+    
+    setRenamingId(newId);
+    console.log(`[DRM] Node addition requested, newId: ${newId}`);
+  }, [nodes, addNode]); // setNodeExpandedIds is stable from useState, so it doesn't strictly need to be in deps but good for clarity
 
   const handleAddRootNode = useCallback(() => {
     const siblings = nodes.filter(n => n.parentId === null);
-    addNode({
+    const newId = addNode({
       parentId: null,
       name: "New Root",
       type: "root",
       order: siblings.length,
     });
+    setRenamingId(newId);
   }, [nodes, addNode]);
 
   const handleRenameNode = useCallback((node: HierarchyNode) => {
@@ -1907,27 +2016,13 @@ export const DeviceRegistrationModal = () => {
     }
     const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
     setNodeDeleteConfirm({ node, rect });
-  }, [nodes, registeredDevices]);
+  }, [nodes, registeredDevices, showToast]);
 
   const confirmNodeDelete = useCallback(() => {
     if (!nodeDeleteConfirm) return;
     deleteNode(nodeDeleteConfirm.node.nodeId);
     setNodeDeleteConfirm(null);
   }, [nodeDeleteConfirm, deleteNode]);
-
-
-  // New Redesign States
-  const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
-  const [nodeSearch, setNodeSearch] = useState("");
-  const [nodeExpandedIds, setNodeExpandedIds] = useState<Set<string>>(
-    new Set(),
-  );
-
-  // Scope Filtering States
-  const [directNodeOnly, setDirectNodeOnly] = useState(false);
-  const [selectedChildNodeIds, setSelectedChildNodeIds] = useState<Set<string>>(
-    new Set(),
-  );
 
   const selectedChildTags = useMemo(() => {
     return Array.from(selectedChildNodeIds).map((id) => {
@@ -2073,15 +2168,6 @@ export const DeviceRegistrationModal = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isOpen) return null;
-
-  const showToast = (
-    message: string,
-    type: "success" | "error",
-    action?: ToastState["action"],
-  ) => {
-    setToast({ message, type, action });
-    setTimeout(() => setToast(null), 3000);
-  };
 
   const handleEditClick = (device: (typeof registeredDevices)[0]) => {
     setEditingDeviceId(device.id);
@@ -2450,13 +2536,54 @@ export const DeviceRegistrationModal = () => {
                         onDragOver={handleDragOver}
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
+                        onContextMenu={handleContextMenu}
                         onAddSubNode={handleAddSubNode}
                         onDeleteNode={handleDeleteNodeClick}
                         onRenameNode={handleRenameNode}
+                        renamingId={renamingId}
+                        setRenamingId={setRenamingId}
                       />
                     ))}
                 </div>
               </div>
+
+              {contextMenu && (
+                createPortal(
+                  <div 
+                    className="drm-context-menu" 
+                    style={{ top: contextMenu.y, left: contextMenu.x }}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="drm-context-item" onClick={() => {
+                        handleAddSubNode(contextMenu.nodeId);
+                        setContextMenu(null);
+                    }}>
+                      ➕ 하위 노드 추가
+                    </div>
+                    <div className="drm-context-item" onClick={() => {
+                        setRenamingId(contextMenu.nodeId);
+                        setContextMenu(null);
+                    }}>
+                      ✏️ 이름 변경
+                    </div>
+                    {nodes.find(n => n.nodeId === contextMenu.nodeId)?.parentId !== null && (
+                      <div className="drm-context-item danger" onClick={() => {
+                          const node = nodes.find(n => n.nodeId === contextMenu.nodeId);
+                          if (node) {
+                            // Find the element for rect
+                            const target = document.querySelector(`[className*="drm-tree-node"][onClick*="${node.nodeId}"]`);
+                            const rect = target?.getBoundingClientRect() || { left: contextMenu.x, bottom: contextMenu.y } as DOMRect;
+                            setNodeDeleteConfirm({ node, rect: rect as DOMRect });
+                          }
+                          setContextMenu(null);
+                      }}>
+                        🗑️ 삭제
+                      </div>
+                    )}
+                  </div>,
+                  document.body
+                )
+              )}
 
               {/* Right Content: Equipment List */}
               <div className="drm-content">

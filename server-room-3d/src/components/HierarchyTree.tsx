@@ -175,6 +175,14 @@ const TREE_STYLES = `
   box-shadow: inset 0 0 0 2px var(--theme-primary);
   z-index: 10;
 }
+.tree-node.drop-before {
+  border-top: 2px solid var(--theme-primary);
+  background: rgba(110, 159, 255, 0.05);
+}
+.tree-node.drop-after {
+  border-bottom: 2px solid var(--theme-primary);
+  background: rgba(110, 159, 255, 0.05);
+}
 .tree-context-menu {
   position: fixed;
   z-index: 10000;
@@ -388,9 +396,9 @@ interface TreeNodeItemProps {
   draggedNodeId: string | null;
   dragOverNodeId: string | null;
   onDragStart: (nodeId: string) => void;
-  onDragOver: (e: React.DragEvent, nodeId: string) => void;
+  onDragOver: (e: React.DragEvent, nodeId: string, position: "before" | "after" | "inside") => void;
   onDragLeave: () => void;
-  onDrop: (e: React.DragEvent, targetNodeId: string) => void;
+  onDrop: (e: React.DragEvent, targetNodeId: string, position: "before" | "after" | "inside") => void;
 }
 
 const TreeNodeItem = ({
@@ -419,15 +427,59 @@ const TreeNodeItem = ({
   const isSelected = activeNodeId === node.nodeId;
   const count = equipmentCounts.get(node.nodeId) || 0;
 
+  const [dropPos, setDropPos] = useState<"before" | "after" | "inside" | null>(null);
+
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!isEditMode || draggedNodeId === node.nodeId) return;
+    e.preventDefault();
+    
+    // Safety: Cannot drop on own children
+    const getDescendantIds = (id: string): string[] => {
+      const children = nodes.filter(n => n.parentId === id);
+      return [id, ...children.flatMap(c => getDescendantIds(c.nodeId))];
+    }
+    if (draggedNodeId && getDescendantIds(draggedNodeId).includes(node.nodeId)) {
+      setDropPos(null);
+      return;
+    }
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const relativeY = e.clientY - rect.top;
+    const height = rect.height;
+
+    let position: "before" | "after" | "inside";
+    if (node.parentId === null) {
+      // Root node only allows "inside"
+      position = "inside";
+    } else if (relativeY < height * 0.25) {
+      position = "before";
+    } else if (relativeY > height * 0.75) {
+      position = "after";
+    } else {
+      position = "inside";
+    }
+
+    setDropPos(position);
+    onDragOver(e, node.nodeId, position);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    if (!isEditMode || !dropPos) return;
+    e.preventDefault();
+    onDrop(e, node.nodeId, dropPos);
+    setDropPos(null);
+  };
+
   return (
     <>
       <div
         className={`tree-node ${isSelected ? "selected" : ""} ${
           draggedNodeId === node.nodeId ? "dragging" : ""
-        } ${dragOverNodeId === node.nodeId ? "drop-target" : ""}`}
+        } ${dropPos === "inside" ? "drop-target" : ""} ${
+          dropPos === "before" ? "drop-before" : ""
+        } ${dropPos === "after" ? "drop-after" : ""}`}
         style={{ paddingLeft: `${10 + depth * 16}px` }}
-        onClick={(e) => {
-          e.stopPropagation();
+        onClick={() => {
           onSelect(node.nodeId);
         }}
         onContextMenu={(e) => isEditMode && onContextMenu(e, node.nodeId)}
@@ -438,18 +490,12 @@ const TreeNodeItem = ({
           onDragStart(node.nodeId);
           e.dataTransfer.effectAllowed = "move";
         }}
-        onDragOver={(e) => {
-          if (!isEditMode) return;
-          onDragOver(e, node.nodeId);
-        }}
+        onDragOver={handleDragOver}
         onDragLeave={() => {
-          if (!isEditMode) return;
+          setDropPos(null);
           onDragLeave();
         }}
-        onDrop={(e) => {
-          if (!isEditMode) return;
-          onDrop(e, node.nodeId);
-        }}
+        onDrop={handleDrop}
       >
         {/* Toggle arrow */}
         <span
@@ -539,7 +585,7 @@ export const HierarchyTree = () => {
   const showToast = useStore((s) => s.showToast);
   const registeredDevices = useStore((s) => s.registeredDevices);
   const layouts = useStore((s) => s.layouts);
-  const reparentNode = useStore((s) => s.reparentNode);
+  const reorderNode = useStore((s) => s.reorderNode);
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -555,9 +601,12 @@ export const HierarchyTree = () => {
   // Close context menu on click outside
   useEffect(() => {
     if (!contextMenu) return;
-    const close = () => setContextMenu(null);
-    window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
+    const close = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest(".tree-context-menu")) return;
+      setContextMenu(null);
+    };
+    window.addEventListener("click", close, { capture: true });
+    return () => window.removeEventListener("click", close, { capture: true });
   }, [contextMenu]);
 
   // Focus rename input
@@ -720,7 +769,7 @@ export const HierarchyTree = () => {
   }, []);
 
   const handleDragOver = useCallback(
-    (e: React.DragEvent, nodeId: string) => {
+    (e: React.DragEvent, nodeId: string, _position: "before" | "after" | "inside") => {
       e.preventDefault();
       if (draggedNodeId === nodeId) return;
       setDragOverNodeId(nodeId);
@@ -733,17 +782,17 @@ export const HierarchyTree = () => {
   }, []);
 
   const handleDrop = useCallback(
-    (e: React.DragEvent, targetNodeId: string) => {
+    (e: React.DragEvent, targetNodeId: string, position: "before" | "after" | "inside") => {
       e.preventDefault();
       const sourceId = draggedNodeId;
       setDraggedNodeId(null);
       setDragOverNodeId(null);
 
       if (sourceId && sourceId !== targetNodeId) {
-        reparentNode(sourceId, targetNodeId);
+        reorderNode(sourceId, targetNodeId, position);
       }
     },
-    [draggedNodeId, reparentNode],
+    [draggedNodeId, reorderNode],
   );
 
   // Auto-expand tree when activeNodeId changes from external sources (breadcrumb, search, etc.)

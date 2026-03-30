@@ -151,6 +151,7 @@ export interface AppState {
   toggleNodeExpansion: (nodeId: string, expand?: boolean) => void;
   expandNodePath: (nodeId: string | null) => void;
   setHierarchyCollapsed: (collapsed: boolean) => void;
+  reorderNode: (nodeId: string, targetNodeId: string, position: "before" | "after" | "inside") => void;
 
   // Data Persistence
   loadState: (
@@ -1240,11 +1241,27 @@ export const useStore = create<AppState>((set, get) => ({
 
   // Hierarchy Node Management
   addNode: (nodeData) => {
-    const { isEditMode, pushUndoState } = get();
+    const { isEditMode, pushUndoState, nodes } = get();
     if (isEditMode) pushUndoState();
-    const newId = crypto.randomUUID();
-    const newNode: HierarchyNode = { ...nodeData, nodeId: newId };
+    const newId = `node-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // Auto-calculate order if not provided
+    let finalOrder = nodeData.order;
+    if (finalOrder === undefined) {
+      const siblings = nodes.filter(n => n.parentId === nodeData.parentId);
+      finalOrder = siblings.length > 0 
+        ? Math.max(...siblings.map(s => s.order)) + 1 
+        : 0;
+    }
+
+    const newNode: HierarchyNode = { 
+      ...nodeData, 
+      nodeId: newId,
+      order: finalOrder
+    };
+    
     set((state) => ({ nodes: [...state.nodes, newNode] }));
+    console.log(`[useStore] Node added: ${newNode.name} (${newId})`);
     return newId;
   },
 
@@ -1320,6 +1337,77 @@ export const useStore = create<AppState>((set, get) => ({
   },
   setHierarchyCollapsed: (collapsed) =>
     set({ isHierarchyCollapsed: collapsed }),
+
+  reorderNode: (nodeId, targetNodeId, position) => {
+    const { isEditMode, pushUndoState } = get();
+    if (nodeId === targetNodeId) return;
+
+    if (isEditMode) pushUndoState();
+
+    set((state) => {
+      const sourceNode = state.nodes.find((n) => n.nodeId === nodeId);
+      const targetNode = state.nodes.find((n) => n.nodeId === targetNodeId);
+
+      if (!sourceNode || !targetNode) return state;
+
+      // Circularity check: node cannot be parent of its own ancestor
+      const getDescendants = (id: string): string[] => {
+        const children = state.nodes.filter(n => n.parentId === id);
+        return [id, ...children.flatMap(c => getDescendants(c.nodeId))];
+      }
+      if (getDescendants(nodeId).includes(targetNodeId)) {
+        return state;
+      }
+
+      let newParentId: string | null = null;
+      let newOrder = 0;
+
+      if (position === "inside") {
+        newParentId = targetNodeId;
+        const siblings = state.nodes.filter((n) => n.parentId === newParentId);
+        newOrder = siblings.length > 0 ? Math.max(...siblings.map((s) => s.order)) + 1 : 0;
+      } else {
+        newParentId = targetNode.parentId;
+        newOrder = position === "before" ? targetNode.order : targetNode.order + 1;
+      }
+
+      // Re-assign orders for all siblings
+      const updatedNodes = state.nodes.map((n) => {
+        if (n.nodeId === nodeId) {
+          return { ...n, parentId: newParentId, order: newOrder };
+        }
+        
+        // If moving within same parent or into new parent
+        if (n.parentId === newParentId) {
+          if (n.nodeId !== nodeId) {
+            if (n.order >= newOrder) {
+              return { ...n, order: n.order + 1 };
+            }
+          }
+        }
+        return n;
+      });
+
+      // Optional: normalization of orders to 0, 1, 2...
+      const normalizeOrders = (nodes: HierarchyNode[], pId: string | null) => {
+        const parentSiblings = nodes
+          .filter(n => n.parentId === pId)
+          .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+        
+        parentSiblings.forEach((s, idx) => {
+          const match = nodes.find(n => n.nodeId === s.nodeId);
+          if (match) match.order = idx;
+        });
+      };
+
+      // Normalize for both old parent and new parent
+      const finalNodes = [...updatedNodes];
+      normalizeOrders(finalNodes, sourceNode.parentId);
+      normalizeOrders(finalNodes, newParentId);
+
+      return { nodes: finalNodes };
+    });
+  },
 
   upsertNodes: (newNodes, overwrite, dryRun = false) => {
     const mapping: Record<string, string> = {};

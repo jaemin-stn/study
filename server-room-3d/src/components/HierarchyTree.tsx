@@ -17,95 +17,76 @@ const TREE_STYLES = `
   background: var(--bg-primary);
   border: 1px solid var(--border-weak);
   border-radius: var(--radius-lg);
-  box-shadow: var(--elevation-1);
+  box-shadow: var(--elevation-2);
   overflow: hidden;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  transition: max-height 0.3s ease;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  backdrop-filter: blur(10px);
 }
 .hierarchy-tree.expanded {
-  max-height: 40vh;
+  max-height: 50vh;
 }
 .hierarchy-tree.collapsed {
-  max-height: 42px; /* Just the header */
+  max-height: 48px;
 }
 .tree-sidebar-container {
-  position: relative;
-  width: 100%;
-}
-.equipment-detail-panel {
-  position: absolute;
-  left: calc(100% + 12px);
-  top: 0;
-  width: 280px;
-  min-width: 280px;
-  flex-shrink: 0;
-  background: #181b1f; /* Fallback dark theme background */
-  background-color: var(--bg-primary);
-  border: 1px solid var(--border-medium);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
   display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  max-height: 48vh;
-  z-index: 10;
+  position: relative;
+  pointer-events: none;
+}
+.tree-sidebar-container > * {
   pointer-events: auto;
-  animation: slideInRight 0.3s ease-out;
-}
-@keyframes slideInRight {
-  from { transform: translateX(20px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-.equipment-panel-header {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border-weak);
-  background: var(--bg-secondary);
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--text-primary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.equipment-panel-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0;
-}
-.equipment-panel-empty {
-  padding: 40px 20px;
-  text-align: center;
-  color: var(--text-tertiary);
-  font-size: 13px;
 }
 .hierarchy-tree-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: 12px 16px;
+  background: var(--bg-primary);
   border-bottom: 1px solid var(--border-weak);
-  font-size: var(--font-size-sm);
+  font-size: 13px;
   font-weight: 700;
   color: var(--text-primary);
-  letter-spacing: 0.03em;
+  letter-spacing: -0.01em;
+  user-select: none;
+}
+.tree-collapse-handle {
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-tertiary);
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+.tree-collapse-handle:hover {
+  background: var(--hover-bg);
+  color: var(--text-primary);
 }
 .hierarchy-tree-body {
   overflow-y: auto;
-  padding: 6px 0;
+  padding: 8px 0;
   flex: 1;
+  transition: opacity 0.3s;
+}
+.hierarchy-tree.collapsed .hierarchy-tree-body {
+  opacity: 0;
+  pointer-events: none;
 }
 .tree-node {
   display: flex;
   align-items: center;
-  padding: 5px 10px;
+  padding: 6px 12px;
   cursor: pointer;
-  font-size: var(--font-size-sm);
+  font-size: 13px;
   color: var(--text-secondary);
-  transition: background 0.15s, color 0.15s;
+  transition: all 0.1s ease;
   user-select: none;
-  gap: 4px;
-  border-left: 2px solid transparent;
+  gap: 8px;
+  border-left: 3px solid transparent;
 }
 .tree-node:hover {
   background: var(--hover-bg);
@@ -118,26 +99,27 @@ const TREE_STYLES = `
   font-weight: 600;
 }
 .tree-node-toggle {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 10px;
   color: var(--text-tertiary);
   flex-shrink: 0;
-  transition: transform 0.15s;
-  border-radius: 3px;
+  transition: transform 0.2s;
+  border-radius: 4px;
 }
 .tree-node-toggle:hover {
-  background: var(--hover-bg);
+  background: rgba(255, 255, 255, 0.05);
 }
 .tree-node-toggle.expanded {
   transform: rotate(90deg);
 }
 .tree-node-icon {
-  font-size: 13px;
+  font-size: 14px;
   flex-shrink: 0;
+  opacity: 0.9;
 }
 .tree-node-name {
   flex: 1;
@@ -148,35 +130,50 @@ const TREE_STYLES = `
 .tree-node-count {
   font-size: 10px;
   color: var(--text-tertiary);
-  background: var(--bg-secondary);
-  padding: 1px 5px;
-  border-radius: 8px;
+  background: var(--bg-tertiary);
+  padding: 1px 6px;
+  border-radius: 10px;
   flex-shrink: 0;
+  font-weight: 500;
 }
 .tree-add-btn {
-  background: none;
-  border: none;
-  color: var(--text-tertiary);
-  font-size: 14px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-weak);
+  color: var(--text-secondary);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
-  padding: 2px 6px;
-  border-radius: 4px;
-  transition: color 0.15s, background 0.15s;
-  line-height: 1;
+  border-radius: 6px;
+  transition: all 0.2s;
 }
 .tree-add-btn:hover {
   color: var(--theme-primary);
-  background: rgba(110, 159, 255, 0.1);
+  background: var(--hover-bg);
+  border-color: var(--theme-primary);
+  transform: scale(1.05);
 }
 .tree-inline-input {
   flex: 1;
   background: var(--bg-secondary);
   border: 1px solid var(--theme-primary);
-  border-radius: 3px;
+  border-radius: 4px;
   color: var(--text-primary);
-  font-size: var(--font-size-sm);
-  padding: 2px 6px;
+  font-size: 13px;
+  padding: 3px 8px;
   outline: none;
+}
+.tree-node.dragging {
+  opacity: 0.4;
+  background: var(--hover-bg);
+  border-left-style: dashed;
+}
+.tree-node.drop-target {
+  background: var(--selected-bg);
+  box-shadow: inset 0 0 0 2px var(--theme-primary);
+  z-index: 10;
 }
 .tree-context-menu {
   position: fixed;
@@ -189,11 +186,11 @@ const TREE_STYLES = `
   min-width: 140px;
 }
 .tree-context-item {
-  padding: 6px 14px;
-  font-size: var(--font-size-sm);
+  padding: 8px 16px;
+  font-size: 13px;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.1s;
+  transition: all 0.1s;
 }
 .tree-context-item:hover {
   background: var(--hover-bg);
@@ -205,51 +202,42 @@ const TREE_STYLES = `
 .tree-context-item.danger:hover {
   background: rgba(224, 47, 68, 0.1);
 }
-.tree-collapse-btn {
-  background: none;
-  border: none;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: background 0.15s, color 0.15s;
-}
-.tree-collapse-btn:hover {
-  background: var(--hover-bg);
-  color: var(--text-primary);
-}
 .tree-breadcrumb-preview {
   font-size: 11px;
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-left: 8px;
-  font-weight: 500;
+  margin-left: 4px;
+  font-weight: 400;
+  opacity: 0.7;
 }
 .tree-toggle-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  background: var(--bg-secondary);
-  padding: 2px 8px;
-  border-radius: 4px;
+  gap: 8px;
+  background: var(--bg-tertiary);
+  padding: 3px 10px;
+  border-radius: 8px;
   border: 1px solid var(--border-weak);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tree-toggle-item:hover {
+  border-color: var(--border-medium);
+  background: var(--hover-bg);
 }
 .tree-toggle-label {
-  font-size: 10px;
-  color: var(--text-tertiary);
-  font-weight: 700;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 600;
   white-space: nowrap;
 }
 .switch {
   position: relative;
   display: inline-block;
-  width: 28px;
-  height: 16px;
+  width: 26px;
+  height: 14px;
 }
 .switch input {
   opacity: 0;
@@ -263,19 +251,19 @@ const TREE_STYLES = `
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: var(--bg-tertiary);
-  transition: .2s;
-  border-radius: 16px;
+  background-color: #444;
+  transition: .3s;
+  border-radius: 14px;
 }
 .slider:before {
   position: absolute;
   content: "";
-  height: 12px;
-  width: 12px;
+  height: 10px;
+  width: 10px;
   left: 2px;
   bottom: 2px;
   background-color: white;
-  transition: .2s;
+  transition: .3s;
   border-radius: 50%;
 }
 input:checked + .slider {
@@ -322,6 +310,54 @@ input:checked + .slider:before {
   font-size: 12px;
   opacity: 0.8;
 }
+.equipment-detail-panel {
+  position: absolute;
+  top: 0;
+  left: calc(100% + 12px);
+  width: 340px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-weak);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--elevation-4);
+  overflow: hidden;
+  backdrop-filter: blur(15px);
+  max-height: calc(50vh + 48px);
+  animation: slide-in-right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-top: 2px solid var(--theme-primary);
+}
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(-10px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.equipment-panel-header {
+  padding: 13px 16px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-weak);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.equipment-panel-body {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 100px;
+}
+.equipment-panel-empty {
+  padding: 32px 20px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  opacity: 0.6;
+  font-style: italic;
+}
 
 `;
 
@@ -348,6 +384,13 @@ interface TreeNodeItemProps {
   onToggle: (nodeId: string) => void;
   onSelect: (nodeId: string) => void;
   onContextMenu: (e: React.MouseEvent, nodeId: string) => void;
+  // Drag and drop
+  draggedNodeId: string | null;
+  dragOverNodeId: string | null;
+  onDragStart: (nodeId: string) => void;
+  onDragOver: (e: React.DragEvent, nodeId: string) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent, targetNodeId: string) => void;
 }
 
 const TreeNodeItem = ({
@@ -363,6 +406,12 @@ const TreeNodeItem = ({
   onToggle,
   onSelect,
   onContextMenu,
+  draggedNodeId,
+  dragOverNodeId,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
 }: TreeNodeItemProps) => {
   const children = getChildren(nodes, node.nodeId);
   const hasChildren = children.length > 0;
@@ -373,10 +422,34 @@ const TreeNodeItem = ({
   return (
     <>
       <div
-        className={`tree-node ${isSelected ? "selected" : ""}`}
+        className={`tree-node ${isSelected ? "selected" : ""} ${
+          draggedNodeId === node.nodeId ? "dragging" : ""
+        } ${dragOverNodeId === node.nodeId ? "drop-target" : ""}`}
         style={{ paddingLeft: `${10 + depth * 16}px` }}
-        onClick={() => onSelect(node.nodeId)}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSelect(node.nodeId);
+        }}
         onContextMenu={(e) => isEditMode && onContextMenu(e, node.nodeId)}
+        // Drag and drop handlers
+        draggable={isEditMode && node.parentId !== null}
+        onDragStart={(e) => {
+          if (!isEditMode) return;
+          onDragStart(node.nodeId);
+          e.dataTransfer.effectAllowed = "move";
+        }}
+        onDragOver={(e) => {
+          if (!isEditMode) return;
+          onDragOver(e, node.nodeId);
+        }}
+        onDragLeave={() => {
+          if (!isEditMode) return;
+          onDragLeave();
+        }}
+        onDrop={(e) => {
+          if (!isEditMode) return;
+          onDrop(e, node.nodeId);
+        }}
       >
         {/* Toggle arrow */}
         <span
@@ -387,7 +460,18 @@ const TreeNodeItem = ({
           }}
           style={{ visibility: hasChildren ? "visible" : "hidden" }}
         >
-          ▶
+          <svg
+            viewBox="0 0 24 24"
+            width="10"
+            height="10"
+            stroke="currentColor"
+            strokeWidth="3"
+            fill="none"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
         </span>
 
         {/* Icon */}
@@ -418,6 +502,12 @@ const TreeNodeItem = ({
               onToggle={onToggle}
               onSelect={onSelect}
               onContextMenu={onContextMenu}
+              draggedNodeId={draggedNodeId}
+              dragOverNodeId={dragOverNodeId}
+              onDragStart={onDragStart}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
             />
           ))}
         </>
@@ -434,6 +524,7 @@ export const HierarchyTree = () => {
   const setActiveNode = useStore((s) => s.setActiveNode);
   const expandedNodeIds = useStore((s) => s.expandedNodeIds);
   const toggleNodeExpansion = useStore((s) => s.toggleNodeExpansion);
+  const expandNodePath = useStore((s) => s.expandNodePath);
   const isCollapsed = useStore((s) => s.isHierarchyCollapsed);
   const setIsCollapsed = useStore((s) => s.setHierarchyCollapsed);
   const racks = useStore((s) => s.racks);
@@ -448,6 +539,7 @@ export const HierarchyTree = () => {
   const showToast = useStore((s) => s.showToast);
   const registeredDevices = useStore((s) => s.registeredDevices);
   const layouts = useStore((s) => s.layouts);
+  const reparentNode = useStore((s) => s.reparentNode);
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -456,6 +548,8 @@ export const HierarchyTree = () => {
   } | null>(null);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
+  const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   // Close context menu on click outside
@@ -478,7 +572,11 @@ export const HierarchyTree = () => {
   const equipmentCounts = useMemo(() => {
     const counts = new Map<string, number>();
     nodes.forEach((n) => {
-      const count = getSubtreeEquipmentCount(nodes, registeredDevices, n.nodeId);
+      const count = getSubtreeEquipmentCount(
+        nodes,
+        registeredDevices,
+        n.nodeId,
+      );
       if (count > 0) counts.set(n.nodeId, count);
     });
     return counts;
@@ -616,6 +714,45 @@ export const HierarchyTree = () => {
     setContextMenu(null);
   }, [contextMenu, nodes, deleteNode]);
 
+  // Drag and Drop handlers
+  const handleDragStart = useCallback((nodeId: string) => {
+    setDraggedNodeId(nodeId);
+  }, []);
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent, nodeId: string) => {
+      e.preventDefault();
+      if (draggedNodeId === nodeId) return;
+      setDragOverNodeId(nodeId);
+    },
+    [draggedNodeId],
+  );
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverNodeId(null);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent, targetNodeId: string) => {
+      e.preventDefault();
+      const sourceId = draggedNodeId;
+      setDraggedNodeId(null);
+      setDragOverNodeId(null);
+
+      if (sourceId && sourceId !== targetNodeId) {
+        reparentNode(sourceId, targetNodeId);
+      }
+    },
+    [draggedNodeId, reparentNode],
+  );
+
+  // Auto-expand tree when activeNodeId changes from external sources (breadcrumb, search, etc.)
+  useEffect(() => {
+    if (activeNodeId) {
+      expandNodePath(activeNodeId);
+    }
+  }, [activeNodeId, expandNodePath]);
+
   const rootNodes = getChildren(nodes, null);
   const breadcrumbPath = getAncestorPath(nodes, activeNodeId || "");
   const breadcrumbText = breadcrumbPath.map((n) => n.name).join(" > ");
@@ -627,62 +764,54 @@ export const HierarchyTree = () => {
         className={`hierarchy-tree ${isCollapsed ? "collapsed" : "expanded"}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          className="hierarchy-tree-header"
-          style={{ cursor: "pointer" }}
-          onClick={() => setIsCollapsed(!isCollapsed)}
-        >
+        <div className="hierarchy-tree-header">
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              gap: "6px",
+              gap: "10px",
               overflow: "hidden",
+              flex: 1,
             }}
           >
-            <button
-              className="tree-collapse-btn"
-              title={isCollapsed ? "그룹 펼치기" : "그룹 접기"}
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsCollapsed(!isCollapsed);
+            <span
+              style={{
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
               }}
             >
-              <span
-                style={{
-                  transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
-                  transition: "transform 0.2s",
-                  display: "inline-block",
-                }}
-              >
-                ▼
-              </span>
-            </button>
-            <span style={{ flexShrink: 0 }}>🗂️ 그룹</span>
+              <span style={{ fontSize: "18px" }}>📂</span>
+              <span style={{ fontWeight: 800 }}>구조</span>
+            </span>
             {isCollapsed && breadcrumbPath.length > 0 && (
               <span className="tree-breadcrumb-preview">{breadcrumbText}</span>
             )}
           </div>
-          {!isCollapsed && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div
-                className="tree-toggle-item"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <span className="tree-toggle-label">장비</span>
-                <label className="switch">
-                  <input
-                    type="checkbox"
-                    checked={showEquipment}
-                    onChange={(e) => setShowEquipment(e.target.checked)}
-                  />
-                  <span className="slider"></span>
-                </label>
-              </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div
+              className="tree-toggle-item"
+              onClick={(e) => e.stopPropagation()}
+              title="장비 표시 토글"
+            >
+              <span className="tree-toggle-label">장비</span>
+              <label className="switch">
+                <input
+                  type="checkbox"
+                  checked={showEquipment}
+                  onChange={(e) => setShowEquipment(e.target.checked)}
+                />
+                <span className="slider"></span>
+              </label>
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               {isEditMode && (
                 <button
                   className="tree-add-btn"
-                  title="Add root node"
+                  title="최상위 노드 추가"
                   onClick={(e) => {
                     e.stopPropagation();
                     const siblings = nodes.filter((n) => n.parentId === null);
@@ -694,13 +823,52 @@ export const HierarchyTree = () => {
                     });
                     setRenamingId(newId);
                     setRenameValue("New Root");
+                    if (isCollapsed) setIsCollapsed(false);
                   }}
                 >
-                  +
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="14"
+                    height="14"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    fill="none"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                  </svg>
                 </button>
               )}
+
+              <button
+                className="tree-add-btn"
+                title={isCollapsed ? "펼치기" : "접기"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsCollapsed(!isCollapsed);
+                }}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{
+                    transform: isCollapsed ? "rotate(0deg)" : "rotate(180deg)",
+                    transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  }}
+                >
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </button>
             </div>
-          )}
+          </div>
         </div>
 
         <div className="hierarchy-tree-body">
@@ -719,6 +887,12 @@ export const HierarchyTree = () => {
               onToggle={handleToggle}
               onSelect={handleSelect}
               onContextMenu={handleContextMenu}
+              draggedNodeId={draggedNodeId}
+              dragOverNodeId={dragOverNodeId}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
             />
           ))}
         </div>
@@ -746,58 +920,66 @@ export const HierarchyTree = () => {
                           {/* Show header if not a leaf view OR if there are multiple groups (though usually leaf implies 1 group) */}
                           {!isLeaf && (
                             <div className="equipment-subgroup-header">
-                              <span className="equipment-subgroup-icon">📂</span>
+                              <span className="equipment-subgroup-icon">
+                                📂
+                              </span>
                               {group.nodeName} ({group.devices.length})
                             </div>
                           )}
-                          {group.devices.map(({ device, rackId, instanceId }) => {
-                            const rack = rackId
-                              ? allRacksForMapping.find((r) => r.id === rackId)
-                              : null;
+                          {group.devices.map(
+                            ({ device, rackId, instanceId }) => {
+                              const rack = rackId
+                                ? allRacksForMapping.find(
+                                    (r) => r.id === rackId,
+                                  )
+                                : null;
 
-                            const equipmentLabel =
-                              device.deviceName || device.modelName || "Device";
+                              const equipmentLabel =
+                                device.deviceName ||
+                                device.modelName ||
+                                "Device";
 
-                            const rackLabel = rack
-                              ? (rack.displayName ||
-                                  `Rack-${rack.id.slice(0, 4)}`) +
-                                ` (${rack.uHeight}U)`
-                              : "미배치 (Inventory)";
+                              const rackLabel = rack
+                                ? (rack.displayName ||
+                                    `Rack-${rack.id.slice(0, 4)}`) +
+                                  ` (${rack.uHeight}U)`
+                                : "미배치 (Inventory)";
 
-                            return (
-                              <div
-                                key={`${activeNodeId}-${device.id}`}
-                                className={`tree-node tree-node-equipment ${highlightedDeviceId === (instanceId || device.id) ? "highlighted" : ""}`}
-                                onClick={() => handleDeviceClick(device.id)}
-                              >
-                                <span className="tree-node-icon">📟</span>
+                              return (
                                 <div
-                                  className="tree-node-name"
-                                  style={{
-                                    display: "flex",
-                                    flexDirection: "column",
-                                  }}
+                                  key={`${activeNodeId}-${device.id}`}
+                                  className={`tree-node tree-node-equipment ${highlightedDeviceId === (instanceId || device.id) ? "highlighted" : ""}`}
+                                  onClick={() => handleDeviceClick(device.id)}
                                 >
-                                  <span style={{ fontWeight: 600 }}>
-                                    {equipmentLabel}
-                                  </span>
-                                  <span
+                                  <span className="tree-node-icon">📟</span>
+                                  <div
+                                    className="tree-node-name"
                                     style={{
-                                      fontSize: "9px",
-                                      opacity: 0.5,
-                                      color: "var(--text-tertiary)",
-                                      marginTop: "1px",
+                                      display: "flex",
+                                      flexDirection: "column",
                                     }}
                                   >
-                                    📍 {rackLabel}
+                                    <span style={{ fontWeight: 600 }}>
+                                      {equipmentLabel}
+                                    </span>
+                                    <span
+                                      style={{
+                                        fontSize: "9px",
+                                        opacity: 0.5,
+                                        color: "var(--text-tertiary)",
+                                        marginTop: "1px",
+                                      }}
+                                    >
+                                      📍 {rackLabel}
+                                    </span>
+                                  </div>
+                                  <span className="tree-node-count">
+                                    {device.uSize}U
                                   </span>
                                 </div>
-                                <span className="tree-node-count">
-                                  {device.uSize}U
-                                </span>
-                              </div>
-                            );
-                          })}
+                              );
+                            },
+                          )}
                         </div>
                       );
                     })

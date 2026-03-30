@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useStore } from "../store/useStore";
 import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
@@ -1106,6 +1106,19 @@ const MODAL_STYLES = `
   font-weight: 400;
   opacity: 0.7;
 }
+.drm-add-root-btn {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.drm-add-root-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--text-tertiary) !important;
+  transform: translateY(-1px);
+}
+.drm-add-root-btn:active {
+  background: rgba(255, 255, 255, 0.03) !important;
+  transform: translateY(0);
+}
 `;
 
 
@@ -1132,6 +1145,16 @@ const TreeNodeItem = ({
   registeredDevices,
   onToggle,
   onSelect,
+  isEditMode,
+  draggedNodeId,
+  dragOverNodeId,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onAddSubNode,
+  onDeleteNode,
+  onRenameNode,
 }: {
   node: HierarchyNode;
   depth: number;
@@ -1142,6 +1165,17 @@ const TreeNodeItem = ({
   registeredDevices: any[];
   onToggle: (id: string) => void;
   onSelect: (id: string) => void;
+  // Node management props
+  isEditMode: boolean;
+  draggedNodeId: string | null;
+  dragOverNodeId: string | null;
+  onDragStart: (id: string) => void;
+  onDragOver: (e: React.DragEvent, id: string) => void;
+  onDragLeave: () => void;
+  onDrop: (e: React.DragEvent, targetId: string) => void;
+  onAddSubNode: (parentId: string) => void;
+  onDeleteNode: (e: React.MouseEvent, node: HierarchyNode) => void;
+  onRenameNode: (node: HierarchyNode) => void;
 }) => {
   const children = getChildren(nodes, node.nodeId);
   const hasChildren = children.length > 0;
@@ -1152,12 +1186,46 @@ const TreeNodeItem = ({
   const isMatch =
     nodeSearch && node.name.toLowerCase().includes(nodeSearch.toLowerCase());
 
+  // Local edit states for renaming
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(node.name);
+
+  // Focus input when renaming starts
+  useEffect(() => {
+    if (isRenaming) {
+      setRenameValue(node.name);
+    }
+  }, [isRenaming, node.name]);
+
+  const handleRenameComplete = () => {
+    if (renameValue.trim() && renameValue !== node.name) {
+      onRenameNode({ ...node, name: renameValue.trim() });
+    }
+    setIsRenaming(false);
+  };
+
+  const isDragged = draggedNodeId === node.nodeId;
+  const isDragTarget = dragOverNodeId === node.nodeId;
+  const canBeDroppedOn = draggedNodeId && draggedNodeId !== node.nodeId;
+
   return (
     <>
       <div
-        className={`drm-tree-node ${isSelected ? "selected" : ""} ${isMatch ? "match" : ""}`}
+        className={`drm-tree-node ${isSelected ? "selected" : ""} ${isMatch ? "match" : ""} ${isDragged ? "dragging" : ""} ${isDragTarget && canBeDroppedOn ? "drop-target" : ""}`}
         style={{ paddingLeft: `${12 + depth * 16}px` }}
         onClick={() => onSelect(node.nodeId)}
+        draggable={isEditMode && node.type !== "root"}
+        onDragStart={(e) => {
+          if (!isEditMode || node.type === "root") {
+            e.preventDefault();
+            return;
+          }
+          e.stopPropagation();
+          onDragStart(node.nodeId);
+        }}
+        onDragOver={(e) => canBeDroppedOn && onDragOver(e, node.nodeId)}
+        onDragLeave={onDragLeave}
+        onDrop={(e) => canBeDroppedOn && onDrop(e, node.nodeId)}
       >
         <span
           className={`drm-tree-node-toggle ${isExpanded ? "expanded" : ""}`}
@@ -1178,8 +1246,66 @@ const TreeNodeItem = ({
                 ? "📍"
                 : "📁"}
         </span>
-        <span className="drm-tree-node-name">{node.name}</span>
-        {count > 0 && <span className="drm-tree-node-count">{count}</span>}
+        
+        {isRenaming ? (
+          <input
+            type="text"
+            className="tree-rename-input"
+            value={renameValue}
+            autoFocus
+            onChange={(e) => setRenameValue(e.target.value)}
+            onBlur={handleRenameComplete}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleRenameComplete();
+              if (e.key === "Escape") setIsRenaming(false);
+            }}
+            onClick={(e) => e.stopPropagation()}
+            onDragStart={(e) => e.preventDefault()}
+            style={{
+              flex: 1,
+              background: "var(--bg-tertiary)",
+              color: "var(--text-primary)",
+              border: "1px solid var(--theme-primary)",
+              borderRadius: "4px",
+              padding: "2px 6px",
+              fontSize: "12px",
+              outline: "none"
+            }}
+          />
+        ) : (
+          <span className="drm-tree-node-name" onDoubleClick={(e) => {
+            if (isEditMode) {
+              e.stopPropagation();
+              setIsRenaming(true);
+            }
+          }}>{node.name}</span>
+        )}
+
+        {isEditMode && !isRenaming && (
+          <div className="tree-node-actions" style={{ display: "none", alignItems: "center", gap: "2px", marginLeft: "auto" }}>
+            <button className="tree-action-btn" title="하위 추가" onClick={(e) => {
+              e.stopPropagation();
+              onAddSubNode(node.nodeId);
+            }}>
+              <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
+            <button className="tree-action-btn" title="삭제" onClick={(e) => {
+              e.stopPropagation();
+              onDeleteNode(e, node);
+            }}>
+              <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18"></path>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </button>
+          </div>
+        )}
+        
+        {count > 0 && !isRenaming && <span className="drm-tree-node-count" style={{ marginLeft: isEditMode ? '4px' : 'auto' }}>{count}</span>}
+        <style>{`.drm-tree-node:hover .tree-node-actions { display: flex !important; }`}</style>
       </div>
       {isExpanded &&
         children.map((child) => (
@@ -1194,6 +1320,16 @@ const TreeNodeItem = ({
             registeredDevices={registeredDevices}
             onToggle={onToggle}
             onSelect={onSelect}
+            isEditMode={isEditMode}
+            draggedNodeId={draggedNodeId}
+            dragOverNodeId={dragOverNodeId}
+            onDragStart={onDragStart}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+            onAddSubNode={onAddSubNode}
+            onDeleteNode={onDeleteNode}
+            onRenameNode={onRenameNode}
           />
         ))}
     </>
@@ -1323,6 +1459,16 @@ const NodePicker = ({
                     onSelect(id);
                     setIsOpen(false);
                   }}
+                  isEditMode={false}
+                  draggedNodeId={null}
+                  dragOverNodeId={null}
+                  onDragStart={() => {}}
+                  onDragOver={() => {}}
+                  onDragLeave={() => {}}
+                  onDrop={() => {}}
+                  onAddSubNode={() => {}}
+                  onDeleteNode={() => {}}
+                  onRenameNode={() => {}}
                 />
               ))}
           </div>
@@ -1685,6 +1831,90 @@ export const DeviceRegistrationModal = () => {
   const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(
     null,
   );
+  
+  // Node Management State
+  const isEditMode = useStore((s) => s.isEditMode);
+  const addNode = useStore((s) => s.addNode);
+  const deleteNode = useStore((s) => s.deleteNode);
+  const renameNode = useStore((s) => s.renameNode);
+  const reparentNode = useStore((s) => s.reparentNode);
+  const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
+  const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null);
+  const [nodeDeleteConfirm, setNodeDeleteConfirm] = useState<{ node: HierarchyNode; rect: DOMRect } | null>(null);
+
+  // Drag Handlers
+  const handleDragStart = useCallback((nodeId: string) => {
+    setDraggedNodeId(nodeId);
+    setDragOverNodeId(null);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, nodeId: string) => {
+    e.preventDefault();
+    if (draggedNodeId === nodeId) return;
+    setDragOverNodeId(nodeId);
+  }, [draggedNodeId]);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverNodeId(null);
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, targetNodeId: string) => {
+    e.preventDefault();
+    const sourceId = draggedNodeId;
+    setDraggedNodeId(null);
+    setDragOverNodeId(null);
+    if (sourceId && sourceId !== targetNodeId) {
+      reparentNode(sourceId, targetNodeId);
+    }
+  }, [draggedNodeId, reparentNode]);
+
+  // Node Editing
+  const handleAddSubNode = useCallback((parentId: string) => {
+    const siblings = nodes.filter(n => n.parentId === parentId);
+    
+    // Auto expand parent
+    setNodeExpandedIds(prev => new Set([...prev, parentId]));
+
+    addNode({
+      parentId,
+      name: "새 노드",
+      type: "group",
+      order: siblings.length,
+    });
+  }, [nodes, addNode]);
+
+  const handleAddRootNode = useCallback(() => {
+    const siblings = nodes.filter(n => n.parentId === null);
+    addNode({
+      parentId: null,
+      name: "New Root",
+      type: "root",
+      order: siblings.length,
+    });
+  }, [nodes, addNode]);
+
+  const handleRenameNode = useCallback((node: HierarchyNode) => {
+    renameNode(node.nodeId, node.name);
+  }, [renameNode]);
+
+  const handleDeleteNodeClick = useCallback((e: React.MouseEvent, node: HierarchyNode) => {
+    e.stopPropagation();
+    const hasChildren = nodes.some((n) => n.parentId === node.nodeId);
+    const count = getSubtreeEquipmentCount(nodes, registeredDevices, node.nodeId);
+    if (hasChildren || count > 0) {
+      showToast("하위 노드가 있거나 등록된 장비가 있어 삭제할 수 없습니다.", "error");
+      return;
+    }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setNodeDeleteConfirm({ node, rect });
+  }, [nodes, registeredDevices]);
+
+  const confirmNodeDelete = useCallback(() => {
+    if (!nodeDeleteConfirm) return;
+    deleteNode(nodeDeleteConfirm.node.nodeId);
+    setNodeDeleteConfirm(null);
+  }, [nodeDeleteConfirm, deleteNode]);
+
 
   // New Redesign States
   const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
@@ -2063,6 +2293,60 @@ export const DeviceRegistrationModal = () => {
           </>,
           document.body,
         )}
+        
+      {/* Node Delete confirmation popover */}
+      {nodeDeleteConfirm &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <>
+            <div
+              className="drm-confirm-overlay"
+              style={{ position: 'fixed', inset: 0, zIndex: 3000 }}
+              onClick={() => setNodeDeleteConfirm(null)}
+            />
+            <div
+              className="drm-confirm-popover"
+              style={{
+                position: 'fixed',
+                zIndex: 3001,
+                background: 'var(--bg-primary)',
+                border: '1px solid var(--border-medium)',
+                boxShadow: 'var(--elevation-3)',
+                padding: '16px',
+                borderRadius: '8px',
+                top: Math.min(
+                  nodeDeleteConfirm.rect.bottom + 8,
+                  window.innerHeight - 100,
+                ),
+                left: Math.min(
+                  nodeDeleteConfirm.rect.left,
+                  window.innerWidth - 300,
+                ),
+              }}
+            >
+              <p style={{ margin: '0 0 12px 0', fontSize: '13px' }}>
+                노드 <strong>"{nodeDeleteConfirm.node.name}"</strong>을(를) 삭제하시겠습니까?
+              </p>
+              <div className="drm-confirm-actions" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button
+                  className="grafana-btn grafana-btn-secondary"
+                  style={{ fontSize: "12px", padding: "4px 12px" }}
+                  onClick={() => setNodeDeleteConfirm(null)}
+                >
+                  취소
+                </button>
+                <button
+                  className="grafana-btn grafana-btn-destructive"
+                  style={{ fontSize: "12px", padding: "4px 12px" }}
+                  onClick={confirmNodeDelete}
+                >
+                  삭제
+                </button>
+              </div>
+            </div>
+          </>,
+          document.body,
+        )}
 
       {/* Modal */}
       {createPortal(
@@ -2110,6 +2394,29 @@ export const DeviceRegistrationModal = () => {
                       onChange={(e) => setNodeSearch(e.target.value)}
                     />
                   </div>
+                  {isEditMode && (
+                    <button 
+                      className="drm-add-root-btn" 
+                      onClick={handleAddRootNode}
+                      style={{ 
+                        marginTop: "12px", 
+                        width: "100%", 
+                        height: "32px", 
+                        fontSize: "12px", 
+                        background: "rgba(255, 255, 255, 0.05)", 
+                        border: "1px dashed var(--border-medium)", 
+                        color: "var(--text-secondary)",
+                        borderRadius: "8px",
+                        cursor: "pointer",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: "6px"
+                      }}
+                    >
+                      <span style={{ fontSize: "14px" }}>+</span> 최상위 노드 추가
+                    </button>
+                  )}
                 </div>
                 <div className="drm-sidebar-content">
                   {nodes
@@ -2136,6 +2443,16 @@ export const DeviceRegistrationModal = () => {
                           setNodeFilter(id);
                           setSelectedIds(new Set());
                         }}
+                        isEditMode={isEditMode}
+                        draggedNodeId={draggedNodeId}
+                        dragOverNodeId={dragOverNodeId}
+                        onDragStart={handleDragStart}
+                        onDragOver={handleDragOver}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        onAddSubNode={handleAddSubNode}
+                        onDeleteNode={handleDeleteNodeClick}
+                        onRenameNode={handleRenameNode}
                       />
                     ))}
                 </div>

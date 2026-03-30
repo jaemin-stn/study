@@ -261,18 +261,18 @@ export const ModelImporter = () => {
           display: "flex",
           flexDirection: "column",
           gap: "12px",
-          width: "300px",
+          minWidth: "300px",
           maxHeight: "calc(100vh - 90px)",
           pointerEvents: "none",
         }}
       >
-        <div style={{ pointerEvents: "auto", width: "100%", flexShrink: 0 }}>
+        <div style={{ pointerEvents: "auto", width: "300px", flexShrink: 0 }}>
           <HierarchyTree />
         </div>
         
         {/* Import Action Card and Other Edit-mode Panels */}
         {isEditMode && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", pointerEvents: "auto", width: "100%", flexShrink: 0 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", pointerEvents: "auto", width: "300px", flexShrink: 0 }}>
           <div
           className="grafana-panel"
           style={{

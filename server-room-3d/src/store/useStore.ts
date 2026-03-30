@@ -60,7 +60,8 @@ export interface AppState {
   // Unsaved Changes & Undo
   baselineRacks: Rack[] | null;
   baselineModels: ImportedModel[] | null;
-  undoStack: { racks: Rack[]; importedModels: ImportedModel[] }[];
+  baselineNodes: HierarchyNode[] | null;
+  undoStack: { racks: Rack[]; importedModels: ImportedModel[]; nodes: HierarchyNode[] }[];
   showUnsavedDialog: boolean;
   pendingAction:
     | { type: "node"; value: string | null }
@@ -68,6 +69,7 @@ export interface AppState {
     | null;
 
   // Actions
+  reparentNode: (nodeId: string, newParentId: string | null) => void;
   setCameraRef: (camera: THREE.Camera, controls: any) => void;
   setHoveredRack: (id: string | null) => void;
   setActiveNode: (nodeId: string | null) => void;
@@ -343,33 +345,38 @@ export const useStore = create<AppState>((set, get) => ({
 
   baselineRacks: null,
   baselineModels: null,
+  baselineNodes: null,
   undoStack: [],
   showUnsavedDialog: false,
   pendingAction: null,
 
   getIsDirty: () => {
-    const { racks, importedModels, baselineRacks, baselineModels } = get();
-    if (!baselineRacks || !baselineModels) return false;
+    const { racks, importedModels, nodes, baselineRacks, baselineModels, baselineNodes } = get();
+    if (!baselineRacks || !baselineModels || !baselineNodes) return false;
 
     // Simple JSON comparison for dirty check
     const currentRacksStr = JSON.stringify(racks);
     const baselineRacksStr = JSON.stringify(baselineRacks);
     const currentModelsStr = JSON.stringify(importedModels);
     const baselineModelsStr = JSON.stringify(baselineModels);
+    const currentNodesStr = JSON.stringify(nodes);
+    const baselineNodesStr = JSON.stringify(baselineNodes);
 
     return (
       currentRacksStr !== baselineRacksStr ||
-      currentModelsStr !== baselineModelsStr
+      currentModelsStr !== baselineModelsStr ||
+      currentNodesStr !== baselineNodesStr
     );
   },
 
   pushUndoState: () => {
-    const { isEditMode, racks, importedModels, undoStack } = get();
+    const { isEditMode, racks, importedModels, nodes, undoStack } = get();
     if (!isEditMode) return;
 
     const newEntry = {
       racks: JSON.parse(JSON.stringify(racks)),
       importedModels: JSON.parse(JSON.stringify(importedModels)),
+      nodes: JSON.parse(JSON.stringify(nodes)),
     };
 
     set({
@@ -388,6 +395,7 @@ export const useStore = create<AppState>((set, get) => ({
       set({
         racks: prevState.racks,
         importedModels: prevState.importedModels,
+        nodes: prevState.nodes,
         undoStack: newStack,
       });
     }
@@ -407,6 +415,7 @@ export const useStore = create<AppState>((set, get) => ({
         layouts: updatedLayouts,
         baselineRacks: JSON.parse(JSON.stringify(racks)),
         baselineModels: JSON.parse(JSON.stringify(importedModels)),
+        baselineNodes: JSON.parse(JSON.stringify(state.nodes)),
         undoStack: [],
         showUnsavedDialog: false,
         pendingAction: null,
@@ -427,16 +436,18 @@ export const useStore = create<AppState>((set, get) => ({
       pendingAction,
       baselineRacks,
       baselineModels,
+      baselineNodes,
       setActiveNode,
       setEditMode,
       activeNodeId,
     } = get();
 
-    if (baselineRacks && baselineModels) {
+    if (baselineRacks && baselineModels && baselineNodes) {
       // Restore from baseline
       set({
         racks: JSON.parse(JSON.stringify(baselineRacks)),
         importedModels: JSON.parse(JSON.stringify(baselineModels)),
+        nodes: JSON.parse(JSON.stringify(baselineNodes)),
         undoStack: [],
         showUnsavedDialog: false,
         pendingAction: null,
@@ -501,6 +512,7 @@ export const useStore = create<AppState>((set, get) => ({
       // If in edit mode, the new node's layout becomes the new baseline for dirty checks
       baselineRacks: isEditMode ? JSON.parse(JSON.stringify(newNodeLayout.racks)) : get().baselineRacks,
       baselineModels: isEditMode ? JSON.parse(JSON.stringify(newNodeLayout.importedModels)) : get().baselineModels,
+      baselineNodes: isEditMode ? JSON.parse(JSON.stringify(get().nodes)) : get().baselineNodes,
       undoStack: [], // Clear undo stack on node switch to prevent mixing node states
       selectedRackId: null,
       focusedRackId: null,
@@ -972,6 +984,7 @@ export const useStore = create<AppState>((set, get) => ({
       set({
         baselineRacks: JSON.parse(JSON.stringify(racks)),
         baselineModels: JSON.parse(JSON.stringify(importedModels)),
+        baselineNodes: JSON.parse(JSON.stringify(get().nodes)),
         undoStack: [],
         isEditMode: true,
       });
@@ -1227,6 +1240,8 @@ export const useStore = create<AppState>((set, get) => ({
 
   // Hierarchy Node Management
   addNode: (nodeData) => {
+    const { isEditMode, pushUndoState } = get();
+    if (isEditMode) pushUndoState();
     const newId = crypto.randomUUID();
     const newNode: HierarchyNode = { ...nodeData, nodeId: newId };
     set((state) => ({ nodes: [...state.nodes, newNode] }));
@@ -1234,12 +1249,16 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   renameNode: (nodeId, name) => {
+    const { isEditMode, pushUndoState } = get();
+    if (isEditMode) pushUndoState();
     set((state) => ({
       nodes: state.nodes.map((n) => (n.nodeId === nodeId ? { ...n, name } : n)),
     }));
   },
 
   deleteNode: (nodeId) => {
+    const { isEditMode, pushUndoState } = get();
+    if (isEditMode) pushUndoState();
     set((state) => {
       // 1. Delete node and descendant hierarchy structurally
       const toDelete = new Set<string>();
@@ -1493,6 +1512,47 @@ export const useStore = create<AppState>((set, get) => ({
           [activeNodeId]: { ...s.layouts[activeNodeId] || { racks: [], importedModels: [] }, importedModels: updatedModels }
         } : s.layouts
       };
+    });
+  },
+
+  reparentNode: (nodeId, newParentId) => {
+    const { nodes, isEditMode, pushUndoState } = get();
+    
+    // Safety Checks
+    if (nodeId === newParentId) return;
+    
+    // Check if newParentId is a descendant of nodeId (to prevent circularity)
+    // getSubtreeNodeIds already includes nodeId
+    const subtreeIds = new Set<string>();
+    const stack = [nodeId];
+    while (stack.length > 0) {
+      const curr = stack.pop()!;
+      subtreeIds.add(curr);
+      nodes.forEach(n => {
+        if (n.parentId === curr) stack.push(n.nodeId);
+      });
+    }
+    
+    if (newParentId && subtreeIds.has(newParentId)) {
+      get().showToast("Cannot move a node under its own descendant.", "error");
+      return;
+    }
+
+    if (isEditMode) pushUndoState();
+
+    set((state) => {
+      // Find new order: max(order of siblings) + 1
+      const siblings = state.nodes.filter(n => n.parentId === newParentId);
+      const newOrder = siblings.length > 0 ? Math.max(...siblings.map(s => s.order)) + 1 : 0;
+
+      const updatedNodes = state.nodes.map((n) => {
+        if (n.nodeId === nodeId) {
+          return { ...n, parentId: newParentId, order: newOrder };
+        }
+        return n;
+      });
+
+      return { nodes: updatedNodes };
     });
   },
 }));

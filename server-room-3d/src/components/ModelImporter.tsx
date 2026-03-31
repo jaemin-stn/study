@@ -16,6 +16,7 @@ import {
   type ImportPreview,
 } from "../utils/modelStorage";
 import { HierarchyTree } from "./HierarchyTree";
+import { PlusIcon } from "./Icons";
 
 /** Read a File as a base64 data URL */
 const fileToDataUrl = (file: File): Promise<string> =>
@@ -269,383 +270,328 @@ export const ModelImporter = () => {
         <div style={{ pointerEvents: "auto", width: "300px", flexShrink: 0 }}>
           <HierarchyTree />
         </div>
-        
+
         {/* Import Action Card and Other Edit-mode Panels */}
         {isEditMode && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "12px", pointerEvents: "auto", width: "300px", flexShrink: 0 }}>
           <div
-          className="grafana-panel"
-          style={{
-            padding: "16px",
-            background:
-              "linear-gradient(145deg, var(--bg-primary), var(--bg-secondary))",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
-          }}
-        >
-          <div
-            style={{ display: "flex", flexDirection: "column", gap: "10px" }}
-          >
-            <button
-              className="grafana-btn"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading}
-              style={{
-                width: "100%",
-                height: "44px",
-                background: "linear-gradient(135deg, #1f71eb, #014fcc)",
-                color: "#fff",
-                border: "none",
-                borderRadius: "var(--radius-md)",
-                fontSize: "14px",
-                fontWeight: 600,
-                boxShadow: "0 4px 12px rgba(31, 113, 235, 0.25)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "10px",
-                cursor: "pointer",
-                transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.transform = "translateY(-1px)";
-                e.currentTarget.style.boxShadow =
-                  "0 6px 16px rgba(31, 113, 235, 0.35)";
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow =
-                  "0 4px 12px rgba(31, 113, 235, 0.25)";
-              }}
-            >
-              {isLoading ? (
-                <span className="spinner-mini" />
-              ) : (
-                <span style={{ fontSize: "18px", fontWeight: 400 }}>+</span>
-              )}
-              Add New Asset
-            </button>
-
-            {/* Project Persistence (Save / Load Data) */}
-            <div
-              style={{
-                background: "var(--bg-secondary)",
-                padding: "12px",
-                borderRadius: "var(--radius-md)",
-                border: "1px solid var(--border-weak)",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "10px",
-                  fontWeight: 700,
-                  color: "var(--text-tertiary)",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.06em",
-                  display: "block",
-                  marginBottom: "10px",
-                  opacity: 0.8,
-                }}
-              >
-                Project Data
-              </span>
-              <div style={{ display: "flex", gap: "8px" }}>
-                <button
-                  className="grafana-btn"
-                  style={{
-                    flex: 1,
-                    height: "30px",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    background:
-                      importedModels.length > 0
-                        ? "var(--bg-primary)"
-                        : "transparent",
-                    color:
-                      importedModels.length > 0
-                        ? "var(--text-primary)"
-                        : "var(--text-disabled)",
-                    border: "1px solid",
-                    borderColor:
-                      importedModels.length > 0
-                        ? "var(--border-medium)"
-                        : "var(--border-weak)",
-                    borderRadius: "var(--radius-sm)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px",
-                    cursor:
-                      importedModels.length > 0 ? "pointer" : "not-allowed",
-                    transition: "all 0.15s ease",
-                  }}
-                  disabled={importedModels.length === 0}
-                  onClick={handleExportModels}
-                >
-                  💾 Save
-                </button>
-                <button
-                  className="grafana-btn"
-                  style={{
-                    flex: 1,
-                    height: "30px",
-                    fontSize: "11px",
-                    fontWeight: 600,
-                    background: "var(--bg-primary)",
-                    color: "var(--text-primary)",
-                    border: "1px solid var(--border-medium)",
-                    borderRadius: "var(--radius-sm)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px",
-                    transition: "all 0.15s ease",
-                  }}
-                  onClick={() => modelImportRef.current?.click()}
-                >
-                  📂 Load
-                </button>
-              </div>
-
-              {(successMsg || error || importError) && (
-                <div
-                  style={{
-                    marginTop: "8px",
-                    fontSize: "10px",
-                    color: error || importError ? "#ef4444" : "#22c55e",
-                    fontWeight: 500,
-                    textAlign: "center",
-                    padding: "6px",
-                    background:
-                      error || importError
-                        ? "rgba(239, 68, 68, 0.05)"
-                        : "rgba(34, 197, 94, 0.05)",
-                    borderRadius: "4px",
-                    border: "1px solid",
-                    borderColor:
-                      error || importError
-                        ? "rgba(239, 68, 68, 0.1)"
-                        : "rgba(34, 197, 94, 0.1)",
-                  }}
-                >
-                  {(error || importError || successMsg)
-                    ?.replace("Exported", "Saved")
-                    .replace("Import", "Load")}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Default Models Palette */}
-        <div
-          className="grafana-panel"
-          style={{
-            padding: "12px 16px",
-            background: "var(--bg-primary)",
-            boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-          }}
-        >
-          <span
-            style={{
-              fontSize: "11px",
-              fontWeight: 700,
-              color: "var(--text-tertiary)",
-              textTransform: "uppercase",
-              letterSpacing: "0.05em",
-              display: "block",
-              marginBottom: "10px",
-            }}
-          >
-            Default Models
-          </span>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "1fr 1fr",
-              gap: "8px",
-            }}
-          >
-            {BUILTIN_MODELS.map((def) => (
-              <button
-                key={def.type}
-                className="grafana-btn"
-                style={{
-                  height: "40px",
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  background: "var(--bg-secondary)",
-                  border: "1px solid var(--border-medium)",
-                  color: "var(--text-primary)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "6px",
-                  borderRadius: "var(--radius-md)",
-                  transition: "all 0.15s ease",
-                }}
-                onMouseOver={(e) => {
-                  e.currentTarget.style.borderColor = "var(--theme-primary)";
-                  e.currentTarget.style.background = "var(--selected-bg)";
-                }}
-                onMouseOut={(e) => {
-                  e.currentTarget.style.borderColor = "var(--border-medium)";
-                  e.currentTarget.style.background = "var(--bg-secondary)";
-                }}
-                onClick={() => handleAddBuiltin(def)}
-              >
-                <span style={{ fontSize: "16px" }}>{def.emoji}</span>
-                {def.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Models List Section */}
-        {importedModels.length > 0 && (
-          <div
-            className="grafana-panel"
             style={{
               display: "flex",
               flexDirection: "column",
-              background: "var(--bg-primary)",
-              boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
-              maxHeight: "260px",
+              gap: "12px",
+              pointerEvents: "auto",
+              width: "300px",
+              flexShrink: 0,
             }}
           >
             <div
+              className="grafana-panel"
+              style={{
+                padding: "16px",
+                background:
+                  "linear-gradient(145deg, var(--bg-primary), var(--bg-secondary))",
+                boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                <button
+                  className="grafana-btn grafana-btn-md grafana-btn-primary"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading}
+                  style={{ width: "100%" }}
+                >
+                  {isLoading ? <span className="spinner-mini" /> : <PlusIcon />}
+                  Add New Asset
+                </button>
+
+                {/* Project Persistence (Save / Load Data) */}
+                <div
+                  style={{
+                    background: "var(--bg-secondary)",
+                    padding: "12px",
+                    borderRadius: "var(--radius-md)",
+                    border: "1px solid var(--border-weak)",
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      color: "var(--text-tertiary)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
+                      display: "block",
+                      marginBottom: "10px",
+                      opacity: 0.8,
+                    }}
+                  >
+                    Project Data
+                  </span>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <button
+                      className="grafana-btn grafana-btn-md grafana-btn-secondary"
+                      style={{
+                        flex: 1,
+                        background:
+                          importedModels.length > 0
+                            ? "var(--bg-primary)"
+                            : "transparent",
+                        color:
+                          importedModels.length > 0
+                            ? "var(--text-primary)"
+                            : "var(--text-disabled)",
+                        borderColor:
+                          importedModels.length > 0
+                            ? "var(--border-medium)"
+                            : "var(--border-weak)",
+                      }}
+                      disabled={importedModels.length === 0}
+                      onClick={handleExportModels}
+                    >
+                      <span role="img" aria-label="save">
+                        💾
+                      </span>
+                      Save
+                    </button>
+                    <button
+                      className="grafana-btn grafana-btn-md grafana-btn-secondary"
+                      style={{ flex: 1 }}
+                      onClick={() => modelImportRef.current?.click()}
+                    >
+                      <span role="img" aria-label="load">
+                        📂
+                      </span>
+                      Load
+                    </button>
+                  </div>
+
+                  {(successMsg || error || importError) && (
+                    <div
+                      style={{
+                        marginTop: "8px",
+                        fontSize: "10px",
+                        color: error || importError ? "#ef4444" : "#22c55e",
+                        fontWeight: 500,
+                        textAlign: "center",
+                        padding: "6px",
+                        background:
+                          error || importError
+                            ? "rgba(239, 68, 68, 0.05)"
+                            : "rgba(34, 197, 94, 0.05)",
+                        borderRadius: "4px",
+                        border: "1px solid",
+                        borderColor:
+                          error || importError
+                            ? "rgba(239, 68, 68, 0.1)"
+                            : "rgba(34, 197, 94, 0.1)",
+                      }}
+                    >
+                      {(error || importError || successMsg)
+                        ?.replace("Exported", "Saved")
+                        .replace("Import", "Load")}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Default Models Palette */}
+            <div
+              className="grafana-panel"
               style={{
                 padding: "12px 16px",
-                background: "var(--bg-secondary)",
-                borderBottom: "1px solid var(--border-weak)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
+                background: "var(--bg-primary)",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
               }}
             >
               <span
                 style={{
-                  fontSize: "10px",
+                  fontSize: "11px",
                   fontWeight: 700,
                   color: "var(--text-tertiary)",
                   textTransform: "uppercase",
-                  letterSpacing: "0.06em",
+                  letterSpacing: "0.05em",
+                  display: "block",
+                  marginBottom: "10px",
                 }}
               >
-                Scene Objects ({importedModels.length})
+                Default Models
               </span>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "8px",
+                }}
+              >
+                {BUILTIN_MODELS.map((def) => (
+                  <button
+                    key={def.type}
+                    className="grafana-btn grafana-btn-md grafana-btn-secondary"
+                    style={{ width: "100%" }}
+                    onClick={() => handleAddBuiltin(def)}
+                  >
+                    <span role="img" aria-label={def.label}>
+                      {def.emoji}
+                    </span>
+                    {def.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <div
-              style={{
-                padding: "8px",
-                overflowY: "auto",
-              }}
-            >
-              {importedModels.map((m) => {
-                const isSelected = selectedModelId === m.id;
-                return (
-                  <div
-                    key={m.id}
-                    onClick={() =>
-                      selectModel(selectedModelId === m.id ? null : m.id)
-                    }
+            {/* Models List Section */}
+            {importedModels.length > 0 && (
+              <div
+                className="grafana-panel"
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  background: "var(--bg-primary)",
+                  boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+                  maxHeight: "260px",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    background: "var(--bg-secondary)",
+                    borderBottom: "1px solid var(--border-weak)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span
                     style={{
-                      padding: "10px 12px",
-                      borderRadius: "var(--radius-md)",
-                      cursor: "pointer",
-                      background: isSelected
-                        ? "var(--selected-bg)"
-                        : "transparent",
-                      border: "1px solid",
-                      borderColor: isSelected
-                        ? "var(--theme-primary)"
-                        : "transparent",
-                      marginBottom: "4px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "10px",
-                      transition: "all 0.15s ease",
+                      fontSize: "10px",
+                      fontWeight: 700,
+                      color: "var(--text-tertiary)",
+                      textTransform: "uppercase",
+                      letterSpacing: "0.06em",
                     }}
                   >
-                    <div
-                      style={{
-                        width: "8px",
-                        height: "8px",
-                        borderRadius: "50%",
-                        background: isSelected
-                          ? "var(--theme-primary)"
-                          : "var(--text-disabled)",
-                        flexShrink: 0,
-                      }}
-                    />
-                    <span
-                      style={{
-                        fontSize: "13px",
-                        fontWeight: isSelected ? 600 : 400,
-                        color: isSelected
-                          ? "var(--text-primary)"
-                          : "var(--text-secondary)",
-                        flex: 1,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {m.name}
-                    </span>
-                    <div style={{ display: "flex", gap: "4px" }}>
-                      <button
+                    Scene Objects ({importedModels.length})
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    padding: "8px",
+                    overflowY: "auto",
+                  }}
+                >
+                  {importedModels.map((m) => {
+                    const isSelected = selectedModelId === m.id;
+                    return (
+                      <div
+                        key={m.id}
+                        onClick={() =>
+                          selectModel(selectedModelId === m.id ? null : m.id)
+                        }
                         style={{
-                          background: m.isMoveEnabled
-                            ? "rgba(34, 197, 94, 0.1)"
-                            : "rgba(249, 115, 22, 0.08)",
-                          color: m.isMoveEnabled ? "#22c55e" : "#f97316",
+                          padding: "10px 12px",
+                          borderRadius: "var(--radius-md)",
+                          cursor: "pointer",
+                          background: isSelected
+                            ? "var(--selected-bg)"
+                            : "transparent",
                           border: "1px solid",
-                          borderColor: m.isMoveEnabled
-                            ? "rgba(34, 197, 94, 0.2)"
-                            : "rgba(249, 115, 22, 0.2)",
-                          borderRadius: "4px",
-                          padding: "2px 6px",
-                          fontSize: "10px",
-                          cursor: "pointer",
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleModelMove(m.id);
+                          borderColor: isSelected
+                            ? "var(--theme-primary)"
+                            : "transparent",
+                          marginBottom: "4px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          transition: "all 0.15s ease",
                         }}
                       >
-                        {m.isMoveEnabled ? "🔓" : "🔒"}
-                      </button>
-                      <button
-                        style={{
-                          background: "transparent",
-                          color: "var(--text-tertiary)",
-                          border: "none",
-                          fontSize: "14px",
-                          padding: "0 4px",
-                          cursor: "pointer",
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteModel(m.id);
-                        }}
-                        onMouseOver={(e) =>
-                          (e.currentTarget.style.color = "#ef4444")
-                        }
-                        onMouseOut={(e) =>
-                          (e.currentTarget.style.color = "var(--text-tertiary)")
-                        }
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                        <div
+                          style={{
+                            width: "8px",
+                            height: "8px",
+                            borderRadius: "50%",
+                            background: isSelected
+                              ? "var(--theme-primary)"
+                              : "var(--text-disabled)",
+                            flexShrink: 0,
+                          }}
+                        />
+                        <span
+                          style={{
+                            fontSize: "13px",
+                            fontWeight: isSelected ? 600 : 400,
+                            color: isSelected
+                              ? "var(--text-primary)"
+                              : "var(--text-secondary)",
+                            flex: 1,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {m.name}
+                        </span>
+                        <div style={{ display: "flex", gap: "4px" }}>
+                          <button
+                            style={{
+                              background: m.isMoveEnabled
+                                ? "rgba(34, 197, 94, 0.1)"
+                                : "rgba(249, 115, 22, 0.08)",
+                              color: m.isMoveEnabled ? "#22c55e" : "#f97316",
+                              border: "1px solid",
+                              borderColor: m.isMoveEnabled
+                                ? "rgba(34, 197, 94, 0.2)"
+                                : "rgba(249, 115, 22, 0.2)",
+                              borderRadius: "4px",
+                              padding: "2px 6px",
+                              fontSize: "10px",
+                              cursor: "pointer",
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleModelMove(m.id);
+                            }}
+                          >
+                            {m.isMoveEnabled ? "🔓" : "🔒"}
+                          </button>
+                          <button
+                            style={{
+                              background: "transparent",
+                              color: "var(--text-tertiary)",
+                              border: "none",
+                              fontSize: "14px",
+                              padding: "0 4px",
+                              cursor: "pointer",
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteModel(m.id);
+                            }}
+                            onMouseOver={(e) =>
+                              (e.currentTarget.style.color = "#ef4444")
+                            }
+                            onMouseOut={(e) =>
+                              (e.currentTarget.style.color =
+                                "var(--text-tertiary)")
+                            }
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
-        )}
-        </div>
         )}
       </div>
 

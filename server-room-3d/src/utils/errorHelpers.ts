@@ -2,10 +2,10 @@ import type { ErrorLevel, PortState } from "../types";
 
 /** Color mapping for each error severity level */
 export const ERROR_COLORS: Record<ErrorLevel, string> = {
-  critical: "#ff0000",
-  major: "#ff8800",
-  minor: "#ffff00",
-  warning: "#0088ff",
+  critical: "#ef4444",
+  major: "#f97316",
+  minor: "#eab308",
+  warning: "#8b5cf6",
 };
 
 /** Numeric priority for severity comparison (higher = more severe) */

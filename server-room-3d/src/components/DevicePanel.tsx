@@ -1145,7 +1145,7 @@ export const DevicePanel = () => {
                 return (
                   <button
                     key={dir.value}
-                    className={`grafana-btn ${isCurrentDirection ? "grafana-btn-primary" : "grafana-btn-secondary"}`}
+                    className={`grafana-btn grafana-btn-sm ${isCurrentDirection ? "grafana-btn-primary" : "grafana-btn-secondary"}`}
                     onClick={() =>
                       !isDisabled &&
                       updateRackOrientation(
@@ -1201,7 +1201,7 @@ export const DevicePanel = () => {
           }}
         >
           <button
-            className="grafana-btn grafana-btn-destructive"
+            className="grafana-btn grafana-btn-md grafana-btn-destructive"
             style={{ width: "100%" }}
             onClick={() => setIsDeleteRackModalOpen(true)}
           >
@@ -1236,13 +1236,13 @@ export const DevicePanel = () => {
               </div>
               <div className="confirm-modal-actions">
                 <button
-                  className="grafana-btn grafana-btn-secondary"
+                  className="grafana-btn grafana-btn-md grafana-btn-secondary"
                   onClick={() => setIsDeleteRackModalOpen(false)}
                 >
                   취소
                 </button>
                 <button
-                  className="grafana-btn grafana-btn-destructive"
+                  className="grafana-btn grafana-btn-md grafana-btn-destructive"
                   onClick={() => {
                     deleteRack(rack.id);
                     setIsDeleteRackModalOpen(false);

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import type { ErrorLevel } from "../types";
 import { getNodeName, GWACHEON_NODE_ID, DAEJEON_NODE_ID } from "../utils/nodeUtils";
+import { ExclamationTriangleIcon, FireIcon } from "./Icons";
 
 // Error item for table display
 interface ErrorItem {
@@ -28,29 +29,29 @@ const severityConfig: Record<
     label: "Critical",
     bgClass: "severity-critical",
     badgeClass: "grafana-badge-critical",
-    statBg: "var(--severity-critical)",
-    statColor: "#000000",
+    statBg: "var(--severity-critical-bg)",
+    statColor: "var(--severity-critical)",
   },
   major: {
     label: "Major",
     bgClass: "severity-major",
     badgeClass: "grafana-badge-major",
-    statBg: "var(--severity-major)",
-    statColor: "#000000",
+    statBg: "var(--severity-major-bg)",
+    statColor: "var(--severity-major)",
   },
   minor: {
     label: "Minor",
     bgClass: "severity-minor",
     badgeClass: "grafana-badge-minor",
-    statBg: "var(--severity-minor)",
-    statColor: "#000000",
+    statBg: "var(--severity-minor-bg)",
+    statColor: "var(--severity-minor)",
   },
   warning: {
     label: "Warning",
     bgClass: "severity-warning",
     badgeClass: "grafana-badge-warning",
-    statBg: "var(--severity-warning)",
-    statColor: "#000000",
+    statBg: "var(--severity-warning-bg)",
+    statColor: "var(--severity-warning)",
   },
 };
 
@@ -150,7 +151,9 @@ export const DashboardWidgets = () => {
       <div className="grafana-panel">
         <div className="grafana-panel-header">
           <h3 className="grafana-panel-title">
-            <span style={{ fontSize: "16px" }}>🚨</span>
+            <span style={{ fontSize: "16px", display: "flex", color: "var(--severity-critical)" }}>
+              <ExclamationTriangleIcon style={{ width: 18, height: 18 }} />
+            </span>
             {activeNodeName} Error Summary
           </h3>
         </div>
@@ -277,7 +280,9 @@ export const DashboardWidgets = () => {
       <div className="grafana-panel">
         <div className="grafana-panel-header">
           <h3 className="grafana-panel-title">
-            <span style={{ fontSize: "16px" }}>🌡️</span>
+            <span style={{ fontSize: "16px", display: "flex", color: "var(--severity-warning)" }}>
+              <FireIcon style={{ width: 18, height: 18 }} />
+            </span>
             {activeNodeName} Sensors
           </h3>
         </div>

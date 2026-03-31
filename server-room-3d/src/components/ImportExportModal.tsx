@@ -585,10 +585,9 @@ export const ImportExportModal = () => {
 
           <div style={{ display: "flex", gap: "10px" }}>
             <button
-              className="grafana-btn grafana-btn-primary"
+              className="grafana-btn grafana-btn-lg grafana-btn-primary"
               style={{
                 flex: 1,
-                height: "40px",
                 boxShadow: "0 4px 12px rgba(110, 159, 255, 0.25)",
                 cursor: isExporting ? "not-allowed" : "pointer",
                 opacity: isExporting ? 0.7 : 1,
@@ -743,14 +742,14 @@ export const ImportExportModal = () => {
               )}
               <div style={{ marginTop: "12px", display: "flex", gap: "8px" }}>
                 <button
-                  className="grafana-btn grafana-btn-primary"
+                  className="grafana-btn grafana-btn-md grafana-btn-primary"
                   style={{ flex: 1 }}
                   onClick={handleApplyImport}
                 >
                   🚀 Confirm & REPLACE
                 </button>
                 <button
-                  className="grafana-btn grafana-btn-secondary"
+                  className="grafana-btn grafana-btn-md grafana-btn-secondary"
                   onClick={() => setImportPreview(null)}
                 >
                   Cancel
@@ -782,7 +781,7 @@ export const ImportExportModal = () => {
                 )}
               </div>
               <button
-                className="grafana-btn grafana-btn-secondary"
+                className="grafana-btn grafana-btn-lg grafana-btn-secondary"
                 style={{
                   padding: "12px",
                   width: "100%",

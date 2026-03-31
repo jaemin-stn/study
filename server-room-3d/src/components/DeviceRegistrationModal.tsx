@@ -1,5 +1,25 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useMemo,
+  useRef,
+  useEffect,
+  useCallback,
+} from "react";
 import { createPortal } from "react-dom";
+import {
+  Squares2x2Icon,
+  BuildingOfficeIcon,
+  FolderIcon,
+  ServerStackIcon,
+  PlusIcon,
+  ArrowUpTrayIcon,
+  ArrowDownTrayIcon,
+  TrashIcon,
+  PencilIcon,
+  CubeIcon,
+  SparklesIcon,
+  CloudArrowUpIcon,
+} from "./Icons";
 import { useStore } from "../store/useStore";
 import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
 import type { VendorName } from "../types";
@@ -377,22 +397,6 @@ const MODAL_STYLES = `
   justify-content: flex-end;
   gap: 12px;
 }
-.drm-submit-btn {
-  height: 42px;
-  padding: 0 24px;
-  background: linear-gradient(135deg, #4f83fd, #2c52c0);
-  color: white;
-  border: none;
-  border-radius: 12px;
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 8px 20px rgba(79, 131, 253, 0.35);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 /* Node Picker Styles */
 .drm-node-picker {
   position: relative;
@@ -555,53 +559,6 @@ const MODAL_STYLES = `
   display: flex;
   align-items: center;
   gap: 10px;
-}
-
-/* Button Hierarchy */
-.drm-btn-primary {
-  height: 38px;
-  padding: 0 20px;
-  background: linear-gradient(135deg, #4f83fd, #2c52c0);
-  color: white;
-  border: none;
-  border-radius: 10px;
-  font-size: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  box-shadow: 0 4px 12px rgba(79, 131, 253, 0.3);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.drm-btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(79, 131, 253, 0.45);
-  filter: brightness(1.1);
-}
-.drm-btn-primary:active {
-  transform: translateY(0);
-}
-
-.drm-btn-secondary {
-  height: 38px;
-  padding: 0 16px;
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-medium);
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s;
-}
-.drm-btn-secondary:hover {
-  background: var(--bg-secondary);
-  border-color: var(--theme-primary);
-  color: var(--theme-primary);
 }
 
 /* Search Row */
@@ -1153,7 +1110,6 @@ const MODAL_STYLES = `
 }
 `;
 
-
 interface ToastState {
   message: string;
   type: "success" | "error";
@@ -1205,9 +1161,17 @@ const TreeNodeItem = ({
   draggedNodeId: string | null;
   dragOverNodeId: string | null;
   onDragStart: (id: string) => void;
-  onDragOver: (e: React.DragEvent, id: string, position: "before" | "after" | "inside") => void;
+  onDragOver: (
+    e: React.DragEvent,
+    id: string,
+    position: "before" | "after" | "inside",
+  ) => void;
   onDragLeave: () => void;
-  onDrop: (e: React.DragEvent, targetId: string, position: "before" | "after" | "inside") => void;
+  onDrop: (
+    e: React.DragEvent,
+    targetId: string,
+    position: "before" | "after" | "inside",
+  ) => void;
   onContextMenu: (e: React.MouseEvent, nodeId: string) => void;
   onAddSubNode: (parentId: string) => void;
   onDeleteNode: (e: React.MouseEvent, node: HierarchyNode) => void;
@@ -1244,7 +1208,9 @@ const TreeNodeItem = ({
 
   const isDragged = draggedNodeId === node.nodeId;
 
-  const [dropPos, setDropPos] = useState<"before" | "after" | "inside" | null>(null);
+  const [dropPos, setDropPos] = useState<"before" | "after" | "inside" | null>(
+    null,
+  );
 
   const handleDragOver = (e: React.DragEvent) => {
     if (!isEditMode || isDragged) return;
@@ -1253,10 +1219,13 @@ const TreeNodeItem = ({
 
     // Safety: Cannot drop on own children
     const getDescendantIds = (id: string): string[] => {
-      const childrenNodes = nodes.filter(n => n.parentId === id);
-      return [id, ...childrenNodes.flatMap(c => getDescendantIds(c.nodeId))];
-    }
-    if (draggedNodeId && getDescendantIds(draggedNodeId).includes(node.nodeId)) {
+      const childrenNodes = nodes.filter((n) => n.parentId === id);
+      return [id, ...childrenNodes.flatMap((c) => getDescendantIds(c.nodeId))];
+    };
+    if (
+      draggedNodeId &&
+      getDescendantIds(draggedNodeId).includes(node.nodeId)
+    ) {
       setDropPos(null);
       return;
     }
@@ -1322,15 +1291,17 @@ const TreeNodeItem = ({
           ▶
         </span>
         <span className="drm-tree-node-icon">
-          {node.type === "root"
-            ? "🏢"
-            : node.type === "group"
-              ? "📦"
-              : node.type === "site"
-                ? "📍"
-                : "📁"}
+          {node.parentId === null ? (
+            <BuildingOfficeIcon
+              style={{ width: 14, height: 14, color: isSelected ? "var(--theme-primary)" : "var(--text-tertiary)" }}
+            />
+          ) : (
+            <FolderIcon
+              style={{ width: 14, height: 14, color: isSelected ? "var(--theme-primary)" : "var(--text-tertiary)" }}
+            />
+          )}
         </span>
-        
+
         {isRenaming ? (
           <input
             type="text"
@@ -1353,19 +1324,31 @@ const TreeNodeItem = ({
               borderRadius: "4px",
               padding: "2px 6px",
               fontSize: "12px",
-              outline: "none"
+              outline: "none",
             }}
           />
         ) : (
-          <span className="drm-tree-node-name" onDoubleClick={(e) => {
-            if (isEditMode) {
-              e.stopPropagation();
-              setRenamingId(node.nodeId);
-            }
-          }}>{node.name}</span>
+          <span
+            className="drm-tree-node-name"
+            onDoubleClick={(e) => {
+              if (isEditMode) {
+                e.stopPropagation();
+                setRenamingId(node.nodeId);
+              }
+            }}
+          >
+            {node.name}
+          </span>
         )}
 
-        {count > 0 && !isRenaming && <span className="drm-tree-node-count" style={{ marginLeft: isEditMode ? '4px' : 'auto' }}>{count}</span>}
+        {count > 0 && !isRenaming && (
+          <span
+            className="drm-tree-node-count"
+            style={{ marginLeft: isEditMode ? "4px" : "auto" }}
+          >
+            {count}
+          </span>
+        )}
       </div>
       {isExpanded &&
         children.map((child) => (
@@ -1486,7 +1469,10 @@ const NodePicker = ({
       </div>
 
       {isOpen && (
-        <div className="drm-node-picker-popover" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="drm-node-picker-popover"
+          onClick={(e) => e.stopPropagation()}
+        >
           <div className="drm-node-picker-search">
             <span className="search-icon">🔍</span>
             <input
@@ -1748,14 +1734,16 @@ const RegistrationFormModal = ({
 
         <div className="drm-form-actions">
           <button
-            className="grafana-btn grafana-btn-secondary"
+            className="grafana-btn grafana-btn-lg grafana-btn-secondary"
             onClick={onClose}
-            style={{ height: "42px", borderRadius: "12px", padding: "0 24px" }}
           >
             취소
           </button>
-          <button className="drm-submit-btn" onClick={handleSubmit}>
-            <span>{editingDeviceId ? "💾" : "✨"}</span>{" "}
+          <button
+            className="grafana-btn grafana-btn-lg grafana-btn-primary"
+            onClick={handleSubmit}
+          >
+            {editingDeviceId ? <CloudArrowUpIcon /> : <SparklesIcon />}
             {editingDeviceId ? "저장하기" : "등록하기"}
           </button>
         </div>
@@ -1843,7 +1831,10 @@ const ChildMultiPicker = ({
             <span className="count-badge">{selectedIds.size}</span>
           )}
         </div>
-        <span className="chevron" style={{ fontSize: "10px", marginLeft: "8px" }}>
+        <span
+          className="chevron"
+          style={{ fontSize: "10px", marginLeft: "8px" }}
+        >
           {isOpen ? "▲" : "▼"}
         </span>
       </div>
@@ -1852,7 +1843,12 @@ const ChildMultiPicker = ({
         <div className="drm-cmp-popover">
           {options.length === 0 ? (
             <div
-              style={{ padding: "10px", textAlign: "center", fontSize: "12px", color: "var(--text-tertiary)" }}
+              style={{
+                padding: "10px",
+                textAlign: "center",
+                fontSize: "12px",
+                color: "var(--text-tertiary)",
+              }}
             >
               자식 노드가 없습니다.
             </div>
@@ -1897,35 +1893,51 @@ export const DeviceRegistrationModal = () => {
   const renameNode = useStore((s) => s.renameNode);
   const reorderNode = useStore((s) => s.reorderNode);
 
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; nodeId: string } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    nodeId: string;
+  } | null>(null);
   const [draggedNodeId, setDraggedNodeId] = useState<string | null>(null);
   const [dragOverNodeId, setDragOverNodeId] = useState<string | null>(null);
-  const [nodeDeleteConfirm, setNodeDeleteConfirm] = useState<{ node: HierarchyNode; rect: DOMRect } | null>(null);
+  const [nodeDeleteConfirm, setNodeDeleteConfirm] = useState<{
+    node: HierarchyNode;
+    rect: DOMRect;
+  } | null>(null);
 
   // New Redesign States
   const [isRegistrationModalOpen, setIsRegistrationModalOpen] = useState(false);
   const [nodeSearch, setNodeSearch] = useState("");
-  const [nodeExpandedIds, setNodeExpandedIds] = useState<Set<string>>(new Set());
+  const [nodeExpandedIds, setNodeExpandedIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [renamingId, setRenamingId] = useState<string | null>(null);
 
   // UI state
   const [toast, setToast] = useState<ToastState | null>(null);
   const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(
+    null,
+  );
 
-  const showToast = useCallback((
-    message: string,
-    type: "success" | "error",
-    action?: ToastState["action"],
-  ) => {
-    setToast({ message, type, action });
-    setTimeout(() => setToast(null), 3000);
-  }, []);
+  const showToast = useCallback(
+    (
+      message: string,
+      type: "success" | "error",
+      action?: ToastState["action"],
+    ) => {
+      setToast({ message, type, action });
+      setTimeout(() => setToast(null), 3000);
+    },
+    [],
+  );
 
   // Scope Filtering States
   const [directNodeOnly, setDirectNodeOnly] = useState(false);
-  const [selectedChildNodeIds, setSelectedChildNodeIds] = useState<Set<string>>(new Set());
+  const [selectedChildNodeIds, setSelectedChildNodeIds] = useState<Set<string>>(
+    new Set(),
+  );
 
   // Drag Handlers
   const handleDragStart = useCallback((nodeId: string) => {
@@ -1933,31 +1945,48 @@ export const DeviceRegistrationModal = () => {
     setDragOverNodeId(null);
   }, []);
 
-  const handleDragOver = useCallback((e: React.DragEvent, id: string, _position: "before" | "after" | "inside") => {
-    e.preventDefault();
-    if (draggedNodeId === id) return;
-    setDragOverNodeId(id);
-  }, [draggedNodeId]);
+  const handleDragOver = useCallback(
+    (
+      e: React.DragEvent,
+      id: string,
+      _position: "before" | "after" | "inside",
+    ) => {
+      e.preventDefault();
+      if (draggedNodeId === id) return;
+      setDragOverNodeId(id);
+    },
+    [draggedNodeId],
+  );
 
   const handleDragLeave = useCallback(() => {
     setDragOverNodeId(null);
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent, targetId: string, position: "before" | "after" | "inside") => {
-    e.preventDefault();
-    const sourceId = draggedNodeId;
-    setDraggedNodeId(null);
-    setDragOverNodeId(null);
-    if (sourceId && sourceId !== targetId) {
-      reorderNode(sourceId, targetId, position);
-    }
-  }, [draggedNodeId, reorderNode]);
+  const handleDrop = useCallback(
+    (
+      e: React.DragEvent,
+      targetId: string,
+      position: "before" | "after" | "inside",
+    ) => {
+      e.preventDefault();
+      const sourceId = draggedNodeId;
+      setDraggedNodeId(null);
+      setDragOverNodeId(null);
+      if (sourceId && sourceId !== targetId) {
+        reorderNode(sourceId, targetId, position);
+      }
+    },
+    [draggedNodeId, reorderNode],
+  );
 
-  const handleContextMenu = useCallback((e: React.MouseEvent, nodeId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setContextMenu({ x: e.clientX, y: e.clientY, nodeId });
-  }, []);
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent, nodeId: string) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setContextMenu({ x: e.clientX, y: e.clientY, nodeId });
+    },
+    [],
+  );
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -1965,34 +1994,38 @@ export const DeviceRegistrationModal = () => {
       setContextMenu(null);
     };
     window.addEventListener("click", handleClick, { capture: true });
-    return () => window.removeEventListener("click", handleClick, { capture: true });
+    return () =>
+      window.removeEventListener("click", handleClick, { capture: true });
   }, []);
 
   // Node Editing
-  const handleAddSubNode = useCallback((parentId: string) => {
-    console.log(`[DRM] Adding sub-node to parent: ${parentId}`);
-    
-    // Auto expand parent for visibility
-    setNodeExpandedIds(prev => {
-      const next = new Set(prev);
-      next.add(parentId);
-      return next;
-    });
+  const handleAddSubNode = useCallback(
+    (parentId: string) => {
+      console.log(`[DRM] Adding sub-node to parent: ${parentId}`);
 
-    const siblings = nodes.filter(n => n.parentId === parentId);
-    const newId = addNode({
-      parentId,
-      name: "새 노드",
-      type: "group",
-      order: siblings.length,
-    });
-    
-    setRenamingId(newId);
-    console.log(`[DRM] Node addition requested, newId: ${newId}`);
-  }, [nodes, addNode]); // setNodeExpandedIds is stable from useState, so it doesn't strictly need to be in deps but good for clarity
+      // Auto expand parent for visibility
+      setNodeExpandedIds((prev) => {
+        const next = new Set(prev);
+        next.add(parentId);
+        return next;
+      });
+
+      const siblings = nodes.filter((n) => n.parentId === parentId);
+      const newId = addNode({
+        parentId,
+        name: "새 노드",
+        type: "group",
+        order: siblings.length,
+      });
+
+      setRenamingId(newId);
+      console.log(`[DRM] Node addition requested, newId: ${newId}`);
+    },
+    [nodes, addNode],
+  ); // setNodeExpandedIds is stable from useState, so it doesn't strictly need to be in deps but good for clarity
 
   const handleAddRootNode = useCallback(() => {
-    const siblings = nodes.filter(n => n.parentId === null);
+    const siblings = nodes.filter((n) => n.parentId === null);
     const newId = addNode({
       parentId: null,
       name: "New Root",
@@ -2002,21 +2035,34 @@ export const DeviceRegistrationModal = () => {
     setRenamingId(newId);
   }, [nodes, addNode]);
 
-  const handleRenameNode = useCallback((node: HierarchyNode) => {
-    renameNode(node.nodeId, node.name);
-  }, [renameNode]);
+  const handleRenameNode = useCallback(
+    (node: HierarchyNode) => {
+      renameNode(node.nodeId, node.name);
+    },
+    [renameNode],
+  );
 
-  const handleDeleteNodeClick = useCallback((e: React.MouseEvent, node: HierarchyNode) => {
-    e.stopPropagation();
-    const hasChildren = nodes.some((n) => n.parentId === node.nodeId);
-    const count = getSubtreeEquipmentCount(nodes, registeredDevices, node.nodeId);
-    if (hasChildren || count > 0) {
-      showToast("하위 노드가 있거나 등록된 장비가 있어 삭제할 수 없습니다.", "error");
-      return;
-    }
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    setNodeDeleteConfirm({ node, rect });
-  }, [nodes, registeredDevices, showToast]);
+  const handleDeleteNodeClick = useCallback(
+    (e: React.MouseEvent, node: HierarchyNode) => {
+      e.stopPropagation();
+      const hasChildren = nodes.some((n) => n.parentId === node.nodeId);
+      const count = getSubtreeEquipmentCount(
+        nodes,
+        registeredDevices,
+        node.nodeId,
+      );
+      if (hasChildren || count > 0) {
+        showToast(
+          "하위 노드가 있거나 등록된 장비가 있어 삭제할 수 없습니다.",
+          "error",
+        );
+        return;
+      }
+      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      setNodeDeleteConfirm({ node, rect });
+    },
+    [nodes, registeredDevices, showToast],
+  );
 
   const confirmNodeDelete = useCallback(() => {
     if (!nodeDeleteConfirm) return;
@@ -2379,7 +2425,7 @@ export const DeviceRegistrationModal = () => {
           </>,
           document.body,
         )}
-        
+
       {/* Node Delete confirmation popover */}
       {nodeDeleteConfirm &&
         typeof document !== "undefined" &&
@@ -2387,19 +2433,19 @@ export const DeviceRegistrationModal = () => {
           <>
             <div
               className="drm-confirm-overlay"
-              style={{ position: 'fixed', inset: 0, zIndex: 3000 }}
+              style={{ position: "fixed", inset: 0, zIndex: 3000 }}
               onClick={() => setNodeDeleteConfirm(null)}
             />
             <div
               className="drm-confirm-popover"
               style={{
-                position: 'fixed',
+                position: "fixed",
                 zIndex: 3001,
-                background: 'var(--bg-primary)',
-                border: '1px solid var(--border-medium)',
-                boxShadow: 'var(--elevation-3)',
-                padding: '16px',
-                borderRadius: '8px',
+                background: "var(--bg-primary)",
+                border: "1px solid var(--border-medium)",
+                boxShadow: "var(--elevation-3)",
+                padding: "16px",
+                borderRadius: "8px",
                 top: Math.min(
                   nodeDeleteConfirm.rect.bottom + 8,
                   window.innerHeight - 100,
@@ -2410,10 +2456,18 @@ export const DeviceRegistrationModal = () => {
                 ),
               }}
             >
-              <p style={{ margin: '0 0 12px 0', fontSize: '13px' }}>
-                노드 <strong>"{nodeDeleteConfirm.node.name}"</strong>을(를) 삭제하시겠습니까?
+              <p style={{ margin: "0 0 12px 0", fontSize: "13px" }}>
+                노드 <strong>"{nodeDeleteConfirm.node.name}"</strong>을(를)
+                삭제하시겠습니까?
               </p>
-              <div className="drm-confirm-actions" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <div
+                className="drm-confirm-actions"
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  justifyContent: "flex-end",
+                }}
+              >
                 <button
                   className="grafana-btn grafana-btn-secondary"
                   style={{ fontSize: "12px", padding: "4px 12px" }}
@@ -2441,8 +2495,10 @@ export const DeviceRegistrationModal = () => {
             {/* Header */}
             <div className="drm-header">
               <h2>
-                <div className="icon-wrap">📋</div>
-                장비
+                <div className="icon-wrap">
+                  <ServerStackIcon style={{ width: 18, height: 18 }} />
+                </div>
+                장비 관리
               </h2>
               <button
                 className="drm-close"
@@ -2470,6 +2526,29 @@ export const DeviceRegistrationModal = () => {
               {/* Left Sidebar: Node Hierarchy */}
               <div className="drm-sidebar">
                 <div className="drm-sidebar-header">
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      marginBottom: "16px",
+                      padding: "0 4px",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "18px",
+                        display: "flex",
+                        alignItems: "center",
+                        color: "var(--theme-primary)",
+                      }}
+                    >
+                      <Squares2x2Icon style={{ width: 18, height: 18 }} />
+                    </span>
+                    <span style={{ fontWeight: 800, fontSize: "14px", color: "var(--text-primary)" }}>
+                      구조
+                    </span>
+                  </div>
                   <div className="drm-sidebar-search-wrap">
                     <span className="drm-sidebar-search-icon">🔍</span>
                     <input
@@ -2481,26 +2560,27 @@ export const DeviceRegistrationModal = () => {
                     />
                   </div>
                   {isEditMode && (
-                    <button 
-                      className="drm-add-root-btn" 
+                    <button
+                      className="drm-add-root-btn"
                       onClick={handleAddRootNode}
-                      style={{ 
-                        marginTop: "12px", 
-                        width: "100%", 
-                        height: "32px", 
-                        fontSize: "12px", 
-                        background: "rgba(255, 255, 255, 0.05)", 
-                        border: "1px dashed var(--border-medium)", 
+                      style={{
+                        marginTop: "12px",
+                        width: "100%",
+                        height: "32px",
+                        fontSize: "12px",
+                        background: "rgba(255, 255, 255, 0.05)",
+                        border: "1px dashed var(--border-medium)",
                         color: "var(--text-secondary)",
                         borderRadius: "8px",
                         cursor: "pointer",
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        gap: "6px"
+                        gap: "6px",
                       }}
                     >
-                      <span style={{ fontSize: "14px" }}>+</span> 최상위 노드 추가
+                      <span style={{ fontSize: "14px" }}>+</span> 최상위 노드
+                      추가
                     </button>
                   )}
                 </div>
@@ -2547,43 +2627,73 @@ export const DeviceRegistrationModal = () => {
                 </div>
               </div>
 
-              {contextMenu && (
+              {contextMenu &&
                 createPortal(
-                  <div 
-                    className="drm-context-menu" 
+                  <div
+                    className="drm-context-menu"
                     style={{ top: contextMenu.y, left: contextMenu.x }}
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="drm-context-item" onClick={() => {
+                    <div
+                      className="drm-context-item"
+                      onClick={() => {
                         handleAddSubNode(contextMenu.nodeId);
                         setContextMenu(null);
-                    }}>
-                      ➕ 하위 노드 추가
+                      }}
+                    >
+                      <PlusIcon
+                        style={{ width: 14, height: 14, marginRight: 8 }}
+                      />{" "}
+                      하위 노드 추가
                     </div>
-                    <div className="drm-context-item" onClick={() => {
+                    <div
+                      className="drm-context-item"
+                      onClick={() => {
                         setRenamingId(contextMenu.nodeId);
                         setContextMenu(null);
-                    }}>
-                      ✏️ 이름 변경
+                      }}
+                    >
+                      <PencilIcon
+                        style={{ width: 14, height: 14, marginRight: 8 }}
+                      />{" "}
+                      이름 변경
                     </div>
-                    {nodes.find(n => n.nodeId === contextMenu.nodeId)?.parentId !== null && (
-                      <div className="drm-context-item danger" onClick={() => {
-                          const node = nodes.find(n => n.nodeId === contextMenu.nodeId);
+                    {nodes.find((n) => n.nodeId === contextMenu.nodeId)
+                      ?.parentId !== null && (
+                      <div
+                        className="drm-context-item danger"
+                        onClick={() => {
+                          const node = nodes.find(
+                            (n) => n.nodeId === contextMenu.nodeId,
+                          );
                           if (node) {
                             // Find the element for rect
-                            const target = document.querySelector(`[className*="drm-tree-node"][onClick*="${node.nodeId}"]`);
-                            const rect = target?.getBoundingClientRect() || { left: contextMenu.x, bottom: contextMenu.y } as DOMRect;
-                            setNodeDeleteConfirm({ node, rect: rect as DOMRect });
+                            const target = document.querySelector(
+                              `[className*="drm-tree-node"][onClick*="${node.nodeId}"]`,
+                            );
+                            const rect =
+                              target?.getBoundingClientRect() ||
+                              ({
+                                left: contextMenu.x,
+                                bottom: contextMenu.y,
+                              } as DOMRect);
+                            setNodeDeleteConfirm({
+                              node,
+                              rect: rect as DOMRect,
+                            });
                           }
                           setContextMenu(null);
-                      }}>
-                        🗑️ 삭제
+                        }}
+                      >
+                        <TrashIcon
+                          style={{ width: 14, height: 14, marginRight: 8 }}
+                        />{" "}
+                        삭제
                       </div>
                     )}
                   </div>,
-                  document.body
-                )
-              )}
+                  document.body,
+                )}
 
               {/* Right Content: Equipment List */}
               <div className="drm-content">
@@ -2609,7 +2719,13 @@ export const DeviceRegistrationModal = () => {
                     <div className="drm-header-row">
                       <div className="drm-metadata-cluster">
                         <div className="drm-form-title">
-                          <span className="icon">📦</span> 등록 장비 목록
+                          <span
+                            className="icon"
+                            style={{ display: "flex", alignItems: "center" }}
+                          >
+                            <CubeIcon style={{ width: 16, height: 16 }} />
+                          </span>{" "}
+                          등록 장비 목록
                         </div>
                         <div className="drm-badge highlight">
                           {getNodeName(nodes, nodeFilter)}
@@ -2633,25 +2749,25 @@ export const DeviceRegistrationModal = () => {
                           onChange={handleFileChange}
                         />
                         <button
-                          className="drm-btn-primary"
+                          className="grafana-btn grafana-btn-md grafana-btn-primary"
                           onClick={() => {
                             setEditingDeviceId(null);
                             setIsRegistrationModalOpen(true);
                           }}
                         >
-                          <span>➕</span> 새 장비 등록
+                          <PlusIcon /> 새 장비 등록
                         </button>
                         <button
-                          className="drm-btn-secondary"
+                          className="grafana-btn grafana-btn-md grafana-btn-secondary"
                           onClick={handleExportExcel}
                         >
-                          <span>📥</span> 내보내기
+                          <ArrowUpTrayIcon /> 내보내기
                         </button>
                         <button
-                          className="drm-btn-secondary"
+                          className="grafana-btn grafana-btn-md grafana-btn-secondary"
                           onClick={handleImportExcel}
                         >
-                          <span>📤</span> 일괄 등록
+                          <ArrowDownTrayIcon /> 일괄 등록
                         </button>
                       </div>
                     </div>
@@ -2799,26 +2915,27 @@ export const DeviceRegistrationModal = () => {
                               </td>
                               <td style={{ textAlign: "center" }}>
                                 <button
-                                  className="drm-edit-btn"
+                                  className="grafana-btn grafana-btn-sm grafana-btn-tertiary"
                                   title="수정"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleEditClick(device);
                                   }}
                                 >
-                                  ✏️
+                                  <PencilIcon />
                                 </button>
                               </td>
                               <td style={{ textAlign: "center" }}>
                                 <button
-                                  className="drm-delete-btn"
+                                  className="grafana-btn grafana-btn-sm grafana-btn-tertiary"
+                                  style={{ color: "var(--severity-critical)" }}
                                   title="삭제"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleDeleteClick(e, device);
                                   }}
                                 >
-                                  🗑️
+                                  <TrashIcon />
                                 </button>
                               </td>
                             </tr>

@@ -10,6 +10,12 @@ import { ModelImporter } from "./components/ModelImporter";
 import { DeviceRegistrationModal } from "./components/DeviceRegistrationModal";
 import { Breadcrumb } from "./components/Breadcrumb";
 import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
+import {
+  ServerStackIcon,
+  ArrowUpTrayIcon,
+  ArrowDownTrayIcon,
+  SparklesIcon,
+} from "./components/Icons";
 import { useStore } from "./store/useStore";
 import {
   sampleRacks,
@@ -223,11 +229,14 @@ function App() {
           />
           <span
             style={{
-              fontWeight: 600,
+              fontWeight: 700,
               fontSize: "var(--font-size-sm)",
+              lineHeight: 1,
               color: isEditMode
                 ? "var(--severity-success-text)"
                 : "var(--text-secondary)",
+              display: "flex",
+              alignItems: "center"
             }}
           >
             {isEditMode ? "Edit Mode: ON" : "Edit Mode: OFF"}
@@ -247,19 +256,19 @@ function App() {
                 Std:
               </span>
               <button
-                className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+                className="grafana-btn grafana-btn-md grafana-btn-secondary grafana-btn-compact"
                 onClick={() => addRack(24)}
               >
                 24
               </button>
               <button
-                className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+                className="grafana-btn grafana-btn-md grafana-btn-secondary grafana-btn-compact"
                 onClick={() => addRack(32)}
               >
                 32
               </button>
               <button
-                className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+                className="grafana-btn grafana-btn-md grafana-btn-secondary grafana-btn-compact"
                 onClick={() => addRack(48)}
               >
                 48
@@ -277,19 +286,19 @@ function App() {
                 Wide:
               </span>
               <button
-                className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+                className="grafana-btn grafana-btn-md grafana-btn-secondary grafana-btn-compact"
                 onClick={() => addRack(24, undefined, 1.0)}
               >
                 24
               </button>
               <button
-                className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+                className="grafana-btn grafana-btn-md grafana-btn-secondary grafana-btn-compact"
                 onClick={() => addRack(32, undefined, 1.0)}
               >
                 32
               </button>
               <button
-                className="grafana-btn grafana-btn-secondary grafana-btn-compact"
+                className="grafana-btn grafana-btn-md grafana-btn-secondary grafana-btn-compact"
                 onClick={() => addRack(48, undefined, 1.0)}
               >
                 48
@@ -300,21 +309,16 @@ function App() {
 
             {/* Device Registration */}
             <button
-              className="grafana-btn grafana-btn-primary"
+              className="grafana-btn grafana-btn-md grafana-btn-primary"
               onClick={(e) => {
                 e.stopPropagation();
                 // Close other modals
                 setImportExportModalRackId(null);
                 setDeviceRegistrationModalOpen(true);
               }}
-              title="장비"
-              style={{
-                fontSize: "var(--font-size-sm)",
-                height: "32px",
-                padding: "0 12px",
-              }}
+              title="장비 관리"
             >
-              📋 장비
+              <ServerStackIcon />장비
             </button>
 
             <div className="grafana-toolbar-divider" />
@@ -322,31 +326,21 @@ function App() {
             {/* Unified Room Operations */}
             <div className="grafana-toolbar-group">
               <button
-                className="grafana-btn grafana-btn-primary"
+                className="grafana-btn grafana-btn-md grafana-btn-secondary"
                 onClick={() => {
                   setDeviceRegistrationModalOpen(false);
                   setImportExportModalRackId("all");
                 }}
                 title="Export Room Data"
-                style={{
-                  fontSize: "var(--font-size-sm)",
-                  height: "32px",
-                  padding: "0 12px",
-                }}
               >
-                Export
+                <ArrowUpTrayIcon />Export
               </button>
               <button
-                className="grafana-btn grafana-btn-secondary"
+                className="grafana-btn grafana-btn-md grafana-btn-secondary"
                 title="Import Room Data"
-                style={{
-                  fontSize: "var(--font-size-sm)",
-                  height: "32px",
-                  padding: "0 12px",
-                }}
                 onClick={handleToolbarImportClick}
               >
-                Import
+                <ArrowDownTrayIcon />Import
               </button>
               <input
                 type="file"
@@ -362,15 +356,10 @@ function App() {
               />
 
               <button
-                className="grafana-btn grafana-btn-secondary"
+                className="grafana-btn grafana-btn-md grafana-btn-tertiary"
                 onClick={loadSample}
-                style={{
-                  fontSize: "var(--font-size-sm)",
-                  height: "32px",
-                  padding: "0 12px",
-                }}
               >
-                Sample
+                <SparklesIcon /> Sample
               </button>
             </div>
           </>

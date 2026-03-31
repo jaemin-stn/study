@@ -1,4 +1,10 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  useMemo,
+} from "react";
 import { useStore } from "../store/useStore";
 import type { HierarchyNode } from "../types";
 import {
@@ -135,25 +141,6 @@ const TREE_STYLES = `
   border-radius: 10px;
   flex-shrink: 0;
   font-weight: 500;
-}
-.tree-add-btn {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-weak);
-  color: var(--text-secondary);
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  border-radius: 6px;
-  transition: all 0.2s;
-}
-.tree-add-btn:hover {
-  color: var(--theme-primary);
-  background: var(--hover-bg);
-  border-color: var(--theme-primary);
-  transform: scale(1.05);
 }
 .tree-inline-input {
   flex: 1;
@@ -369,13 +356,15 @@ input:checked + .slider:before {
 
 `;
 
-const NODE_ICONS: Record<string, string> = {
-  root: "🏢",
-  group: "📦",
-  site: "📍",
-  room: "🚪",
-  zone: "📐",
-};
+import {
+  Squares2x2Icon,
+  ChevronDownIcon,
+  BuildingOfficeIcon,
+  FolderIcon,
+  PlusIcon,
+  PencilIcon,
+  TrashIcon,
+} from "./Icons";
 
 // ─── Tree Node Component ─────────────────────────────────────────────────────
 
@@ -396,9 +385,17 @@ interface TreeNodeItemProps {
   draggedNodeId: string | null;
   dragOverNodeId: string | null;
   onDragStart: (nodeId: string) => void;
-  onDragOver: (e: React.DragEvent, nodeId: string, position: "before" | "after" | "inside") => void;
+  onDragOver: (
+    e: React.DragEvent,
+    nodeId: string,
+    position: "before" | "after" | "inside",
+  ) => void;
   onDragLeave: () => void;
-  onDrop: (e: React.DragEvent, targetNodeId: string, position: "before" | "after" | "inside") => void;
+  onDrop: (
+    e: React.DragEvent,
+    targetNodeId: string,
+    position: "before" | "after" | "inside",
+  ) => void;
 }
 
 const TreeNodeItem = ({
@@ -427,18 +424,23 @@ const TreeNodeItem = ({
   const isSelected = activeNodeId === node.nodeId;
   const count = equipmentCounts.get(node.nodeId) || 0;
 
-  const [dropPos, setDropPos] = useState<"before" | "after" | "inside" | null>(null);
+  const [dropPos, setDropPos] = useState<"before" | "after" | "inside" | null>(
+    null,
+  );
 
   const handleDragOver = (e: React.DragEvent) => {
     if (!isEditMode || draggedNodeId === node.nodeId) return;
     e.preventDefault();
-    
+
     // Safety: Cannot drop on own children
     const getDescendantIds = (id: string): string[] => {
-      const children = nodes.filter(n => n.parentId === id);
-      return [id, ...children.flatMap(c => getDescendantIds(c.nodeId))];
-    }
-    if (draggedNodeId && getDescendantIds(draggedNodeId).includes(node.nodeId)) {
+      const children = nodes.filter((n) => n.parentId === id);
+      return [id, ...children.flatMap((c) => getDescendantIds(c.nodeId))];
+    };
+    if (
+      draggedNodeId &&
+      getDescendantIds(draggedNodeId).includes(node.nodeId)
+    ) {
       setDropPos(null);
       return;
     }
@@ -521,7 +523,17 @@ const TreeNodeItem = ({
         </span>
 
         {/* Icon */}
-        <span className="tree-node-icon">{NODE_ICONS[node.type] || "📁"}</span>
+        <span className="tree-node-icon">
+          {node.parentId === null ? (
+            <BuildingOfficeIcon
+              style={{ width: 14, height: 14, color: isSelected ? "var(--theme-primary)" : "var(--text-secondary)" }}
+            />
+          ) : (
+            <FolderIcon
+              style={{ width: 14, height: 14, color: isSelected ? "var(--theme-primary)" : "var(--text-secondary)" }}
+            />
+          )}
+        </span>
 
         {/* Name */}
         <span className="tree-node-name">{node.name}</span>
@@ -769,7 +781,11 @@ export const HierarchyTree = () => {
   }, []);
 
   const handleDragOver = useCallback(
-    (e: React.DragEvent, nodeId: string, _position: "before" | "after" | "inside") => {
+    (
+      e: React.DragEvent,
+      nodeId: string,
+      _position: "before" | "after" | "inside",
+    ) => {
       e.preventDefault();
       if (draggedNodeId === nodeId) return;
       setDragOverNodeId(nodeId);
@@ -782,7 +798,11 @@ export const HierarchyTree = () => {
   }, []);
 
   const handleDrop = useCallback(
-    (e: React.DragEvent, targetNodeId: string, position: "before" | "after" | "inside") => {
+    (
+      e: React.DragEvent,
+      targetNodeId: string,
+      position: "before" | "after" | "inside",
+    ) => {
       e.preventDefault();
       const sourceId = draggedNodeId;
       setDraggedNodeId(null);
@@ -831,7 +851,16 @@ export const HierarchyTree = () => {
                 gap: "8px",
               }}
             >
-              <span style={{ fontSize: "18px" }}>📂</span>
+              <span
+                style={{
+                  fontSize: "18px",
+                  display: "flex",
+                  alignItems: "center",
+                  color: "var(--theme-primary)",
+                }}
+              >
+                <Squares2x2Icon style={{ width: 18, height: 18 }} />
+              </span>
               <span style={{ fontWeight: 800 }}>구조</span>
             </span>
             {isCollapsed && breadcrumbPath.length > 0 && (
@@ -859,7 +888,7 @@ export const HierarchyTree = () => {
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               {isEditMode && (
                 <button
-                  className="tree-add-btn"
+                  className="grafana-btn grafana-btn-sm grafana-btn-secondary"
                   title="최상위 노드 추가"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -875,46 +904,24 @@ export const HierarchyTree = () => {
                     if (isCollapsed) setIsCollapsed(false);
                   }}
                 >
-                  <svg
-                    viewBox="0 0 24 24"
-                    width="14"
-                    height="14"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="12" y1="5" x2="12" y2="19"></line>
-                    <line x1="5" y1="12" x2="19" y2="12"></line>
-                  </svg>
+                  <PlusIcon />
                 </button>
               )}
 
               <button
-                className="tree-add-btn"
+                className="grafana-btn grafana-btn-sm grafana-btn-secondary"
                 title={isCollapsed ? "펼치기" : "접기"}
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsCollapsed(!isCollapsed);
                 }}
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  width="14"
-                  height="14"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  fill="none"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+                <ChevronDownIcon
                   style={{
                     transform: isCollapsed ? "rotate(0deg)" : "rotate(180deg)",
                     transition: "transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
                   }}
-                >
-                  <polyline points="6 9 12 15 18 9"></polyline>
-                </svg>
+                />
               </button>
             </div>
           </div>
@@ -1080,7 +1087,7 @@ export const HierarchyTree = () => {
                 fontWeight: 600,
               }}
             >
-              노드 이름 변경
+              <PencilIcon style={{ width: 14, height: 14 }} /> 노드 이름 변경
             </div>
             <input
               ref={renameInputRef}
@@ -1121,15 +1128,18 @@ export const HierarchyTree = () => {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="tree-context-item" onClick={handleAddChild}>
-            ➕ 하위 노드 추가
+            <PlusIcon style={{ width: 14, height: 14, marginRight: 8 }} /> 하위
+            노드 추가
           </div>
           <div className="tree-context-item" onClick={handleRenameStart}>
-            ✏️ 이름 변경
+            <PencilIcon style={{ width: 14, height: 14, marginRight: 8 }} />{" "}
+            이름 변경
           </div>
           {nodes.find((n) => n.nodeId === contextMenu.nodeId)?.parentId !==
             null && (
             <div className="tree-context-item danger" onClick={handleDelete}>
-              🗑️ 삭제
+              <TrashIcon style={{ width: 14, height: 14, marginRight: 8 }} />{" "}
+              삭제
             </div>
           )}
         </div>

@@ -52,7 +52,7 @@ const TREE_STYLES = `
   padding: 12px 16px;
   background: var(--bg-primary);
   border-bottom: 1px solid var(--border-weak);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text-primary);
   letter-spacing: -0.01em;
@@ -123,15 +123,23 @@ const TREE_STYLES = `
   transform: rotate(90deg);
 }
 .tree-node-icon {
-  font-size: 14px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
   opacity: 0.9;
+  transform: translateY(1.5px);
 }
 .tree-node-name {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: normal;
+  display: flex;
+  align-items: center;
 }
 .tree-node-count {
   font-size: 10px;
@@ -190,6 +198,10 @@ const TREE_STYLES = `
 .tree-context-item:hover {
   background: var(--hover-bg);
   color: var(--text-primary);
+}
+.tree-context-item svg {
+  width: 16px !important;
+  height: 16px !important;
 }
 .tree-context-item.danger {
   color: var(--severity-critical);
@@ -1072,22 +1084,23 @@ export const HierarchyTree = () => {
               transform: "translate(-50%, -50%)",
               background: "var(--bg-primary)",
               border: "1px solid var(--border-medium)",
-              borderRadius: "var(--radius-md)",
-              padding: "16px",
+              borderRadius: "12px",
+              padding: "24px",
               boxShadow: "var(--elevation-3)",
               zIndex: 10001,
+              width: "280px",
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div
               style={{
-                fontSize: "var(--font-size-sm)",
-                color: "var(--text-secondary)",
-                marginBottom: "8px",
-                fontWeight: 600,
+                fontSize: "15px",
+                color: "var(--text-primary)",
+                fontWeight: 700,
+                marginBottom: "16px",
               }}
             >
-              <PencilIcon style={{ width: 14, height: 14 }} /> 노드 이름 변경
+              노드 이름 변경
             </div>
             <input
               ref={renameInputRef}
@@ -1098,19 +1111,19 @@ export const HierarchyTree = () => {
                 if (e.key === "Enter") handleRenameConfirm();
                 if (e.key === "Escape") setRenamingId(null);
               }}
-              style={{ width: "180px", padding: "6px 10px" }}
+              style={{ width: "100%", padding: "8px 12px", boxSizing: "border-box" }}
             />
-            <div style={{ display: "flex", gap: "6px", marginTop: "10px" }}>
+            <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
               <button
                 className="grafana-btn grafana-btn-primary"
-                style={{ flex: 1, padding: "5px", fontSize: "12px" }}
+                style={{ flex: 1, padding: "8px", fontSize: "13px" }}
                 onClick={handleRenameConfirm}
               >
                 확인
               </button>
               <button
                 className="grafana-btn grafana-btn-secondary"
-                style={{ flex: 1, padding: "5px", fontSize: "12px" }}
+                style={{ flex: 1, padding: "8px", fontSize: "13px" }}
                 onClick={() => setRenamingId(null)}
               >
                 취소
@@ -1128,17 +1141,17 @@ export const HierarchyTree = () => {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="tree-context-item" onClick={handleAddChild}>
-            <PlusIcon style={{ width: 14, height: 14, marginRight: 8 }} /> 하위
+            <PlusIcon style={{ marginRight: 8 }} /> 하위
             노드 추가
           </div>
           <div className="tree-context-item" onClick={handleRenameStart}>
-            <PencilIcon style={{ width: 14, height: 14, marginRight: 8 }} />{" "}
+            <PencilIcon style={{ marginRight: 8 }} />{" "}
             이름 변경
           </div>
           {nodes.find((n) => n.nodeId === contextMenu.nodeId)?.parentId !==
             null && (
             <div className="tree-context-item danger" onClick={handleDelete}>
-              <TrashIcon style={{ width: 14, height: 14, marginRight: 8 }} />{" "}
+              <TrashIcon style={{ marginRight: 8 }} />{" "}
               삭제
             </div>
           )}

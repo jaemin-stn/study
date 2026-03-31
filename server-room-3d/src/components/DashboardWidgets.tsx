@@ -2,7 +2,7 @@ import { useState, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import type { ErrorLevel } from "../types";
 import { getNodeName, GWACHEON_NODE_ID, DAEJEON_NODE_ID } from "../utils/nodeUtils";
-import { ExclamationTriangleIcon, FireIcon } from "./Icons";
+import { ExclamationCircleIcon, ChartBarIcon } from "./Icons";
 
 // Error item for table display
 interface ErrorItem {
@@ -151,8 +151,8 @@ export const DashboardWidgets = () => {
       <div className="grafana-panel">
         <div className="grafana-panel-header">
           <h3 className="grafana-panel-title">
-            <span style={{ fontSize: "16px", display: "flex", color: "var(--severity-critical)" }}>
-              <ExclamationTriangleIcon style={{ width: 18, height: 18 }} />
+            <span style={{ fontSize: "18px", display: "flex", color: "var(--severity-critical)", alignSelf: "center", marginRight: "8px" }}>
+              <ExclamationCircleIcon style={{ width: 20, height: 20 }} />
             </span>
             {activeNodeName} Error Summary
           </h3>
@@ -280,8 +280,8 @@ export const DashboardWidgets = () => {
       <div className="grafana-panel">
         <div className="grafana-panel-header">
           <h3 className="grafana-panel-title">
-            <span style={{ fontSize: "16px", display: "flex", color: "var(--severity-warning)" }}>
-              <FireIcon style={{ width: 18, height: 18 }} />
+            <span style={{ fontSize: "16px", display: "flex", color: "#6366f1", alignSelf: "center", marginRight: "8px" }}>
+              <ChartBarIcon style={{ width: 18, height: 18 }} />
             </span>
             {activeNodeName} Sensors
           </h3>

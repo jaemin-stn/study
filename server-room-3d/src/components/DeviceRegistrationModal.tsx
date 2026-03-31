@@ -10,19 +10,19 @@ import {
   Squares2x2Icon,
   BuildingOfficeIcon,
   FolderIcon,
-  ServerStackIcon,
   PlusIcon,
   ArrowUpTrayIcon,
   ArrowDownTrayIcon,
   TrashIcon,
   PencilIcon,
-  CubeIcon,
   SparklesIcon,
   CloudArrowUpIcon,
+  MagnifyingGlassIcon,
+  ArchiveBoxIcon,
 } from "./Icons";
 import { useStore } from "../store/useStore";
 import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
-import type { VendorName } from "../types";
+import type { VendorName, HierarchyNode } from "../types";
 import {
   exportRegisteredDevicesToExcel,
   parseRegisteredDevicesFromExcel,
@@ -34,8 +34,6 @@ import {
   getSubtreeEquipmentCount,
   getSubtreeNodeIds,
 } from "../utils/nodeUtils";
-import type { HierarchyNode } from "../types";
-
 const VENDORS: VendorName[] = [
   "코위버PTN",
   "CISCO",
@@ -53,7 +51,6 @@ const isValidIP = (ip: string) =>
 const isValidMAC = (mac: string) =>
   /^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/.test(mac);
 
-// CSS for this modal
 const MODAL_STYLES = `
 .drm-overlay {
   position: fixed;
@@ -85,6 +82,53 @@ const MODAL_STYLES = `
 @keyframes drm-zoom-in {
   from { transform: scale(0.96) translateY(20px); opacity: 0; }
   to { transform: scale(1) translateY(0); opacity: 1; }
+}
+.drm-table .grafana-btn-sm svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+.drm-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0,0,0,0.5);
+}
+.drm-confirm-popover {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9001;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-medium);
+  border-radius: 16px;
+  padding: 32px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  width: 400px;
+  animation: drm-modal-pop 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes drm-modal-pop {
+  from { transform: translate(-50%, -44%) scale(0.92); opacity: 0; }
+  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+.drm-confirm-popover p {
+  margin: 0 0 16px 0;
+  font-size: 14px;
+  color: var(--text-primary);
+}
+.drm-placement-warn {
+  font-size: 11px;
+  color: var(--severity-critical);
+  background: rgba(239, 68, 68, 0.1);
+  padding: 8px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+.drm-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
 }
 .drm-header {
   display: flex;
@@ -183,8 +227,10 @@ const MODAL_STYLES = `
   left: 10px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 14px;
+  width: 16px;
+  height: 16px;
   color: var(--text-tertiary);
+  pointer-events: none;
 }
 .drm-sidebar-content {
   flex: 1;
@@ -210,7 +256,7 @@ const MODAL_STYLES = `
   font-size: 13px;
   color: var(--text-secondary);
   transition: all 0.15s;
-  gap: 6px;
+  gap: 8px;
   border-left: 3px solid transparent;
 }
 .drm-tree-node:hover {
@@ -237,13 +283,22 @@ const MODAL_STYLES = `
   transform: rotate(90deg);
 }
 .drm-tree-node-icon {
-  font-size: 14px;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transform: translateY(1.5px);
 }
 .drm-tree-node-name {
   flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  display: flex;
+  align-items: center;
+  line-height: normal;
 }
 .drm-tree-node-count {
   font-size: 10px;
@@ -454,11 +509,12 @@ const MODAL_STYLES = `
   padding: 12px;
   border-bottom: 1px solid var(--border-weak);
   background: var(--bg-secondary);
+  position: relative;
 }
 .drm-node-picker-search input {
   width: 100%;
   height: 32px;
-  padding: 0 10px 0 30px;
+  padding: 0 10px 0 32px;
   border: 1px solid var(--border-medium);
   border-radius: 6px;
   font-size: 12px;
@@ -468,10 +524,13 @@ const MODAL_STYLES = `
 }
 .drm-node-picker-search .search-icon {
   position: absolute;
-  left: 22px;
-  top: 21px;
-  font-size: 12px;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
   color: var(--text-tertiary);
+  pointer-events: none;
 }
 .drm-node-picker-tree {
   max-height: 280px;
@@ -611,10 +670,11 @@ const MODAL_STYLES = `
 }
 .drm-search-icon {
   position: absolute;
-  left: 16px;
+  left: 12px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 16px;
+  width: 18px;
+  height: 18px;
   color: var(--text-tertiary);
   pointer-events: none;
 }
@@ -701,6 +761,22 @@ const MODAL_STYLES = `
   height: 18px;
   cursor: pointer;
   accent-color: var(--theme-primary);
+  margin: 0;
+  display: block;
+}
+.drm-table th.col-check,
+.drm-table td.col-check {
+  padding: 0;
+  width: 44px;
+}
+.drm-table th.col-check > div,
+.drm-table td.col-check > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 100%;
+  min-height: 44px;
 }
 
 .drm-group-tag {
@@ -1116,12 +1192,7 @@ interface ToastState {
   action?: "export" | "import" | "add" | "delete";
 }
 
-interface DeleteConfirm {
-  id: string;
-  deviceName: string;
-  placedCount: number;
-  rect: DOMRect;
-}
+
 
 const TreeNodeItem = ({
   node,
@@ -1474,7 +1545,7 @@ const NodePicker = ({
           onClick={(e) => e.stopPropagation()}
         >
           <div className="drm-node-picker-search">
-            <span className="search-icon">🔍</span>
+            <MagnifyingGlassIcon className="search-icon" style={{ width: 14, height: 14 }} />
             <input
               type="text"
               placeholder="노드 검색..."
@@ -1874,11 +1945,11 @@ export const DeviceRegistrationModal = () => {
   const setOpen = useStore((s) => s.setDeviceRegistrationModalOpen);
   const registeredDevices = useStore((s) => s.registeredDevices);
   const racks = useStore((s) => s.racks);
-  const removeRegisteredDevice = useStore((s) => s.removeRegisteredDevice);
   const upsertRegisteredDevices = useStore((s) => s.upsertRegisteredDevices);
   const activeNodeId = useStore((s) => s.activeNodeId);
   const nodes = useStore((s) => s.nodes);
   const locateDevice = useStore((s) => s.locateDevice);
+  const setDeviceDeleteConfirm = useStore((s) => s.setDeviceDeleteConfirm);
 
   // Table state
   const [search, setSearch] = useState("");
@@ -1917,9 +1988,6 @@ export const DeviceRegistrationModal = () => {
   const [toast, setToast] = useState<ToastState | null>(null);
   const [editingDeviceId, setEditingDeviceId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirm | null>(
-    null,
-  );
 
   const showToast = useCallback(
     (
@@ -2213,7 +2281,7 @@ export const DeviceRegistrationModal = () => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  if (!isOpen) return null;
+  if (!isOpen && !nodeDeleteConfirm) return null;
 
   const handleEditClick = (device: (typeof registeredDevices)[0]) => {
     setEditingDeviceId(device.id);
@@ -2321,31 +2389,18 @@ export const DeviceRegistrationModal = () => {
     e: React.MouseEvent<HTMLButtonElement>,
     device: (typeof registeredDevices)[0],
   ) => {
-    const rect = (e.target as HTMLElement).getBoundingClientRect();
-    // Count how many placed devices reference this registered device
+    e.stopPropagation();
     let placedCount = 0;
     for (const rack of racks) {
       placedCount += rack.devices.filter(
         (d) => d.registeredDeviceId === device.id,
       ).length;
     }
-    setDeleteConfirm({
+    setDeviceDeleteConfirm({
       id: device.id,
       deviceName: device.deviceName || device.modelName,
       placedCount,
-      rect,
     });
-  };
-
-  const confirmDelete = () => {
-    if (!deleteConfirm) return;
-    removeRegisteredDevice(deleteConfirm.id);
-    showToast(
-      `장비 "${deleteConfirm.deviceName}" 이(가) 삭제되었습니다.`,
-      "success",
-      "delete",
-    );
-    setDeleteConfirm(null);
   };
 
   const handleLocateDevice = (device: (typeof registeredDevices)[0]) => {
@@ -2367,136 +2422,18 @@ export const DeviceRegistrationModal = () => {
     <>
       <ModalStyles />
 
-      {/* Delete confirmation popover */}
-      {deleteConfirm &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <>
-            <div
-              className="drm-confirm-overlay"
-              onClick={() => setDeleteConfirm(null)}
-            />
-            <div
-              className="drm-confirm-popover"
-              style={{
-                top: Math.min(
-                  deleteConfirm.rect.bottom + 8,
-                  window.innerHeight - 200,
-                ),
-                left: Math.min(
-                  deleteConfirm.rect.left,
-                  window.innerWidth - 300,
-                ),
-              }}
-            >
-              <p>
-                <strong>"{deleteConfirm.deviceName}"</strong>을(를)
-                삭제하시겠습니까?
-              </p>
-              {deleteConfirm.placedCount > 0 && (
-                <div className="drm-placement-warn">
-                  ⚠️ 이 장비는 현재 {deleteConfirm.placedCount}개 랙 슬롯에
-                  배치되어 있습니다. 삭제하면 함께 제거됩니다.
-                </div>
-              )}
-              <div className="drm-confirm-actions">
-                <button
-                  className="grafana-btn grafana-btn-secondary"
-                  style={{
-                    fontSize: "var(--font-size-sm)",
-                    padding: "4px 12px",
-                  }}
-                  onClick={() => setDeleteConfirm(null)}
-                >
-                  취소
-                </button>
-                <button
-                  className="grafana-btn grafana-btn-destructive"
-                  style={{
-                    fontSize: "var(--font-size-sm)",
-                    padding: "4px 12px",
-                  }}
-                  onClick={confirmDelete}
-                >
-                  삭제
-                </button>
-              </div>
-            </div>
-          </>,
-          document.body,
-        )}
-
-      {/* Node Delete confirmation popover */}
-      {nodeDeleteConfirm &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <>
-            <div
-              className="drm-confirm-overlay"
-              style={{ position: "fixed", inset: 0, zIndex: 3000 }}
-              onClick={() => setNodeDeleteConfirm(null)}
-            />
-            <div
-              className="drm-confirm-popover"
-              style={{
-                position: "fixed",
-                zIndex: 3001,
-                background: "var(--bg-primary)",
-                border: "1px solid var(--border-medium)",
-                boxShadow: "var(--elevation-3)",
-                padding: "16px",
-                borderRadius: "8px",
-                top: Math.min(
-                  nodeDeleteConfirm.rect.bottom + 8,
-                  window.innerHeight - 100,
-                ),
-                left: Math.min(
-                  nodeDeleteConfirm.rect.left,
-                  window.innerWidth - 300,
-                ),
-              }}
-            >
-              <p style={{ margin: "0 0 12px 0", fontSize: "13px" }}>
-                노드 <strong>"{nodeDeleteConfirm.node.name}"</strong>을(를)
-                삭제하시겠습니까?
-              </p>
-              <div
-                className="drm-confirm-actions"
-                style={{
-                  display: "flex",
-                  gap: "8px",
-                  justifyContent: "flex-end",
-                }}
-              >
-                <button
-                  className="grafana-btn grafana-btn-secondary"
-                  style={{ fontSize: "12px", padding: "4px 12px" }}
-                  onClick={() => setNodeDeleteConfirm(null)}
-                >
-                  취소
-                </button>
-                <button
-                  className="grafana-btn grafana-btn-destructive"
-                  style={{ fontSize: "12px", padding: "4px 12px" }}
-                  onClick={confirmNodeDelete}
-                >
-                  삭제
-                </button>
-              </div>
-            </div>
-          </>,
-          document.body,
-        )}
 
       {/* Modal */}
-      {createPortal(
-        <div className="drm-overlay" onClick={() => setOpen(false)}>
+      {isOpen && createPortal(
+        <div className="drm-overlay" onClick={() => {
+          if (!nodeDeleteConfirm) setOpen(false);
+        }}>
           <div className="drm-modal" onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div className="drm-header">
               <h2>
                 <div className="icon-wrap">
-                  <ServerStackIcon style={{ width: 18, height: 18 }} />
+                  <ArchiveBoxIcon style={{ width: 20, height: 20 }} />
                 </div>
                 장비 관리
               </h2>
@@ -2537,20 +2474,25 @@ export const DeviceRegistrationModal = () => {
                   >
                     <span
                       style={{
-                        fontSize: "18px",
                         display: "flex",
                         alignItems: "center",
+                        justifyContent: "center",
+                        width: "24px",
+                        height: "24px",
+                        borderRadius: "6px",
+                        background: "rgba(110, 159, 255, 0.1)",
                         color: "var(--theme-primary)",
+                        transform: "translateY(1px)",
                       }}
                     >
-                      <Squares2x2Icon style={{ width: 18, height: 18 }} />
+                      <Squares2x2Icon style={{ width: 16, height: 16 }} />
                     </span>
-                    <span style={{ fontWeight: 800, fontSize: "14px", color: "var(--text-primary)" }}>
+                    <span style={{ fontWeight: 800, fontSize: "14px", color: "var(--text-primary)", display: "flex", alignItems: "center", height: "24px" }}>
                       구조
                     </span>
                   </div>
                   <div className="drm-sidebar-search-wrap">
-                    <span className="drm-sidebar-search-icon">🔍</span>
+                    <MagnifyingGlassIcon className="drm-sidebar-search-icon" style={{ width: 16, height: 16 }} />
                     <input
                       type="text"
                       className="drm-sidebar-search"
@@ -2654,7 +2596,7 @@ export const DeviceRegistrationModal = () => {
                       }}
                     >
                       <PencilIcon
-                        style={{ width: 14, height: 14, marginRight: 8 }}
+                        style={{ width: 16, height: 16, marginRight: 8 }}
                       />{" "}
                       이름 변경
                     </div>
@@ -2723,7 +2665,7 @@ export const DeviceRegistrationModal = () => {
                             className="icon"
                             style={{ display: "flex", alignItems: "center" }}
                           >
-                            <CubeIcon style={{ width: 16, height: 16 }} />
+                            <ArchiveBoxIcon style={{ width: 18, height: 18 }} />
                           </span>{" "}
                           등록 장비 목록
                         </div>
@@ -2776,7 +2718,7 @@ export const DeviceRegistrationModal = () => {
                     <div className="drm-header-row">
                       <div className="drm-search-container">
                         <div className="drm-search-wrap">
-                          <span className="drm-search-icon">🔍</span>
+                          <MagnifyingGlassIcon className="drm-search-icon" style={{ width: 18, height: 18 }} />
                           <input
                             className="drm-search-input"
                             type="text"
@@ -2843,14 +2785,16 @@ export const DeviceRegistrationModal = () => {
                         <thead>
                           <tr>
                             <th className="col-check">
-                              <input
-                                type="checkbox"
-                                checked={isAllSelected}
-                                onChange={(e) => {
-                                  e.stopPropagation();
-                                  handleSelectAll(e.target.checked);
-                                }}
-                              />
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isAllSelected}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    handleSelectAll(e.target.checked);
+                                  }}
+                                />
+                              </div>
                             </th>
                             <th className="col-group">그룹</th>
                             <th className="col-name">장비명</th>
@@ -2868,18 +2812,20 @@ export const DeviceRegistrationModal = () => {
                               key={device.id}
                               onClick={() => handleLocateDevice(device)}
                             >
-                              <td style={{ textAlign: "center" }}>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedIds.has(device.id)}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    handleSelectRow(
-                                      device.id,
-                                      e.target.checked,
-                                    );
-                                  }}
-                                />
+                              <td className="col-check">
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIds.has(device.id)}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      handleSelectRow(
+                                        device.id,
+                                        e.target.checked,
+                                      );
+                                    }}
+                                  />
+                                </div>
                               </td>
                               <td>
                                 <span className="drm-group-tag group-gwacheon">
@@ -2930,10 +2876,7 @@ export const DeviceRegistrationModal = () => {
                                   className="grafana-btn grafana-btn-sm grafana-btn-tertiary"
                                   style={{ color: "var(--severity-critical)" }}
                                   title="삭제"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteClick(e, device);
-                                  }}
+                                  onClick={(e) => handleDeleteClick(e, device)}
                                 >
                                   <TrashIcon />
                                 </button>
@@ -3037,6 +2980,51 @@ export const DeviceRegistrationModal = () => {
               </div>
             </div>
           </div>,
+          document.body,
+        )}
+
+      {/* Node Delete confirmation popover */}
+      {nodeDeleteConfirm &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <>
+            <div
+              className="drm-confirm-overlay"
+              onClick={(e) => { e.stopPropagation(); setNodeDeleteConfirm(null); }}
+            />
+            <div
+              className="drm-confirm-popover"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p style={{ margin: "0 0 12px 0", fontSize: "13px" }}>
+                노드 <strong>"{nodeDeleteConfirm.node.name}"</strong>을(를)
+                삭제하시겠습니까?
+              </p>
+              <div
+                className="drm-confirm-actions"
+                style={{
+                  display: "flex",
+                  gap: "8px",
+                  justifyContent: "flex-end",
+                }}
+              >
+                <button
+                  className="grafana-btn grafana-btn-secondary"
+                  style={{ fontSize: "12px", padding: "4px 12px" }}
+                  onClick={() => setNodeDeleteConfirm(null)}
+                >
+                  취소
+                </button>
+                <button
+                  className="grafana-btn grafana-btn-destructive"
+                  style={{ fontSize: "12px", padding: "4px 12px" }}
+                  onClick={confirmNodeDelete}
+                >
+                  삭제
+                </button>
+              </div>
+            </div>
+          </>,
           document.body,
         )}
     </>

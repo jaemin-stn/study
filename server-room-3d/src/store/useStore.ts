@@ -29,6 +29,8 @@ export interface AppState {
   hoveredRackId: string | null;
   importExportModalRackId: string | null;
   deviceRegistrationModalOpen: boolean;
+  deviceDeleteConfirm: { id: string; deviceName: string; placedCount: number } | null;
+  setDeviceDeleteConfirm: (confirm: { id: string; deviceName: string; placedCount: number } | null) => void;
   highlightedDeviceId: string | null;
   blinkTimeoutId: number | null; // Track current blink timer to clear it if needed
   showEquipmentInTree: boolean;
@@ -318,6 +320,8 @@ export const useStore = create<AppState>((set, get) => ({
   layouts: {},
   importExportModalRackId: null,
   deviceRegistrationModalOpen: false,
+  deviceDeleteConfirm: null,
+  setDeviceDeleteConfirm: (confirm) => set({ deviceDeleteConfirm: confirm }),
   highlightedDeviceId: null,
   blinkTimeoutId: null,
   showEquipmentInTree: false,

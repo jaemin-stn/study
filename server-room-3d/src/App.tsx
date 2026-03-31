@@ -11,10 +11,10 @@ import { DeviceRegistrationModal } from "./components/DeviceRegistrationModal";
 import { Breadcrumb } from "./components/Breadcrumb";
 import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
 import {
-  ServerStackIcon,
   ArrowUpTrayIcon,
   ArrowDownTrayIcon,
   SparklesIcon,
+  ArchiveBoxIcon,
 } from "./components/Icons";
 import { useStore } from "./store/useStore";
 import {
@@ -23,6 +23,87 @@ import {
   sampleNodes,
 } from "./utils/storage";
 import { createPortal } from "react-dom";
+
+/* ---------- Device Delete Confirmation Modal (top-level, z=99999) ---------- */
+const DeviceDeleteConfirmModal = () => {
+  const confirm = useStore((s) => s.deviceDeleteConfirm);
+  const setConfirm = useStore((s) => s.setDeviceDeleteConfirm);
+  const removeRegisteredDevice = useStore((s) => s.removeRegisteredDevice);
+  const setOpen = useStore((s) => s.setDeviceRegistrationModalOpen);
+
+  if (!confirm) return null;
+
+  const handleConfirm = () => {
+    removeRegisteredDevice(confirm.id);
+    setConfirm(null);
+    setOpen(true); // ensure main modal stays open
+  };
+
+  const handleCancel = () => {
+    setConfirm(null);
+    setOpen(true); // ensure main modal stays open
+  };
+
+  return createPortal(
+    <>
+      <div
+        onClick={handleCancel}
+        style={{
+          position: "fixed", inset: 0,
+          background: "rgba(0,0,0,0.55)",
+          zIndex: 99998,
+        }}
+      />
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: "fixed",
+          top: "50%", left: "50%",
+          transform: "translate(-50%,-50%)",
+          zIndex: 99999,
+          background: "var(--bg-primary)",
+          border: "1px solid var(--border-medium)",
+          borderRadius: "16px",
+          padding: "32px",
+          width: "400px",
+          boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
+        }}
+      >
+        <p style={{ margin: "0 0 20px 0", fontSize: "15px", color: "var(--text-primary)", lineHeight: 1.5 }}>
+          <strong style={{ color: "var(--text-primary)" }}>"{ confirm.deviceName }"</strong>
+          {""}을(를) 삭제하시겠습니까?
+        </p>
+        {confirm.placedCount > 0 && (
+          <div style={{
+            fontSize: "12px", color: "var(--severity-critical)",
+            background: "rgba(239,68,68,0.1)", padding: "10px 12px",
+            borderRadius: "8px", marginBottom: "20px", lineHeight: 1.5,
+          }}>
+            ⚠️ 이 장비는 현재 {confirm.placedCount}개 랙 슬롯에 배치되어 있습니다.
+            삭제하면 함께 제거됩니다.
+          </div>
+        )}
+        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+          <button
+            className="grafana-btn grafana-btn-secondary"
+            style={{ padding: "8px 20px", fontSize: "13px" }}
+            onClick={handleCancel}
+          >
+            취소
+          </button>
+          <button
+            className="grafana-btn grafana-btn-destructive"
+            style={{ padding: "8px 20px", fontSize: "13px" }}
+            onClick={handleConfirm}
+          >
+            삭제
+          </button>
+        </div>
+      </div>
+    </>,
+    document.body,
+  );
+};
 
 /* ---------- Premium Toast Component ---------- */
 const Toast = () => {
@@ -318,7 +399,7 @@ function App() {
               }}
               title="장비 관리"
             >
-              <ServerStackIcon />장비
+              <ArchiveBoxIcon />장비
             </button>
 
             <div className="grafana-toolbar-divider" />
@@ -380,6 +461,9 @@ function App() {
 
       {/* Device Registration Modal */}
       <DeviceRegistrationModal />
+
+      {/* Device Delete Confirm Modal - top-level, always above everything */}
+      <DeviceDeleteConfirmModal />
 
       {/* 3D Model Importer (Edit Mode only) */}
       <ModelImporter />

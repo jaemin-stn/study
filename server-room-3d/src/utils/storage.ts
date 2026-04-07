@@ -1,4 +1,4 @@
-import type { Rack, RegisteredDevice, HierarchyNode } from "../types";
+import type { Rack, RegisteredDevice, HierarchyNode, Device } from "../types";
 import { DEVICE_TEMPLATES } from "./deviceTemplates";
 import { 
   getDefaultNodes, 
@@ -8,7 +8,8 @@ import {
   getFullPath,
   resolvePathToNodeId,
   getAncestorPath,
-  getSubtreeNodeIds
+  getSubtreeNodeIds,
+  isLeafNode
 } from "./nodeUtils";
 import * as XLSX from "xlsx";
 import {
@@ -993,20 +994,21 @@ export const importGroupPackage = (
 };
 
 // ─── Sample Data Generation ─────────────────────────────────────────────────
+// ─── Sample Data Generation ─────────────────────────────────────────────────
 
 const generateRegisteredDevices = (
   nodeId: string,
   nodeName: string,
   count: number,
   ipBase: string,
-  nodeIdx: number, // Added to ensure global uniqueness
+  nodeIdx: number,
 ): RegisteredDevice[] =>
   Array.from({ length: count }).map((_, i) => {
     const template = DEVICE_TEMPLATES[i % DEVICE_TEMPLATES.length];
     const ipParts = ipBase.split(".");
-    const lastOctet = parseInt(ipParts[3]) + i;
+    const lastOctet = (parseInt(ipParts[3]) + i) % 255;
+    const thirdOctet = parseInt(ipParts[2]) + Math.floor((parseInt(ipParts[3]) + i) / 255);
     
-    // Globally unique MAC suffix using node index and local index
     const macSuffix = ((nodeIdx << 8) | i).toString(16).padStart(4, "0");
     const formattedMacSuffix = `${macSuffix.slice(0, 2)}:${macSuffix.slice(2, 4)}`;
 
@@ -1017,19 +1019,28 @@ const generateRegisteredDevices = (
       modelName: template.modelName,
       type: template.type,
       uSize: template.uSize,
-      ip: `${ipParts[0]}.${ipParts[1]}.${ipParts[2]}.${lastOctet}`,
-      mac: `00:00:5e:00:${formattedMacSuffix}`.toUpperCase(),
+      ip: `${ipParts[0]}.${ipParts[1]}.${thirdOctet}.${lastOctet}`,
+      mac: `00:00:5E:00:${formattedMacSuffix}`.toUpperCase(),
       vendor: "Nokia",
     };
   });
 
-
-
 export const sampleNodes: HierarchyNode[] = getDefaultNodes();
 
-export const sampleRegisteredDevices: RegisteredDevice[] = sampleNodes.flatMap((node, idx) =>
-  generateRegisteredDevices(node.nodeId, node.name, 20, `10.${idx + 1}.1.1`, idx)
-);
+// Varying equipment counts per node based on depth and index
+export const sampleRegisteredDevices: RegisteredDevice[] = sampleNodes.flatMap((node, idx) => {
+  const depth = getNodeDepth(sampleNodes, node.nodeId);
+  // Root node gets no equipment, but sites, centers and rooms get them
+  if (depth === 1) return []; // STN (root)
+  
+  let count = 0;
+  if (isLeafNode(sampleNodes, node.nodeId)) {
+    count = 15 + (idx % 10) * 5; // Room level: 15~60
+  } else if (depth >= 2) {
+    count = 8 + (idx % 5); // Sites/Centers: 8~12
+  }
+  return generateRegisteredDevices(node.nodeId, node.name, count, `10.${idx + 1}.1.1`, idx);
+});
 
 const generateGroupRacks = (
   count: number,
@@ -1037,8 +1048,11 @@ const generateGroupRacks = (
   colsPerRow: number,
   errorIndexes: number[],
   regDevices: RegisteredDevice[],
-): Rack[] =>
-  Array.from({ length: count }).map((_, localIdx) => {
+): Rack[] => {
+  const racks: Rack[] = [];
+  let deviceIdx = 0;
+
+  for (let localIdx = 0; localIdx < count; localIdx++) {
     const row = Math.floor(localIdx / colsPerRow);
     const col = localIdx % colsPerRow;
 
@@ -1048,63 +1062,74 @@ const generateGroupRacks = (
       localIdx % 3 === 0 ? 24 : localIdx % 3 === 1 ? 32 : 48;
 
     const hasError = errorIndexes.includes(localIdx);
-
-    const devices = [];
+    const devices: Device[] = [];
     let currentUPos = 1;
-    for (let d = 0; d < 5; d++) {
-      const remainingU = uHeight - currentUPos + 1;
-      const fittingDevices = regDevices.filter((rd) => rd.uSize <= remainingU);
-      if (fittingDevices.length === 0) break;
 
-      const regDevice =
-        fittingDevices[(localIdx * 7 + d * 3) % fittingDevices.length];
-      const shouldAddError = hasError && d === 0;
-
-      devices.push({
-        id: generateUUID(),
-        name: regDevice.modelName,
-        type: regDevice.type,
-        uSize: regDevice.uSize,
-        uPosition: currentUPos,
-        modelName: regDevice.modelName,
-        vendor: regDevice.vendor,
-        registeredDeviceId: regDevice.id,
-        portStates: shouldAddError
-          ? [
-              {
-                portId: `p${Math.floor(Math.random() * 24) + 1}`,
-                status: "error" as const,
-                errorLevel: (
-                  ["warning", "minor", "major", "critical"] as const
-                )[Math.floor(Math.random() * 4)],
-                errorMessage: "Port link failure",
-              },
-            ]
-          : [],
-      });
-      currentUPos += regDevice.uSize + 1;
+    // Fill rack until we run out of height or available devices for this node
+    while (currentUPos <= uHeight && deviceIdx < regDevices.length) {
+      const regDevice = regDevices[deviceIdx];
+      
+      // Check if it fits in remaining space
+      if (currentUPos + regDevice.uSize - 1 <= uHeight) {
+        const shouldAddError = hasError && devices.length === 0;
+        
+        devices.push({
+          id: generateUUID(),
+          name: regDevice.deviceName,
+          type: regDevice.type,
+          uSize: regDevice.uSize,
+          uPosition: currentUPos,
+          modelName: regDevice.modelName,
+          vendor: regDevice.vendor,
+          registeredDeviceId: regDevice.id,
+          portStates: shouldAddError
+            ? [
+                {
+                  portId: `p${Math.floor(Math.random() * 24) + 1}`,
+                  status: "error" as const,
+                  errorLevel: (
+                    ["warning", "minor", "major", "critical"] as const
+                  )[Math.floor(Math.random() * 4)],
+                  errorMessage: "Link down",
+                },
+              ]
+            : [],
+        });
+        
+        currentUPos += regDevice.uSize + 1; // 1U gap between devices
+        deviceIdx++; // Move to next unique device
+      } else {
+        // Doesn't fit, stop filling this rack
+        break;
+      }
     }
 
     let worldX = 0;
     for (let j = 0; j < col; j++) {
       const prevIsWide = j === 4 || j === 9;
-      worldX += prevIsWide ? RACK_WIDTH_WIDE : RACK_WIDTH_STANDARD;
+      worldX += (prevIsWide ? RACK_WIDTH_WIDE : RACK_WIDTH_STANDARD) + 0.2; // Extra gap
     }
     const stateX = (worldX + width / 2) / GRID_SPACING;
 
-    return {
+    racks.push({
       id: generateUUID(),
       nodeId,
       uHeight,
       width,
-      position: [stateX, row * 2.0],
+      position: [stateX, row * 3.0],
       orientation: 180,
       devices,
-    };
-  });
+    });
+  }
+  return racks;
+};
 
 export const sampleRacks: Rack[] = sampleNodes.flatMap((node, idx) => {
   const nodeDevices = sampleRegisteredDevices.filter((d) => d.nodeId === node.nodeId);
-  const rackCount = 8 + (idx % 5);
-  return generateGroupRacks(rackCount, node.nodeId, 5, [2, 5], nodeDevices);
+  const depth = getNodeDepth(sampleNodes, node.nodeId);
+  
+  if (depth < 2) return []; // Only exclude Root (STN)
+  
+  const rackCount = 3 + (idx % 6); // 3~8 racks per node (including higher levels)
+  return generateGroupRacks(rackCount, node.nodeId, 5, [1], nodeDevices);
 });

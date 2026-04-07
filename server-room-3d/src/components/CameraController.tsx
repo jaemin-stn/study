@@ -12,7 +12,6 @@ export const CameraController = () => {
   const highlightedDeviceId = useStore((state) => state.highlightedDeviceId);
   const racks = useStore((state) => state.racks);
   const isEditMode = useStore((state) => state.isEditMode);
-  const preFocusCameraState = useStore((state) => state.preFocusCameraState);
   const setPreFocusCameraState = useStore((state) => state.setPreFocusCameraState);
 
   const lastProcessedRackId = useRef<string | null>(null);

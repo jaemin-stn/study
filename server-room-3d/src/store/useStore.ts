@@ -13,6 +13,13 @@ import {
 } from "../utils/rackGeometry";
 import { migrateGroupNameToNodeId } from "../utils/nodeUtils";
 import * as THREE from "three";
+import { layoutsEqual } from "../utils/comparison";
+
+export interface CameraState {
+  position: [number, number, number];
+  target: [number, number, number];
+  zoom: number;
+}
 
 export interface AppState {
   racks: Rack[];
@@ -29,11 +36,12 @@ export interface AppState {
   hoveredRackId: string | null;
   importExportModalRackId: string | null;
   deviceRegistrationModalOpen: boolean;
-  deviceDeleteConfirm: { id: string; deviceName: string; placedCount: number } | null;
-  setDeviceDeleteConfirm: (confirm: { id: string; deviceName: string; placedCount: number } | null) => void;
+  deviceDeleteConfirm: { id: string; deviceName: string; rackName?: string } | null;
+  setDeviceDeleteConfirm: (confirm: { id: string; deviceName: string; rackName?: string } | null) => void;
   highlightedDeviceId: string | null;
   blinkTimeoutId: number | null; // Track current blink timer to clear it if needed
   showEquipmentInTree: boolean;
+  preFocusCameraState: CameraState | null;
 
   // Hierarchy
   nodes: HierarchyNode[];
@@ -86,6 +94,7 @@ export interface AppState {
   selectRack: (id: string | null) => void;
   selectDevice: (id: string | null, portId?: string | null) => void;
   focusRack: (id: string | null) => void;
+  setPreFocusCameraState: (state: CameraState | null) => void;
   setDragging: (
     isDragging: boolean,
     rackId?: string | null,
@@ -98,6 +107,8 @@ export interface AppState {
 
   addDevice: (rackId: string, device: Omit<Device, "id">) => boolean;
   removeDevice: (rackId: string, deviceId: string) => void;
+  /** Returns { rackId, nodeId, deviceId } if the registeredDeviceId is already mounted somewhere, else null */
+  findExistingMount: (registeredDeviceId: string) => { rackId: string; nodeId: string; deviceId: string; rackName?: string } | null;
   updateRack: (
     id: string,
     updates: Partial<Omit<Rack, "id" | "position">>,
@@ -325,6 +336,7 @@ export const useStore = create<AppState>((set, get) => ({
   highlightedDeviceId: null,
   blinkTimeoutId: null,
   showEquipmentInTree: false,
+  preFocusCameraState: null,
   pendingImportFile: null,
   setPendingImportFile: (file) => set({ pendingImportFile: file }),
 
@@ -359,18 +371,11 @@ export const useStore = create<AppState>((set, get) => ({
     const { racks, importedModels, nodes, baselineRacks, baselineModels, baselineNodes } = get();
     if (!baselineRacks || !baselineModels || !baselineNodes) return false;
 
-    // Simple JSON comparison for dirty check
-    const currentRacksStr = JSON.stringify(racks);
-    const baselineRacksStr = JSON.stringify(baselineRacks);
-    const currentModelsStr = JSON.stringify(importedModels);
-    const baselineModelsStr = JSON.stringify(baselineModels);
-    const currentNodesStr = JSON.stringify(nodes);
-    const baselineNodesStr = JSON.stringify(baselineNodes);
-
+    // Robust field-by-field comparison with epsilon tolerance
     return (
-      currentRacksStr !== baselineRacksStr ||
-      currentModelsStr !== baselineModelsStr ||
-      currentNodesStr !== baselineNodesStr
+      !layoutsEqual(racks, baselineRacks) ||
+      !layoutsEqual(importedModels, baselineModels) ||
+      !layoutsEqual(nodes, baselineNodes)
     );
   },
 
@@ -529,6 +534,7 @@ export const useStore = create<AppState>((set, get) => ({
       draggingModelId: null,
       modelDragPosition: null,
       modelDragOffset: null,
+      preFocusCameraState: null,
     });
   },
   setImportExportModalRackId: (id) => set({ importExportModalRackId: id }),
@@ -855,7 +861,25 @@ export const useStore = create<AppState>((set, get) => ({
   },
   selectDevice: (id, portId = null) =>
     set({ selectedDeviceId: id, highlightedPortId: portId }),
-  focusRack: (id) => set({ focusedRackId: id }),
+  focusRack: (id) => {
+    const { _cameraRef, _controlsRef, preFocusCameraState } = get();
+    
+    // Capture state if starting focus and no state is saved yet
+    if (id && !preFocusCameraState && _cameraRef && _controlsRef) {
+      const pos = _cameraRef.position;
+      const target = (_controlsRef as any).target;
+      set({
+        preFocusCameraState: {
+          position: [pos.x, pos.y, pos.z],
+          target: [target.x, target.y, target.z],
+          zoom: (_cameraRef as any).zoom ?? 1,
+        },
+      });
+    }
+
+    set({ focusedRackId: id });
+  },
+  setPreFocusCameraState: (state) => set({ preFocusCameraState: state }),
   setDragging: (isDragging, rackId = null, offset = null) =>
     set({
       isDragging,
@@ -869,13 +893,10 @@ export const useStore = create<AppState>((set, get) => ({
     const rack = racks.find((r) => r.id === id);
     if (!rack) return false;
 
-    if (isEditMode) pushUndoState();
-
     let finalPosition = [...newPosition] as [number, number];
     const SNAP_THRESHOLD = 0.5;
 
     const worldX = newPosition[0] * GRID_SPACING;
-
     const nodeRacks = racks.filter((r) => r.nodeId === rack.nodeId);
 
     for (const other of nodeRacks) {
@@ -925,9 +946,15 @@ export const useStore = create<AppState>((set, get) => ({
       return false;
     }
 
-    const newRacks = racks.map((r) =>
-      r.id === id ? { ...r, position: finalPosition } : r,
-    );
+    const hasMoved = !layoutsEqual(rack.position, finalPosition);
+
+    if (hasMoved && isEditMode) {
+      pushUndoState();
+    }
+
+    const newRacks = hasMoved
+      ? racks.map((r) => (r.id === id ? { ...r, position: finalPosition } : r))
+      : racks;
 
     set({
       racks: newRacks,
@@ -943,6 +970,8 @@ export const useStore = create<AppState>((set, get) => ({
     const { racks, showToast, isEditMode, pushUndoState } = get();
     const rack = racks.find((r) => r.id === id);
     if (!rack) return;
+
+    if (rack.orientation === orientation) return;
 
     if (isEditMode) pushUndoState();
 
@@ -1045,6 +1074,15 @@ export const useStore = create<AppState>((set, get) => ({
       return false;
     }
 
+    // Single-mount enforcement: block if already mounted anywhere in all layouts
+    if (deviceData.registeredDeviceId) {
+      const alreadyMounted = get().findExistingMount(deviceData.registeredDeviceId);
+      if (alreadyMounted && alreadyMounted.rackId !== rackId) {
+        // Caller must handle remount flow; store blocks silently
+        return false;
+      }
+    }
+
     const newDevice: Device = {
       ...deviceData,
       id: crypto.randomUUID(),
@@ -1064,24 +1102,69 @@ export const useStore = create<AppState>((set, get) => ({
     return true;
   },
 
+  findExistingMount: (registeredDeviceId) => {
+    const { racks, layouts } = get();
+    // Search active racks (current node)
+    for (const rack of racks) {
+      const found = rack.devices.find((d) => d.registeredDeviceId === registeredDeviceId);
+      if (found) {
+        return {
+          rackId: rack.id,
+          nodeId: rack.nodeId,
+          deviceId: found.id,
+          rackName: rack.displayName || `Rack-${rack.id.slice(0, 4).toUpperCase()}`,
+        };
+      }
+    }
+    // Search all layouts (other nodes)
+    for (const [nodeId, layout] of Object.entries(layouts)) {
+      if (!layout.racks) continue;
+      for (const rack of layout.racks) {
+        const found = rack.devices.find((d) => d.registeredDeviceId === registeredDeviceId);
+        if (found) {
+          return {
+            rackId: rack.id,
+            nodeId,
+            deviceId: found.id,
+            rackName: rack.displayName || `Rack-${rack.id.slice(0, 4).toUpperCase()}`,
+          };
+        }
+      }
+    }
+    return null;
+  },
+
+
   removeDevice: (rackId, deviceId) => {
     const { isEditMode, pushUndoState } = get();
     if (isEditMode) pushUndoState();
     set((state) => {
-      const updatedRacks = state.racks.map((r) =>
-        r.id === rackId
-          ? { ...r, devices: r.devices.filter((d) => d.id !== deviceId) }
-          : r,
-      );
-      const rack = state.racks.find(r => r.id === rackId);
-      const nid = rack?.nodeId;
+      // Helper to remove device from a rack list
+      const updateRacksList = (rList: Rack[]) =>
+        rList.map((r) =>
+          r.id === rackId
+            ? { ...r, devices: r.devices.filter((d) => d.id !== deviceId) }
+            : r,
+        );
+
+      // Update current active racks
+      const updatedRacks = updateRacksList(state.racks);
+
+      // Update all layouts to ensure data integrity
+      const updatedLayouts = { ...state.layouts };
+      for (const [nid, layout] of Object.entries(updatedLayouts)) {
+        if (layout.racks?.some((r) => r.id === rackId)) {
+          updatedLayouts[nid] = {
+            ...layout,
+            racks: updateRacksList(layout.racks),
+          };
+          // Note: multiple layouts shouldn't have the same rackId, but we update all just in case
+        }
+      }
 
       return {
         racks: updatedRacks,
-        layouts: nid ? {
-          ...state.layouts,
-          [nid]: { ...state.layouts[nid], racks: updatedRacks }
-        } : state.layouts
+        layouts: updatedLayouts,
       };
     });
   },
@@ -1555,14 +1638,22 @@ export const useStore = create<AppState>((set, get) => ({
   updateModelDragPosition: (pos) => set({ modelDragPosition: pos }),
 
   endModelDrag: (id, position) => {
-    const { isEditMode, pushUndoState, activeNodeId } = get();
-    if (isEditMode) pushUndoState();
+    const { isEditMode, pushUndoState, activeNodeId, importedModels } = get();
+    const model = importedModels.find((m) => m.id === id);
+    if (!model) return;
+
+    const finalPos: [number, number, number] = [position[0], model.position[1], position[1]];
+    const hasMoved = !layoutsEqual(model.position, finalPos);
+
+    if (hasMoved && isEditMode) {
+      pushUndoState();
+    }
+
     set((state) => {
-      const updatedModels: ImportedModel[] = state.importedModels.map((m) =>
-        m.id === id
-          ? { ...m, position: [position[0], m.position[1], position[1]] as [number, number, number] }
-          : m,
-      );
+      const updatedModels: ImportedModel[] = hasMoved 
+        ? state.importedModels.map((m) => m.id === id ? { ...m, position: finalPos } : m)
+        : state.importedModels;
+      
       return {
         importedModels: updatedModels,
         draggingModelId: null,

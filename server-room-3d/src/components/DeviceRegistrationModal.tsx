@@ -1944,12 +1944,12 @@ export const DeviceRegistrationModal = () => {
   const isOpen = useStore((s) => s.deviceRegistrationModalOpen);
   const setOpen = useStore((s) => s.setDeviceRegistrationModalOpen);
   const registeredDevices = useStore((s) => s.registeredDevices);
-  const racks = useStore((s) => s.racks);
   const upsertRegisteredDevices = useStore((s) => s.upsertRegisteredDevices);
   const activeNodeId = useStore((s) => s.activeNodeId);
   const nodes = useStore((s) => s.nodes);
   const locateDevice = useStore((s) => s.locateDevice);
   const setDeviceDeleteConfirm = useStore((s) => s.setDeviceDeleteConfirm);
+  const findExistingMount = useStore((s) => s.findExistingMount);
 
   // Table state
   const [search, setSearch] = useState("");
@@ -2390,16 +2390,11 @@ export const DeviceRegistrationModal = () => {
     device: (typeof registeredDevices)[0],
   ) => {
     e.stopPropagation();
-    let placedCount = 0;
-    for (const rack of racks) {
-      placedCount += rack.devices.filter(
-        (d) => d.registeredDeviceId === device.id,
-      ).length;
-    }
+    const existing = findExistingMount(device.id);
     setDeviceDeleteConfirm({
       id: device.id,
       deviceName: device.deviceName || device.modelName,
-      placedCount,
+      rackName: existing?.rackName,
     });
   };
 

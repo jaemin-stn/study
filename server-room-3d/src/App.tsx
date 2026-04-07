@@ -71,16 +71,15 @@ const DeviceDeleteConfirmModal = () => {
       >
         <p style={{ margin: "0 0 20px 0", fontSize: "15px", color: "var(--text-primary)", lineHeight: 1.5 }}>
           <strong style={{ color: "var(--text-primary)" }}>"{ confirm.deviceName }"</strong>
-          {""}을(를) 삭제하시겠습니까?
+          {confirm.rackName ? `은(는) 「${confirm.rackName}」에 배치되어 있습니다. 삭제하시겠습니까?` : "을(를) 삭제하시겠습니까?"}
         </p>
-        {confirm.placedCount > 0 && (
+        {confirm.rackName && (
           <div style={{
             fontSize: "12px", color: "var(--severity-critical)",
             background: "rgba(239,68,68,0.1)", padding: "10px 12px",
             borderRadius: "8px", marginBottom: "20px", lineHeight: 1.5,
           }}>
-            ⚠️ 이 장비는 현재 {confirm.placedCount}개 랙 슬롯에 배치되어 있습니다.
-            삭제하면 함께 제거됩니다.
+            ⚠️ 삭제하면 현재 배치된 위치에서도 함께 제거됩니다.
           </div>
         )}
         <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>

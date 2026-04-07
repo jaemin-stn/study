@@ -348,6 +348,7 @@ export const DevicePanel = () => {
     setHighlightedDevice,
     focusRack,
     showToast,
+    findExistingMount,
   } = useStore();
   const rack = racks.find((r) => r.id === selectedRackId);
 
@@ -363,6 +364,13 @@ export const DevicePanel = () => {
   );
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleteRackModalOpen, setIsDeleteRackModalOpen] = useState(false);
+  // Remount confirmation state
+  const [remountPending, setRemountPending] = useState<{
+    regDeviceId: string;
+    existingRackId: string;
+    existingDeviceId: string;
+    existingRackName?: string;
+  } | null>(null);
 
   // Focus input when editing starts
   useEffect(() => {
@@ -441,11 +449,30 @@ export const DevicePanel = () => {
       return;
     }
 
+    // Single-mount check: warn if already mounted in another rack
+    const existing = findExistingMount(selectedRegDeviceId);
+    if (existing && existing.rackId !== rack.id) {
+      setRemountPending({
+        regDeviceId: selectedRegDeviceId,
+        existingRackId: existing.rackId,
+        existingDeviceId: existing.deviceId,
+        existingRackName: existing.rackName,
+      });
+      return;
+    }
+
+    doMount(selectedRegDeviceId, start);
+  };
+
+  const doMount = (regDeviceId: string, slot: number) => {
+    const regDevice = findRegDevice(regDeviceId);
+    if (!regDevice || !rack) return;
+
     const device = {
       type: regDevice.type,
       name: regDevice.deviceName,
       uSize: regDevice.uSize,
-      uPosition: start,
+      uPosition: slot,
       modelName: regDevice.modelName,
       vendor: regDevice.vendor,
       registeredDeviceId: regDevice.id,
@@ -459,6 +486,19 @@ export const DevicePanel = () => {
       showToast("장비 추가 실패: 알 수 없는 오류", "error");
     }
   };
+
+  const handleRemountConfirm = () => {
+    if (!remountPending || addModalSlot === null) return;
+    // Remove from old rack first, then mount at new position
+    removeDevice(
+      remountPending.existingRackId,
+      remountPending.existingDeviceId,
+    );
+    doMount(remountPending.regDeviceId, addModalSlot);
+    setRemountPending(null);
+  };
+
+  const handleRemountCancel = () => setRemountPending(null);
 
   // Device Colors
   const UNIFIED_DEVICE_BG = "var(--bg-tertiary)";
@@ -802,17 +842,29 @@ export const DevicePanel = () => {
                     const thumb = resolveDeviceImage(rd.modelName);
                     const isSelected = selectedRegDeviceId === rd.id;
                     const placeable = canPlace(rd.uSize);
+                    const existingMount = findExistingMount(rd.id);
+                    const isMountedElsewhere =
+                      !!existingMount && existingMount.rackId !== rack.id;
+                    const isMountedHere =
+                      !!existingMount && existingMount.rackId === rack.id;
                     return (
                       <div
                         key={rd.id}
-                        className={`reg-device-item ${isSelected ? "selected" : ""} ${!placeable ? "disabled" : ""}`}
+                        className={`reg-device-item ${isSelected ? "selected" : ""} ${!placeable && !isMountedElsewhere ? "disabled" : ""}`}
                         onClick={() => {
-                          if (placeable) setSelectedRegDeviceId(rd.id);
+                          if (placeable || isMountedElsewhere)
+                            setSelectedRegDeviceId(rd.id);
                         }}
                         style={{
-                          opacity: placeable ? 1 : 0.45,
-                          cursor: placeable ? "pointer" : "not-allowed",
+                          opacity: placeable || isMountedElsewhere ? 1 : 0.45,
+                          cursor:
+                            placeable || isMountedElsewhere
+                              ? "pointer"
+                              : "not-allowed",
                           position: "relative",
+                          outline: isMountedElsewhere
+                            ? "1px solid var(--severity-warning, #f59e0b)"
+                            : undefined,
                         }}
                       >
                         <div className="reg-device-item-thumb">
@@ -865,7 +917,28 @@ export const DevicePanel = () => {
                             <span>{rd.ip}</span>
                           </div>
                         </div>
-                        {!placeable && (
+                        {(isMountedHere || isMountedElsewhere) && (
+                          <span
+                            style={{
+                              fontSize: "var(--font-size-xs)",
+                              color: isMountedElsewhere ? "#f59e0b" : "#22c55e",
+                              fontWeight: 600,
+                              background: isMountedElsewhere
+                                ? "rgba(245,158,11,0.12)"
+                                : "rgba(34,197,94,0.12)",
+                              border: `1px solid ${isMountedElsewhere ? "rgba(245,158,11,0.4)" : "rgba(34,197,94,0.4)"}`,
+                              borderRadius: "var(--radius-sm)",
+                              padding: "2px 8px",
+                              whiteSpace: "nowrap",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {isMountedElsewhere
+                              ? "⚠ 다른 랙에 탑재됨"
+                              : "✓ 이 랙에 탑재됨"}
+                          </span>
+                        )}
+                        {!placeable && !isMountedElsewhere && (
                           <span
                             style={{
                               fontSize: "var(--font-size-xs)",
@@ -1008,6 +1081,96 @@ export const DevicePanel = () => {
                 Cancel
               </button>
             </div>
+
+            {/* Remount confirmation modal (nested over the add modal) */}
+            {remountPending && (
+              <div
+                className="confirm-modal-overlay"
+                style={{
+                  position: "absolute",
+                  background: "rgba(0,0,0,0.8)",
+                  borderRadius: "var(--radius-lg)",
+                  zIndex: 2500,
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <div
+                  className="confirm-modal-card"
+                  style={{
+                    width: "400px",
+                    background: "var(--bg-primary)",
+                    padding: "32px",
+                    borderRadius: "16px",
+                    border: "1px solid var(--border-medium)",
+                    boxShadow: "0 24px 80px rgba(0,0,0,0.5)",
+                    margin: "auto",
+                  }}
+                >
+                  <div className="confirm-modal-header">
+                    <div className="confirm-modal-icon">⚠️</div>
+                    <h3 className="confirm-modal-title">장비 배치 이동 확인</h3>
+                  </div>
+                  <div className="confirm-modal-body">
+                    <p
+                      style={{
+                        margin: 0,
+                        color: "var(--text-primary)",
+                        fontWeight: 600,
+                      }}
+                    >
+                      「
+                      {selectedRegDevice?.deviceName ||
+                        selectedRegDevice?.modelName}
+                      」
+                    </p>
+                    <p style={{ marginTop: "12px", marginBottom: 0 }}>
+                      이 장비는 이미{" "}
+                      <span
+                        style={{
+                          color: "var(--theme-primary)",
+                          fontWeight: 700,
+                        }}
+                      >
+                        「{remountPending.existingRackName || "다른 랙"}」
+                      </span>
+                      에 배치되어 있습니다.
+                    </p>
+                    <p
+                      style={{
+                        marginTop: "8px",
+                        fontWeight: 700,
+                        color: "var(--severity-warning-text, #f59e0b)",
+                      }}
+                    >
+                      현재 위치에서 제거하고 이 랙(U{addModalSlot})으로
+                      이동하시겠습니까?
+                    </p>
+                  </div>
+                  <div className="confirm-modal-actions">
+                    <button
+                      className="grafana-btn grafana-btn-secondary"
+                      onClick={handleRemountCancel}
+                    >
+                      취소
+                    </button>
+                    <button
+                      className="grafana-btn grafana-btn-destructive"
+                      onClick={handleRemountConfirm}
+                      style={{
+                        background: "#f59e0b",
+                        borderColor: "#d97706",
+                        color: "#fff",
+                      }}
+                    >
+                      이동 및 배치
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1232,7 +1395,6 @@ export const DevicePanel = () => {
                   {rack.displayName || `Rack ${rack.id.substring(0, 4)}`}
                 </strong>
                 을(를) 삭제하시겠습니까?
-                <br />랙 내부의 모든 장비도 함께 삭제됩니다.
               </div>
               <div className="confirm-modal-actions">
                 <button

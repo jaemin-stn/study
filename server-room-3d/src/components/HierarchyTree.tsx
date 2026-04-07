@@ -9,7 +9,6 @@ import { useStore } from "../store/useStore";
 import type { HierarchyNode } from "../types";
 import {
   getChildren,
-  getAncestorPath,
   getSubtreeEquipmentCount,
   getSubtreeDevices,
   isLeafNode,
@@ -208,16 +207,6 @@ const TREE_STYLES = `
 }
 .tree-context-item.danger:hover {
   background: rgba(224, 47, 68, 0.1);
-}
-.tree-breadcrumb-preview {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin-left: 4px;
-  font-weight: 400;
-  opacity: 0.7;
 }
 .tree-toggle-item {
   display: flex;
@@ -835,8 +824,6 @@ export const HierarchyTree = () => {
   }, [activeNodeId, expandNodePath]);
 
   const rootNodes = getChildren(nodes, null);
-  const breadcrumbPath = getAncestorPath(nodes, activeNodeId || "");
-  const breadcrumbText = breadcrumbPath.map((n) => n.name).join(" > ");
 
   return (
     <div className="tree-sidebar-container">
@@ -875,9 +862,7 @@ export const HierarchyTree = () => {
               </span>
               <span style={{ fontWeight: 800 }}>구조</span>
             </span>
-            {isCollapsed && breadcrumbPath.length > 0 && (
-              <span className="tree-breadcrumb-preview">{breadcrumbText}</span>
-            )}
+            {/* breadcrumb preview removed when collapsed per request */}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>

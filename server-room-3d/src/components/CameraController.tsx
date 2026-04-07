@@ -5,13 +5,6 @@ import * as THREE from "three";
 import { OrbitControls } from "three-stdlib";
 import { U_HEIGHT, GRID_SPACING } from "./constants";
 
-interface CameraState {
-  position: THREE.Vector3;
-  quaternion: THREE.Quaternion;
-  target: THREE.Vector3;
-  zoom: number;
-}
-
 export const CameraController = () => {
   const { camera, controls } = useThree();
   const selectedRackId = useStore((state) => state.selectedRackId);
@@ -19,10 +12,12 @@ export const CameraController = () => {
   const highlightedDeviceId = useStore((state) => state.highlightedDeviceId);
   const racks = useStore((state) => state.racks);
   const isEditMode = useStore((state) => state.isEditMode);
+  const preFocusCameraState = useStore((state) => state.preFocusCameraState);
+  const setPreFocusCameraState = useStore((state) => state.setPreFocusCameraState);
 
-  // Pre-allocated objects for render loop stability
-  const savedState = useRef<CameraState | null>(null);
   const lastProcessedRackId = useRef<string | null>(null);
+  const lastWasFocused = useRef<boolean>(false);
+  const isInteracting = useRef<boolean>(false);
 
   const vTargetPos = useRef(new THREE.Vector3());
   const vTargetLookAt = useRef(new THREE.Vector3());
@@ -32,35 +27,53 @@ export const CameraController = () => {
   const isAnimating = useRef(false);
 
   // Common function to set up animation to a rack
-  const setupFocus = (rackId: string | null) => {
-    // Only process if the target rack has actually changed
-    if (rackId === lastProcessedRackId.current) return;
-    lastProcessedRackId.current = rackId;
+  const setupFocus = (targetRackId: string | null, isExplicitFocus: boolean) => {
+    const currentState = useStore.getState();
+    const storedSnapshot = currentState.preFocusCameraState;
 
-    if (!rackId) {
-      if (savedState.current) {
-        vTargetPos.current.copy(savedState.current.position);
-        vTargetLookAt.current.copy(savedState.current.target);
-        vTargetZoom.current = savedState.current.zoom;
+    console.log(`[CameraController] setupFocus - target: ${targetRackId}, isExplicit: ${isExplicitFocus}, hasSnapshot: ${!!storedSnapshot}`);
+
+    // If focus is specifically cleared (from non-null to null), and we have a snapshot, trigger restoration
+    if (!isExplicitFocus && lastWasFocused.current && storedSnapshot) {
+      vTargetPos.current.set(...storedSnapshot.position);
+      vTargetLookAt.current.set(...storedSnapshot.target);
+      vTargetZoom.current = storedSnapshot.zoom;
+      isAnimating.current = true;
+      lastProcessedRackId.current = null;
+      lastWasFocused.current = false;
+      return;
+    }
+
+    // Only process if the target rack or focus state actually changes
+    if (targetRackId === lastProcessedRackId.current && isExplicitFocus === lastWasFocused.current) return;
+    
+    lastProcessedRackId.current = targetRackId;
+    lastWasFocused.current = isExplicitFocus;
+
+    if (!targetRackId) {
+      // General return to base if focus is lost and we weren't just in explicit focus
+      if (storedSnapshot) {
+        vTargetPos.current.set(...storedSnapshot.position);
+        vTargetLookAt.current.set(...storedSnapshot.target);
+        vTargetZoom.current = storedSnapshot.zoom;
         isAnimating.current = true;
       }
       return;
     }
 
-    const rack = racks.find((r) => r.id === rackId);
+    const rack = racks.find((r) => r.id === targetRackId);
     if (!rack || !controls) return;
 
-    const orbitControls = controls as unknown as OrbitControls;
     const perspectiveCamera = camera as THREE.PerspectiveCamera;
 
-    // Save state ONLY if we are not already focused/animating toward a rack
-    if (!savedState.current) {
-      savedState.current = {
-        position: camera.position.clone(),
-        quaternion: camera.quaternion.clone(),
-        target: orbitControls.target.clone(),
+    // Capture state ONLY if not already focused/selected
+    if (!storedSnapshot && controls) {
+      const orbitControls = controls as unknown as OrbitControls;
+      setPreFocusCameraState({
+        position: [camera.position.x, camera.position.y, camera.position.z],
+        target: [orbitControls.target.x, orbitControls.target.y, orbitControls.target.z],
         zoom: camera.zoom,
-      };
+      });
     }
 
     const rackX = rack.position[0] * GRID_SPACING;
@@ -95,54 +108,57 @@ export const CameraController = () => {
     isAnimating.current = true;
   };
 
-  // Handle initial selection/focus
+  // Detect user interaction to stop fighting controls
   useEffect(() => {
-    const rackId = selectedRackId || focusedRackId;
+    if (!controls) return;
+    const orbit = controls as any;
+    const onStart = () => { isInteracting.current = true; isAnimating.current = false; };
+    const onEnd = () => { isInteracting.current = false; };
+    
+    orbit.addEventListener("start", onStart);
+    orbit.addEventListener("end", onEnd);
+    return () => {
+      orbit.removeEventListener("start", onStart);
+      orbit.removeEventListener("end", onEnd);
+    };
+  }, [controls]);
+
+  // Main interaction effect
+  useEffect(() => {
+    const targetId = focusedRackId || selectedRackId;
     const { isDragging } = useStore.getState();
 
-    // Reset lastProcessedRackId when highlightedDeviceId changes to force re-calculation
-    // if it's the same rack but a different device
-    lastProcessedRackId.current = null;
+    // Reset lastProcessedRackId on highlight changes
+    if (highlightedDeviceId) lastProcessedRackId.current = null;
 
-    // Focus if a rack is identified AND (we are NOT in edit mode OR it's a manual focus request) AND we are NOT currently dragging
-    if ((focusedRackId || !isEditMode) && !isDragging) {
-      setupFocus(rackId);
+    if (targetId && (focusedRackId || !isEditMode) && !isDragging) {
+      setupFocus(targetId, !!focusedRackId);
+    } else if (!targetId) {
+      setupFocus(null, false);
     }
-  }, [selectedRackId, focusedRackId, isEditMode, highlightedDeviceId]);
+  }, [selectedRackId, focusedRackId, isEditMode, highlightedDeviceId, racks]);
 
   useFrame((state, delta) => {
-    if (!isAnimating.current || !controls) return;
+    if (!isAnimating.current || !controls || isInteracting.current) return;
 
     const orbitControls = controls as unknown as OrbitControls;
+    const alpha = 1 - Math.exp(-10 * delta);
 
-    // Stabilize with a fixed time-based easing (independent of FPS fluctuations)
-    // Using a smoothing factor that feels snappy but consistent
-    // Higher value = faster, snappier transition (Aiming for < 1s)
-    const alpha = 1 - Math.exp(-12 * delta);
-
-    // Atomic update of position and target to prevent jitter
     camera.position.lerp(vTargetPos.current, alpha);
     orbitControls.target.lerp(vTargetLookAt.current, alpha);
 
-    // Smooth zoom update
     if (Math.abs(state.camera.zoom - vTargetZoom.current) > 0.001) {
-      state.camera.zoom = THREE.MathUtils.lerp(
-        state.camera.zoom,
-        vTargetZoom.current,
-        alpha,
-      );
+      state.camera.zoom = THREE.MathUtils.lerp(state.camera.zoom, vTargetZoom.current, alpha);
       state.camera.updateProjectionMatrix();
     }
 
     orbitControls.update();
 
-    // Check completion threshold
     const posDist = camera.position.distanceTo(vTargetPos.current);
     const targetDist = orbitControls.target.distanceTo(vTargetLookAt.current);
 
-    if (posDist < 0.005 && targetDist < 0.005) {
-      // Snap to exact target values on completion
-      state.camera.position.copy(vTargetPos.current);
+    if (posDist < 0.01 && targetDist < 0.01) {
+      camera.position.copy(vTargetPos.current);
       orbitControls.target.copy(vTargetLookAt.current);
       state.camera.zoom = vTargetZoom.current;
       state.camera.updateProjectionMatrix();
@@ -150,13 +166,10 @@ export const CameraController = () => {
 
       isAnimating.current = false;
 
-      // If we just finished return-to-base, clear the saved state
-      if (!selectedRackId && !focusedRackId) {
-        if (savedState.current) {
-          camera.quaternion.copy(savedState.current.quaternion);
-          orbitControls.update();
-        }
-        savedState.current = null;
+      // Only clear snapshot if we are truly back at base (no selection, no focus)
+      const freshState = useStore.getState();
+      if (!freshState.selectedRackId && !freshState.focusedRackId) {
+        setPreFocusCameraState(null);
       }
     }
   });

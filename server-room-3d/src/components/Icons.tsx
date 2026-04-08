@@ -46,6 +46,8 @@ const SolidIconPaths = {
     "M12 2.25c-5.385 0-9.75 4.365-9.75 9.75s4.365 9.75 9.75 9.75 9.75-4.365 9.75-9.75S17.385 2.25 12 2.25ZM13.25 9a1.25 1.25 0 0 0-2.5 0v3a1.25 1.25 0 0 0 2.5 0V9ZM12 16.5a1.25 1.25 0 1 0 0-2.5 1.25 1.25 0 0 0 0 2.5Z",
   ChartBar:
     "M12 6.75a.75.75 0 0 1 .75.75V18a.75.75 0 0 1-1.5 0V7.5a.75.75 0 0 1 .75-.75ZM18.75 3a.75.75 0 0 1 .75.75V18a.75.75 0 0 1-1.5 0V3.75a.75.75 0 0 1 .75-.75ZM5.25 12a.75.75 0 0 1 .75.75V18a.75.75 0 0 1-1.5 0v-5.25a.75.75 0 0 1 .75-.75Z",
+  Floppy:
+    "M18.674 2.125a2.25 2.25 0 0 1 1.591.659l2.95 2.95a2.25 2.25 0 0 1 .659 1.591v12.425a2.25 2.25 0 0 1-2.25 2.25H2.375a2.25 2.25 0 0 1-2.25-2.25V4.375a2.25 2.25 0 0 1 2.25-2.25h16.299ZM4.125 4.375v4.5h10.5v-4.5H4.125Zm12 11.25a3.75 3.75 0 1 0-7.5 0 3.75 3.75 0 0 0 7.5 0Z",
 };
 
 const createIcon = (path: string) => {
@@ -88,3 +90,4 @@ export const MagnifyingGlassIcon = createIcon(SolidIconPaths.MagnifyingGlass);
 export const ArchiveBoxIcon = createIcon(SolidIconPaths.ArchiveBox);
 export const ExclamationCircleIcon = createIcon(SolidIconPaths.ExclamationCircle);
 export const ChartBarIcon = createIcon(SolidIconPaths.ChartBar);
+export const FloppyIcon = createIcon(SolidIconPaths.Floppy);

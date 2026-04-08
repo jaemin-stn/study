@@ -15,6 +15,7 @@ import {
   ArrowDownTrayIcon,
   SparklesIcon,
   ArchiveBoxIcon,
+  FloppyIcon,
 } from "./components/Icons";
 import { useStore } from "./store/useStore";
 import {
@@ -218,7 +219,11 @@ function App() {
     selectedDeviceId,
     setPendingImportFile,
     undo,
+    saveChanges,
+    getIsDirty,
   } = useStore();
+
+  const isDirty = getIsDirty();
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -434,6 +439,20 @@ function App() {
                 className="grafana-toolbar-divider"
                 style={{ height: "20px", margin: "0 8px" }}
               />
+
+              <button
+                className={`grafana-btn grafana-btn-md ${isDirty ? "grafana-btn-primary" : "grafana-btn-secondary"}`}
+                onClick={saveChanges}
+                disabled={!isDirty}
+                title={isDirty ? "Save Unsaved Changes" : "No Changes to Save"}
+                style={{
+                  opacity: isDirty ? 1 : 0.5,
+                  cursor: isDirty ? "pointer" : "not-allowed",
+                  transition: "all 0.2s ease",
+                }}
+              >
+                <FloppyIcon />Save
+              </button>
 
               <button
                 className="grafana-btn grafana-btn-md grafana-btn-tertiary"

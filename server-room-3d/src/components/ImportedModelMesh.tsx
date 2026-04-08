@@ -1,6 +1,6 @@
-import { useRef, useEffect, useState, useMemo } from "react";
-import { useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
-import { useGLTF, Html, Billboard } from "@react-three/drei";
+import { useRef, useEffect, useState } from "react";
+import { type ThreeEvent } from "@react-three/fiber";
+import { useGLTF, Html, Billboard, TransformControls } from "@react-three/drei";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
 import type { ImportedModel } from "../types";
@@ -8,6 +8,7 @@ import {
   DEFAULT_WALL_PARAMS,
   DEFAULT_PARTITION_PARAMS,
 } from "../utils/builtinModels";
+import { DigitalClock } from "./DigitalClock";
 
 interface ImportedModelMeshProps {
   model: ImportedModel;
@@ -219,39 +220,19 @@ const GltfMesh = ({ url }: { url: string }) => {
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
-  const groupRef = useRef<THREE.Group>(null);
+  const [target, setTarget] = useState<THREE.Group | null>(null);
   const selectedModelId = useStore((s) => s.selectedModelId);
   const isEditMode = useStore((s) => s.isEditMode);
-  const draggingModelId = useStore((s) => s.draggingModelId);
-  const modelDragPosition = useStore((s) => s.modelDragPosition);
   const isSelected = selectedModelId === model.id;
-  const isDragging = draggingModelId === model.id;
   const isMoveEnabled = model.isMoveEnabled ?? false;
 
   const isWall = model.builtinType === "Wall";
   const isPartition = model.builtinType === "Partition";
+  const isClock = model.builtinType === "Clock";
 
-  const { raycaster, mouse, camera } = useThree();
-  const floorPlane = useMemo(
-    () => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
-    [],
-  );
-  const tempPoint = useMemo(() => new THREE.Vector3(), []);
-
-  // Edit-mode drag — only when isMoveEnabled
-  useFrame(() => {
-    if (isDragging && isEditMode && isMoveEnabled) {
-      raycaster.setFromCamera(mouse, camera);
-      if (raycaster.ray.intersectPlane(floorPlane, tempPoint)) {
-        const { modelDragOffset } = useStore.getState();
-        const offsetX = modelDragOffset ? modelDragOffset[0] : 0;
-        const offsetZ = modelDragOffset ? modelDragOffset[1] : 0;
-        const newX = tempPoint.x - offsetX;
-        const newZ = tempPoint.z - offsetZ;
-        useStore.getState().updateModelDragPosition([newX, newZ]);
-      }
-    }
-  });
+  const transformMode = useStore((s) => s.transformMode);
+  const updateModel = useStore((s) => s.updateModel);
+  const setModelDragging = useStore((s) => s.setModelDragging);
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
     const {
@@ -267,28 +248,10 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
 
     e.stopPropagation();
     selectModel(model.id);
-
-    if (isMoveEnabled) {
-      const { setModelDragging } = useStore.getState();
-      raycaster.setFromCamera(mouse, camera);
-      if (raycaster.ray.intersectPlane(floorPlane, tempPoint)) {
-        const offsetX = tempPoint.x - model.position[0];
-        const offsetZ = tempPoint.z - model.position[2];
-        setModelDragging(
-          model.id,
-          [model.position[0], model.position[2]],
-          [offsetX, offsetZ],
-        );
-        document.body.style.cursor = "grabbing";
-      }
-    }
   };
 
   // Display position
-  const displayPos: [number, number, number] =
-    isDragging && modelDragPosition
-      ? [modelDragPosition[0], model.position[1], modelDragPosition[1]]
-      : model.position;
+  const displayPos: [number, number, number] = model.position;
 
   // Visual feedback
   const highlightColor = isMoveEnabled ? "#4ade80" : "#f97316";
@@ -302,17 +265,21 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
     ? [wp.length + 0.1, wp.height + 0.1, wp.thickness + 0.1]
     : isPartition
       ? [pp.length + 0.1, pp.height + 0.1, pp.thickness + 0.1]
-      : [1.1, 1.1, 1.1];
+      : isClock
+        ? [1.3, 0.95, 0.15]
+        : [1.1, 1.1, 1.1];
 
   const hlCenter: [number, number, number] = isWall
     ? [0, wp.height / 2, 0]
     : isPartition
       ? [0, pp.height / 2, 0]
-      : [0, 0, 0];
+      : isClock
+        ? [0, 0.85 / 2, 0]
+        : [0, 0, 0];
 
-  return (
+  const innerContent = (
     <group
-      ref={groupRef}
+      ref={setTarget}
       position={displayPos}
       rotation={model.rotation}
       scale={model.scale}
@@ -336,6 +303,8 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
         <WallMesh model={model} />
       ) : isPartition ? (
         <PartitionMesh model={model} />
+      ) : isClock ? (
+        <DigitalClock />
       ) : (
         <GltfMesh url={model.dataUrl} />
       )}
@@ -357,7 +326,7 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
         <Billboard
           position={[
             0,
-            isWall ? wp.height + 0.4 : isPartition ? pp.height + 0.4 : 1.4,
+            isWall ? wp.height + 0.4 : isPartition ? pp.height + 0.4 : isClock ? 1.25 : 1.4,
             0,
           ]}
         >
@@ -388,5 +357,31 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
         </Billboard>
       )}
     </group>
+  );
+
+  const shouldTransform = isSelected && isEditMode && isMoveEnabled;
+
+  return (
+    <>
+      {shouldTransform && target && (
+        <TransformControls
+          object={target}
+          mode={transformMode}
+          onMouseDown={() => setModelDragging(model.id)}
+          onMouseUp={() => {
+            setModelDragging(null);
+            const p = target.position;
+            const r = target.rotation;
+            const s = target.scale;
+            updateModel(model.id, {
+              position: [p.x, p.y, p.z],
+              rotation: [r.x, r.y, r.z],
+              scale: [s.x, s.y, s.z],
+            });
+          }}
+        />
+      )}
+      {innerContent}
+    </>
   );
 };

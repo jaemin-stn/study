@@ -78,6 +78,10 @@ export interface AppState {
     | { type: "editMode"; value: boolean }
     | null;
 
+  // Editor Transform State
+  transformMode: "translate" | "rotate" | "scale";
+  setTransformMode: (mode: "translate" | "rotate" | "scale") => void;
+
   // Actions
   reparentNode: (nodeId: string, newParentId: string | null) => void;
   setCameraRef: (camera: THREE.Camera, controls: any) => void;
@@ -366,6 +370,9 @@ export const useStore = create<AppState>((set, get) => ({
   undoStack: [],
   showUnsavedDialog: false,
   pendingAction: null,
+
+  transformMode: "translate",
+  setTransformMode: (mode) => set({ transformMode: mode }),
 
   getIsDirty: () => {
     const { racks, importedModels, nodes, baselineRacks, baselineModels, baselineNodes } = get();

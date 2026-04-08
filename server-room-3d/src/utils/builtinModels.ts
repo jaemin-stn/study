@@ -63,4 +63,11 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
     assetUrl: "", // procedural
     fileName: "__builtin_partition",
   },
+  {
+    type: "Clock",
+    label: "Clock",
+    emoji: "⏰",
+    assetUrl: "", // procedural component
+    fileName: "__builtin_clock",
+  },
 ];

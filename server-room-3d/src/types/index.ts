@@ -90,7 +90,8 @@ export type BuiltinModelType =
   | "Chair"
   | "Desk"
   | "Desk2"
-  | "Partition";
+  | "Partition"
+  | "Clock";
 
 // 가시성 모드 (투명 유리 vs 불투명)
 export type VisibilityMode = "transparent" | "opaque";

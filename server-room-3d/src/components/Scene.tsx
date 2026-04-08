@@ -1,6 +1,6 @@
 import { Suspense, useMemo, useEffect, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Environment, Grid } from "@react-three/drei";
+import { OrbitControls, Environment, Grid, GizmoHelper, GizmoViewcube } from "@react-three/drei";
 import { useStore } from "../store/useStore";
 import { Rack } from "./Rack";
 import { ImportedModelMesh } from "./ImportedModelMesh";
@@ -145,6 +145,18 @@ export const Scene = () => {
         color="#ffffff"
         groundColor="#444444"
       />
+
+      <GizmoHelper alignment="top-right" margin={[440, 120]}>
+        <group scale={1.4}>
+          <GizmoViewcube
+            opacity={1}
+            color={isDarkMode ? "#2A3342" : "#D8DEE8"}
+            textColor={isDarkMode ? "#ffffff" : "#111827"}
+            strokeColor={isDarkMode ? "#9AA4B2" : "#5B6678"}
+            hoverColor={isDarkMode ? "#3b82f6" : "#2563eb"}
+          />
+        </group>
+      </GizmoHelper>
 
       <Suspense fallback={null}>
         <Environment preset={isDarkMode ? "night" : "city"} />

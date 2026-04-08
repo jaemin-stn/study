@@ -162,6 +162,17 @@ export const ModelImporter = () => {
           builtinType: "Partition",
           partitionParams: { ...DEFAULT_PARTITION_PARAMS },
         });
+      } else if (def.type === "Clock") {
+        addImportedModel({
+          name: "Clock",
+          fileName: def.fileName,
+          dataUrl: "",
+          position: [0, 0, 0],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1],
+          isMoveEnabled: false,
+          builtinType: "Clock",
+        });
       } else {
         addImportedModel({
           name: def.label,
@@ -948,6 +959,8 @@ const ModelProperties = ({
   onUpdate,
   onDelete,
 }: ModelPropertiesProps) => {
+  const transformMode = useStore((s) => s.transformMode);
+  const setTransformMode = useStore((s) => s.setTransformMode);
   const numInput = (
     label: string,
     value: number,
@@ -1435,6 +1448,38 @@ const ModelProperties = ({
             Delete
           </button>
         </div>
+
+        {model.isMoveEnabled && (
+          <div style={{ marginTop: "10px", display: "flex", gap: "4px" }}>
+            {(["translate", "rotate", "scale"] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setTransformMode(mode)}
+                style={{
+                  flex: 1,
+                  padding: "6px 0",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  textTransform: "capitalize",
+                  background: transformMode === mode
+                    ? "var(--selected-bg)"
+                    : "var(--bg-secondary)",
+                  color: transformMode === mode
+                    ? "var(--theme-primary)"
+                    : "var(--text-secondary)",
+                  border: "1px solid",
+                  borderColor: transformMode === mode
+                    ? "var(--theme-primary)"
+                    : "var(--border-medium)",
+                  borderRadius: "var(--radius-sm)",
+                  cursor: "pointer",
+                }}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

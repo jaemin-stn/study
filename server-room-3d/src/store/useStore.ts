@@ -711,15 +711,15 @@ export const useStore = create<AppState>((set, get) => ({
       const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
       const hitPoint = new THREE.Vector3();
       if (raycaster.ray.intersectPlane(groundPlane, hitPoint)) {
-        const gridX = Math.round((hitPoint.x / GRID_SPACING) * 4) / 4;
-        const gridZ = Math.round((hitPoint.z / GRID_SPACING) * 4) / 4;
+        const gridX = Math.round((hitPoint.x / GRID_SPACING) * 15) / 15;
+        const gridZ = Math.round((hitPoint.z / GRID_SPACING) * 15) / 15;
         spawnPos = [gridX, gridZ];
       } else {
         const dir = new THREE.Vector3();
         _cameraRef.getWorldDirection(dir);
         const fallback = _cameraRef.position.clone().add(dir.multiplyScalar(5));
-        const gridX = Math.round((fallback.x / GRID_SPACING) * 4) / 4;
-        const gridZ = Math.round((fallback.z / GRID_SPACING) * 4) / 4;
+        const gridX = Math.round((fallback.x / GRID_SPACING) * 15) / 15;
+        const gridZ = Math.round((fallback.z / GRID_SPACING) * 15) / 15;
         spawnPos = [gridX, gridZ];
       }
     } else {
@@ -741,8 +741,8 @@ export const useStore = create<AppState>((set, get) => ({
           for (const dz of [-radius, 0, radius]) {
             if (dx === 0 && dz === 0) continue;
             const candidate: [number, number] = [
-              spawnPos[0] + dx * 0.5,
-              spawnPos[1] + dz * 0.5,
+              spawnPos[0] + dx * (1/15),
+              spawnPos[1] + dz * (1/15),
             ];
             if (!checkCollision(nodeRacks, null, candidate, width)) {
               finalPos = candidate;
@@ -836,8 +836,8 @@ export const useStore = create<AppState>((set, get) => ({
   selectRack: (id) => {
     const state = get();
     if (state.isDragging && state.draggingRackId && state.dragPosition) {
-      const gridX = Math.round((state.dragPosition[0] / GRID_SPACING) * 2) / 2;
-      const gridZ = Math.round((state.dragPosition[1] / GRID_SPACING) * 2) / 2;
+      const gridX = Math.round((state.dragPosition[0] / GRID_SPACING) * 15) / 15;
+      const gridZ = Math.round((state.dragPosition[1] / GRID_SPACING) * 15) / 15;
       state.endDrag(state.draggingRackId, [gridX, gridZ]);
     } else if (state.isDragging) {
       set({
@@ -1035,8 +1035,8 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     if (isDragging && draggingRackId && dragPosition) {
-      const gridX = Math.round((dragPosition[0] / GRID_SPACING) * 2) / 2;
-      const gridZ = Math.round((dragPosition[1] / GRID_SPACING) * 2) / 2;
+      const gridX = Math.round((dragPosition[0] / GRID_SPACING) * 15) / 15;
+      const gridZ = Math.round((dragPosition[1] / GRID_SPACING) * 15) / 15;
       endDrag(draggingRackId, [gridX, gridZ]);
     }
 

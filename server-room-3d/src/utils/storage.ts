@@ -1107,7 +1107,7 @@ const generateGroupRacks = (
     let worldX = 0;
     for (let j = 0; j < col; j++) {
       const prevIsWide = j === 4 || j === 9;
-      worldX += (prevIsWide ? RACK_WIDTH_WIDE : RACK_WIDTH_STANDARD) + 0.2; // Extra gap
+      worldX += (prevIsWide ? RACK_WIDTH_WIDE : RACK_WIDTH_STANDARD); // Remove extra gap
     }
     const stateX = (worldX + width / 2) / GRID_SPACING;
 

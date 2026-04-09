@@ -122,6 +122,68 @@ export const CameraController = () => {
     };
   }, [controls]);
 
+  const triggerFitToScene = useStore((state) => state.triggerFitToScene);
+
+  // Fit to scene logic
+  useEffect(() => {
+    if (triggerFitToScene === 0) return;
+
+    const { racks, importedModels } = useStore.getState();
+    if (racks.length === 0 && importedModels.length === 0) return;
+
+    const bbox = new THREE.Box3();
+
+    // Include Racks
+    racks.forEach((rack) => {
+      const rackX = rack.position[0] * GRID_SPACING;
+      const rackZ = rack.position[1] * GRID_SPACING;
+      const rackHeight = rack.uHeight * U_HEIGHT;
+      const hw = (rack.width || 0.6) / 2;
+      const hd = 0.3; // depth/2
+
+      bbox.expandByPoint(new THREE.Vector3(rackX - hw, 0, rackZ - hd));
+      bbox.expandByPoint(new THREE.Vector3(rackX + hw, rackHeight, rackZ + hd));
+    });
+
+    // Include Imported Models
+    importedModels.forEach((model) => {
+      // Basic position inclusion. 
+      // Note: Ideally we would calculate actual mesh bounds, but position + some padding is a good start.
+      // If the model is a builtin one like DigitalClock, we know its height is ~2m
+      const pos = new THREE.Vector3(...model.position);
+      bbox.expandByPoint(pos);
+      bbox.expandByPoint(pos.clone().add(new THREE.Vector3(0, 2, 0))); // Add some height
+    });
+
+    if (bbox.isEmpty()) return;
+
+    const center = new THREE.Vector3();
+    bbox.getCenter(center);
+    const size = new THREE.Vector3();
+    bbox.getSize(size);
+
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const perspectiveCamera = camera as THREE.PerspectiveCamera;
+    const fov = perspectiveCamera.fov;
+    
+    // Fit calculation
+    const distance = maxDim / (2 * Math.tan((fov * Math.PI) / 360));
+    const padding = 2.0; // Comfortable margin
+    const finalDistance = Math.max(distance * padding, 8); // Minimum distance
+
+    vTargetLookAt.current.copy(center);
+    // Position camera at a nice 45-degree angle
+    vTargetPos.current.set(
+      center.x + finalDistance * 0.7,
+      center.y + finalDistance * 0.8,
+      center.z + finalDistance * 0.7
+    );
+    vTargetZoom.current = 1;
+
+    isAnimating.current = true;
+    lastProcessedRackId.current = null; // Ensure we can re-select models if needed
+  }, [triggerFitToScene, camera]);
+
   // Main interaction effect
   useEffect(() => {
     const targetId = focusedRackId || selectedRackId;

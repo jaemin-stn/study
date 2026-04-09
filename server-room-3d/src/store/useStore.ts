@@ -78,6 +78,10 @@ export interface AppState {
     | { type: "editMode"; value: boolean }
     | null;
 
+  // Camera Trigger
+  triggerFitToScene: number;
+  fitToScene: () => void;
+
   // Editor Transform State
   transformMode: "translate" | "rotate" | "scale";
   setTransformMode: (mode: "translate" | "rotate" | "scale") => void;
@@ -370,6 +374,9 @@ export const useStore = create<AppState>((set, get) => ({
   undoStack: [],
   showUnsavedDialog: false,
   pendingAction: null,
+
+  triggerFitToScene: 0,
+  fitToScene: () => set((state) => ({ triggerFitToScene: state.triggerFitToScene + 1 })),
 
   transformMode: "translate",
   setTransformMode: (mode) => set({ transformMode: mode }),

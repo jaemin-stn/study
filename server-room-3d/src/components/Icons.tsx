@@ -48,6 +48,8 @@ const SolidIconPaths = {
     "M12 6.75a.75.75 0 0 1 .75.75V18a.75.75 0 0 1-1.5 0V7.5a.75.75 0 0 1 .75-.75ZM18.75 3a.75.75 0 0 1 .75.75V18a.75.75 0 0 1-1.5 0V3.75a.75.75 0 0 1 .75-.75ZM5.25 12a.75.75 0 0 1 .75.75V18a.75.75 0 0 1-1.5 0v-5.25a.75.75 0 0 1 .75-.75Z",
   Floppy:
     "M18.674 2.125a2.25 2.25 0 0 1 1.591.659l2.95 2.95a2.25 2.25 0 0 1 .659 1.591v12.425a2.25 2.25 0 0 1-2.25 2.25H2.375a2.25 2.25 0 0 1-2.25-2.25V4.375a2.25 2.25 0 0 1 2.25-2.25h16.299ZM4.125 4.375v4.5h10.5v-4.5H4.125Zm12 11.25a3.75 3.75 0 1 0-7.5 0 3.75 3.75 0 0 0 7.5 0Z",
+  ArrowsPointingOut:
+    "M2.25 4.5A2.25 2.25 0 0 1 4.5 2.25h3a.75.75 0 0 1 0 1.5h-3a.75.75 0 0 0-.75.75v3a.75.75 0 0 1-1.5 0v-3ZM16.5 2.25h3A2.25 2.25 0 0 1 21.75 4.5v3a.75.75 0 0 1-1.5 0v-3a.75.75 0 0 0-.75-.75h-3a.75.75 0 0 1 0-1.5ZM21.75 16.5v3A2.25 2.25 0 0 1 19.5 21.75h-3a.75.75 0 0 1 0-1.5h3a.75.75 0 0 0 .75-.75v-3a.75.75 0 0 1 1.5 0ZM7.5 21.75h-3a2.25 2.25 0 0 1-2.25-2.25v-3a.75.75 0 0 1 1.5 0v3a.75.75 0 0 0 .75.75h3a.75.75 0 0 1 0 1.5Z",
 };
 
 const createIcon = (path: string) => {
@@ -91,3 +93,4 @@ export const ArchiveBoxIcon = createIcon(SolidIconPaths.ArchiveBox);
 export const ExclamationCircleIcon = createIcon(SolidIconPaths.ExclamationCircle);
 export const ChartBarIcon = createIcon(SolidIconPaths.ChartBar);
 export const FloppyIcon = createIcon(SolidIconPaths.Floppy);
+export const ArrowsPointingOutIcon = createIcon(SolidIconPaths.ArrowsPointingOut);

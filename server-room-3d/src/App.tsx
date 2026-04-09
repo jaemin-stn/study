@@ -16,7 +16,9 @@ import {
   SparklesIcon,
   ArchiveBoxIcon,
   FloppyIcon,
+  ArrowsPointingOutIcon,
 } from "./components/Icons";
+import { useTheme } from "./contexts/ThemeContext";
 import { useStore } from "./store/useStore";
 import {
   sampleRacks,
@@ -491,10 +493,86 @@ function App() {
 
       <UnsavedChangesDialog />
 
+      {/* 2D UI Overlay - Fit to Models (Fixed next to Gizmo) */}
+      <FitToModelsButton />
+
       <Toast />
       <style>{APP_STYLES}</style>
     </div>
   );
 }
+
+const FitToModelsButton = () => {
+  const { theme } = useTheme();
+  const isDarkMode = theme === "dark";
+  const fitToScene = useStore((s) => s.fitToScene);
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: "240px",
+        right: "440px",
+        zIndex: 1000,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: "8px",
+        width: "80px",
+      }}
+    >
+      <button
+        className="grafana-btn grafana-btn-secondary"
+        onClick={(e) => {
+          e.stopPropagation();
+          fitToScene();
+        }}
+        title="모든 모델을 화면에 맞춤 (Fit All Models)"
+        style={{
+          width: "42px",
+          height: "42px",
+          padding: 0,
+          borderRadius: "50%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: isDarkMode ? "#2A3342" : "#ffffff",
+          border: `1px solid ${isDarkMode ? "#526484" : "#dbdfea"}`,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+          color: isDarkMode ? "#ffffff" : "#111827",
+          cursor: "pointer",
+          transition: "all 0.2s ease",
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.transform = "scale(1.05)";
+          e.currentTarget.style.borderColor = "#3b82f6";
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.transform = "scale(1)";
+          e.currentTarget.style.borderColor = isDarkMode ? "#526484" : "#dbdfea";
+        }}
+      >
+        <ArrowsPointingOutIcon style={{ width: "22px", height: "22px" }} />
+      </button>
+      <span
+        style={{
+          fontSize: "10px",
+          fontWeight: 800,
+          color: isDarkMode ? "#ffffff" : "#364a63",
+          textShadow: isDarkMode ? "0 1px 2px rgba(0,0,0,0.8)" : "0 1px 2px rgba(255,255,255,0.8)",
+          pointerEvents: "none",
+          background: isDarkMode ? "rgba(42,51,66,0.9)" : "rgba(255,255,255,0.9)",
+          padding: "2px 8px",
+          borderRadius: "12px",
+          whiteSpace: "nowrap",
+          border: `1px solid ${isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.05)"}`,
+          letterSpacing: "0.02em",
+        }}
+      >
+        FIT MODELS
+      </span>
+    </div>
+  );
+};
 
 export default App;

@@ -199,6 +199,7 @@ export const Scene = () => {
       />
       <CameraRefSync />
       <CameraController />
+
     </Canvas>
   );
 };

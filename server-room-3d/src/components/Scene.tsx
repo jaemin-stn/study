@@ -1,6 +1,12 @@
 import { Suspense, useMemo, useEffect, useRef } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { OrbitControls, Environment, Grid, GizmoHelper, GizmoViewcube } from "@react-three/drei";
+import {
+  OrbitControls,
+  Environment,
+  Grid,
+  GizmoHelper,
+  GizmoViewcube,
+} from "@react-three/drei";
 import { useStore } from "../store/useStore";
 import { Rack } from "./Rack";
 import { ImportedModelMesh } from "./ImportedModelMesh";
@@ -146,7 +152,7 @@ export const Scene = () => {
         groundColor="#444444"
       />
 
-      <GizmoHelper alignment="top-right" margin={[440, 120]}>
+      <GizmoHelper alignment="top-right" margin={[440, 140]}>
         <group scale={1.4}>
           <GizmoViewcube
             opacity={1}
@@ -199,7 +205,6 @@ export const Scene = () => {
       />
       <CameraRefSync />
       <CameraController />
-
     </Canvas>
   );
 };

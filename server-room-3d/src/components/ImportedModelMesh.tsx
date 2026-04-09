@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { type ThreeEvent } from "@react-three/fiber";
 import { useGLTF, Html, Billboard, TransformControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -233,6 +233,7 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
   const transformMode = useStore((s) => s.transformMode);
   const updateModel = useStore((s) => s.updateModel);
   const setModelDragging = useStore((s) => s.setModelDragging);
+  const [activeAxis, setActiveAxis] = useState<string | null>(null);
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
     const {
@@ -254,8 +255,15 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
   const displayPos: [number, number, number] = model.position;
 
   // Visual feedback
-  const highlightColor = isMoveEnabled ? "#4ade80" : "#f97316";
-  const highlightOpacity = isMoveEnabled ? 0.5 : 0.35;
+  const getAxisColor = (axis: string | null) => {
+    if (axis === "X" || axis === "x") return "#FF5A5F";
+    if (axis === "Y" || axis === "y") return "#4CD964";
+    if (axis === "Z" || axis === "z") return "#4A90FF";
+    if (axis === "XY" || axis === "YZ" || axis === "XZ") return "#FCD34D";
+    return isMoveEnabled ? "#4ade80" : "#f97316";
+  };
+  const highlightColor = getAxisColor(activeAxis);
+  const highlightOpacity = isMoveEnabled ? 0.6 : 0.35;
 
   // Highlight box size — use Wall dimensions if applicable
   const wp = model.wallParams ?? DEFAULT_WALL_PARAMS;
@@ -309,17 +317,44 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
         <GltfMesh url={model.dataUrl} />
       )}
 
-      {/* Selection highlight box */}
+      {/* Selection highlight box & Plane Guide */}
       {isSelected && (
-        <mesh position={hlCenter}>
-          <boxGeometry args={hlArgs} />
-          <meshBasicMaterial
-            color={highlightColor}
-            wireframe
-            transparent
-            opacity={highlightOpacity}
-          />
-        </mesh>
+        <group position={hlCenter}>
+          <mesh>
+            <boxGeometry args={hlArgs} />
+            <meshBasicMaterial
+              color={highlightColor}
+              wireframe
+              transparent
+              opacity={highlightOpacity}
+            />
+          </mesh>
+
+          {/* Plane Guide Visualization */}
+          {activeAxis && ["XY", "YZ", "XZ"].includes(activeAxis) && (
+            <group
+              rotation={[
+                activeAxis === "XZ" ? Math.PI / 2 : 0,
+                activeAxis === "YZ" ? Math.PI / 2 : 0,
+                0,
+              ]}
+            >
+              <mesh>
+                <planeGeometry args={[2, 2]} />
+                <meshBasicMaterial
+                  color="#FCD34D"
+                  transparent
+                  opacity={0.15}
+                  side={THREE.DoubleSide}
+                />
+              </mesh>
+              <gridHelper
+                args={[2, 12, "#FCD34D", "#FCD34D"]}
+                rotation={[Math.PI / 2, 0, 0]}
+              />
+            </group>
+          )}
+        </group>
       )}
       {/* Lock/Unlock status label */}
       {isSelected && isEditMode && (
@@ -367,9 +402,11 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
         <TransformControls
           object={target}
           mode={transformMode}
+          size={1.1}
           onMouseDown={() => setModelDragging(model.id)}
           onMouseUp={() => {
             setModelDragging(null);
+            setActiveAxis(null);
             const p = target.position;
             const r = target.rotation;
             const s = target.scale;
@@ -378,6 +415,12 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
               rotation: [r.x, r.y, r.z],
               scale: [s.x, s.y, s.z],
             });
+          }}
+          onChange={(e: any) => {
+            // e.target is the TransformControls instance
+            if (e?.target?.axis !== activeAxis) {
+              setActiveAxis(e?.target?.axis || null);
+            }
           }}
         />
       )}

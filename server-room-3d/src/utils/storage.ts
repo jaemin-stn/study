@@ -1051,7 +1051,7 @@ export const sampleRegisteredDevices: RegisteredDevice[] = sampleNodes.flatMap((
   } else if (isLeafNode(sampleNodes, node.nodeId)) {
     count = 400 + (idx % 10) * 20; // 400+ to fill 30+ racks
   } else if (depth >= 2) {
-    count = 350 + (idx % 5) * 10; 
+    count = 40 + (idx % 5) * 5; // Regions/centers: small amount
   }
   return generateRegisteredDevices(node.nodeId, node.name, count, `10.${idx + 1}.1.1`, idx);
 });
@@ -1062,6 +1062,7 @@ const generateGroupRacks = (
   colsPerRow: number,
   errorIndexes: number[],
   regDevices: RegisteredDevice[],
+  faceToFace: boolean = false,
 ): Rack[] => {
   const racks: Rack[] = [];
   let deviceIdx = 0;
@@ -1125,18 +1126,21 @@ const generateGroupRacks = (
     }
     const stateX = (worldX + width / 2) / GRID_SPACING;
     
-    // Aisle arrangement if requested
+    // Aisle arrangement: face-to-face pairs with 1.5 unit front gap
     let posZ = row * 4.0;
     let orient = 180;
-    const isAisle = nodeId === GWACHEON_NODE_ID;
     
-    if (isAisle) {
-      // Create hot/cold aisles
-      // 앞면 간격 1.5, 뒷면 간격 3.0 설정 (한 페어의 Z축 길이는 4.5)
+    if (faceToFace) {
+      // Hot/cold aisle layout:
+      // Row 0: orient=180, z = baseY         (앞면이 아래를 향함)
+      // Row 1: orient=0,   z = baseY + 1.5   (앞면이 위를 향함) -> cold aisle = 1.5칸
+      // Row 2: orient=180, z = baseY + 4.5   (다음 페어, hot aisle gap = 3.0)
+      // Row 3: orient=0,   z = baseY + 6.0   ...
       const pair = Math.floor(row / 2);
       const isSecondInPair = row % 2 !== 0;
       
-      const baseY = pair * 4.5;
+      const pairSpacing = 4.5; // 1.5 cold + 3.0 hot
+      const baseY = pair * pairSpacing;
       posZ = baseY + (isSecondInPair ? 1.5 : 0);
       orient = isSecondInPair ? 0 : 180;
     }
@@ -1158,15 +1162,22 @@ export const sampleRacks: Rack[] = sampleNodes.flatMap((node, idx) => {
   const nodeDevices = sampleRegisteredDevices.filter((d) => d.deviceGroupId === node.nodeId);
   const depth = getNodeDepth(sampleNodes, node.nodeId);
   
-  if (depth < 2) return []; // Only exclude Root (STN)
+  if (depth < 2) return []; // Exclude Root (STN)
   
-  let rackCount = 35 + (idx % 6);
-  let colsPerRow = 10;
+  const isLeaf = isLeafNode(sampleNodes, node.nodeId);
   
   if (node.nodeId === GWACHEON_NODE_ID) {
-    rackCount = 60; // Huge room
-    colsPerRow = 15;
+    // Showcase room: 60 racks, 15 per row, face-to-face
+    return generateGroupRacks(60, node.nodeId, 15, [1, 5, 12, 20, 25, 30, 45, 55], nodeDevices, true);
   }
   
-  return generateGroupRacks(rackCount, node.nodeId, colsPerRow, [1, 5, 20, 25, 45], nodeDevices);
+  if (isLeaf) {
+    // All server rooms: 30+ racks, face-to-face aisle layout
+    const rackCount = 30 + (idx % 10);
+    return generateGroupRacks(rackCount, node.nodeId, 10, [2, 8, 15, 22], nodeDevices, true);
+  }
+  
+  // Middle hierarchy nodes (regions, centers): small number, no face-to-face
+  const rackCount = 5 + (idx % 4);
+  return generateGroupRacks(rackCount, node.nodeId, 5, [1], nodeDevices, false);
 });

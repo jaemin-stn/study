@@ -22,9 +22,9 @@ export const DeviceModal = () => {
   let rackId: string | undefined;
 
   for (const r of racks) {
-    device = r.devices.find((d) => d.id === selectedDeviceId);
+    device = r.devices.find((d) => d.itemId === selectedDeviceId);
     if (device) {
-      rackId = r.id;
+      rackId = r.rackId;
       rack = r;
       break;
     }
@@ -134,7 +134,7 @@ export const DeviceModal = () => {
         {/* Header */}
         <div className="grafana-modal-header">
           <div>
-            <h2 className="grafana-modal-title">{device.name}</h2>
+            <h2 className="grafana-modal-title">{device.title}</h2>
             <span
               style={{
                 fontSize: "var(--font-size-sm)",
@@ -151,7 +151,7 @@ export const DeviceModal = () => {
               >
                 {device.type}
               </span>
-              Rack: {rack?.displayName || rackId?.substring(0, 4)}
+              Rack: {rack?.rackTitle || rackId?.substring(0, 4)}
             </span>
           </div>
           <button

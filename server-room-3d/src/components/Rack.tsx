@@ -23,13 +23,13 @@ interface RackProps extends RackType {
 }
 
 export const Rack = ({
-  id,
-  displayName,
-  uHeight,
+  rackId,
+  rackTitle,
+  rackSize,
   width: rackWidth,
   position,
   devices,
-  nodeId,
+  mapId,
   draggingRackId,
   dragPosition,
 }: RackProps) => {
@@ -38,15 +38,15 @@ export const Rack = ({
   const focusedRackId = useStore((state: AppState) => state.focusedRackId);
   const { theme } = useTheme();
 
-  const isSelected = selectedRackId === id;
-  const isHovered = hoveredRackId === id;
-  const isFocused = focusedRackId === id;
+  const isSelected = selectedRackId === rackId;
+  const isHovered = hoveredRackId === rackId;
+  const isFocused = focusedRackId === rackId;
   const isInternalFocused = isSelected || isFocused;
-  const isInternalDragging = draggingRackId === id;
+  const isInternalDragging = draggingRackId === rackId;
   const isDarkMode = theme === "dark";
   const orientation = useStore(
     (state: AppState) =>
-      state.racks.find((r: RackType) => r.id === id)?.orientation ?? 180,
+      state.racks.find((r: RackType) => r.rackId === rackId)?.orientation ?? 180,
   );
 
   const { raycaster, mouse, camera } = useThree();
@@ -78,16 +78,16 @@ export const Rack = ({
     // Tiling density matched to the perforated sheet inner opening
     const density = 40;
     const panelW = 1.0 - 0.04; // depth - 0.04
-    const panelH = uHeight * U_HEIGHT + 0.1 - 0.06; // height - 0.06
+    const panelH = rackSize * U_HEIGHT + 0.1 - 0.06; // height - 0.06
     const railV = 0.08;
     const railW = 0.08;
     const innerW = panelW - railV * 2; // matches planeGeometry width
     const innerH = panelH - railW * 2; // matches planeGeometry height
     tex.repeat.set(innerW * density, innerH * density);
     return tex;
-  }, [uHeight]);
+  }, [rackSize]);
 
-  const height = uHeight * U_HEIGHT + 0.1;
+  const height = rackSize * U_HEIGHT + 0.1;
   const width = rackWidth;
   const depth = 1.0;
 
@@ -133,7 +133,7 @@ export const Rack = ({
     // Snapshot BEFORE mutation — DeviceMesh onClick reads this for two-step gate
     selectedRackIdBeforePointerDown = useStore.getState().selectedRackId;
 
-    selectRack(id);
+    selectRack(rackId);
 
     if (!isEditMode) return;
 
@@ -149,7 +149,7 @@ export const Rack = ({
         tempPoint.z - rackWorldZ,
       ];
 
-      setDragging(true, id, offset);
+      setDragging(true, rackId, offset);
       updateDragPosition([rackWorldX, rackWorldZ]);
       document.body.style.cursor = "grabbing";
     }
@@ -483,7 +483,7 @@ export const Rack = ({
         onPointerDown={handlePointerDown}
         onPointerOver={(e) => {
           e.stopPropagation();
-          setHoveredRack(id);
+          setHoveredRack(rackId);
         }}
         onPointerOut={(e) => {
           e.stopPropagation();
@@ -540,10 +540,10 @@ export const Rack = ({
                   display: "inline-block",
                 }}
               />
-              <span>{`${uHeight}U`}</span>
+              <span>{`${rackSize}U`}</span>
               <span style={{ opacity: 0.4 }}>|</span>
               <span>
-                {displayName || `Rack ${id.slice(0, 4).toUpperCase()}`}
+                {rackTitle || `Rack ${rackId.slice(0, 4).toUpperCase()}`}
               </span>
             </div>
           </Html>
@@ -554,7 +554,7 @@ export const Rack = ({
         {/* Removed per-rack pointLight for performance */}
         {devices.map((device) => (
           <DeviceMesh
-            key={device.id}
+            key={device.itemId}
             device={device}
             rackHeight={height}
             rackWidth={width}
@@ -566,13 +566,13 @@ export const Rack = ({
 
               // Use the snapshot captured in handlePointerDown (which fires FIRST)
               // to determine if the rack was ALREADY focused before this interaction.
-              if (selectedRackIdBeforePointerDown === id) {
+              if (selectedRackIdBeforePointerDown === rackId) {
                 // Rack was already focused → open port modal
-                selectDevice(device.id);
+                selectDevice(device.itemId);
               } else {
-                // Rack was NOT focused → handlePointerDown already called selectRack(id)
+                // Rack was NOT focused → handlePointerDown already called selectRack(rackId)
                 // Just focus the camera; no modal.
-                focusRack(id);
+                focusRack(rackId);
               }
             }}
           />
@@ -581,12 +581,12 @@ export const Rack = ({
 
       <ErrorMarker
         rack={{
-          id,
-          uHeight,
+          rackId,
+          rackSize,
           position,
           devices,
           width,
-          nodeId,
+          mapId,
         }}
       />
     </animated.group>
@@ -607,11 +607,11 @@ const DeviceMesh = ({
   const meshRef = useRef<THREE.Mesh>(null);
   const faceplateRef = useRef<THREE.Mesh>(null);
   const highlightedDeviceId = useStore((s) => s.highlightedDeviceId);
-  const isHighlighted = highlightedDeviceId === device.id;
+  const isHighlighted = highlightedDeviceId === device.itemId;
 
-  const deviceH = device.uSize * U_HEIGHT;
+  const deviceH = device.size * U_HEIGHT;
   const bottomY = -rackHeight / 2;
-  const yOffset = (device.uPosition - 1) * U_HEIGHT;
+  const yOffset = (device.position - 1) * U_HEIGHT;
   const centerY = bottomY + yOffset + deviceH / 2 + 0.05;
   const deviceWidth = rackWidth - 0.06;
 
@@ -680,7 +680,7 @@ const DeviceMesh = ({
     >
       {(() => {
         const resolvedUrl =
-          resolveDeviceImage(device.modelName) ?? device.imageUrl;
+          resolveDeviceImage(device.modelName);
 
         const content = (
           <>

@@ -60,7 +60,7 @@ export const CameraController = () => {
       return;
     }
 
-    const rack = racks.find((r) => r.id === targetRackId);
+    const rack = racks.find((r) => r.rackId === targetRackId);
     if (!rack || !controls) return;
 
     const perspectiveCamera = camera as THREE.PerspectiveCamera;
@@ -77,7 +77,7 @@ export const CameraController = () => {
 
     const rackX = rack.position[0] * GRID_SPACING;
     const rackZ = rack.position[1] * GRID_SPACING;
-    const rackHeight = rack.uHeight * U_HEIGHT + 0.1;
+    const rackHeight = rack.rackSize * U_HEIGHT + 0.1;
     const rackWidth = 0.6;
 
     const fov = perspectiveCamera.fov;
@@ -137,7 +137,7 @@ export const CameraController = () => {
     racks.forEach((rack) => {
       const rackX = rack.position[0] * GRID_SPACING;
       const rackZ = rack.position[1] * GRID_SPACING;
-      const rackHeight = rack.uHeight * U_HEIGHT;
+      const rackHeight = rack.rackSize * U_HEIGHT;
       const hw = (rack.width || 0.6) / 2;
       const hd = 0.3; // depth/2
 

@@ -30,20 +30,20 @@ export const FocusCarousel: React.FC = () => {
 
   // Filter racks rigidly by active node only
   const groupRacks = React.useMemo(() => {
-    return racks.filter((r) => r.nodeId === activeNodeId);
+    return racks.filter((r) => r.mapId === activeNodeId);
   }, [racks, activeNodeId]);
 
   // Requirements: Only visible in normal mode, when a rack is focused, and if more than one rack exists.
   if (isEditMode || !selectedRackId || groupRacks.length <= 1) return null;
 
-  const currentIndex = groupRacks.findIndex((r) => r.id === selectedRackId);
+  const currentIndex = groupRacks.findIndex((r) => r.rackId === selectedRackId);
   if (currentIndex === -1) return null;
 
   const handlePrev = () => {
     // Requirements: Wrap around to the last rack if at the first.
     const prevIndex =
       (currentIndex - 1 + groupRacks.length) % groupRacks.length;
-    const targetId = groupRacks[prevIndex].id;
+    const targetId = groupRacks[prevIndex].rackId;
     selectRack(targetId);
     focusRack(targetId);
   };
@@ -51,7 +51,7 @@ export const FocusCarousel: React.FC = () => {
   const handleNext = () => {
     // Requirements: Wrap around to the first rack if at the last.
     const nextIndex = (currentIndex + 1) % groupRacks.length;
-    const targetId = groupRacks[nextIndex].id;
+    const targetId = groupRacks[nextIndex].rackId;
     selectRack(targetId);
     focusRack(targetId);
   };

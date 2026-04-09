@@ -171,7 +171,7 @@ export const getSubtreeEquipmentCount = (
   nodeId: string,
 ): number => {
   const descendantIds = getSubtreeNodeIds(nodes, nodeId);
-  return registeredDevices.filter((rd) => descendantIds.has(rd.nodeId)).length;
+  return registeredDevices.filter((rd) => descendantIds.has(rd.deviceGroupId || '')).length;
 };
 
 /** 특정 노드의 직계 장비 개수 반환 (등록 장비 기준) */
@@ -180,7 +180,7 @@ export const getNodeEquipmentCount = (
   nodeId: string | "ALL",
 ): number => {
   if (nodeId === "ALL") return registeredDevices.length;
-  return registeredDevices.filter((rd) => rd.nodeId === nodeId).length;
+  return registeredDevices.filter((rd) => rd.deviceGroupId === nodeId).length;
 };
 
 /** 특정 노드의 장비 목록 및 배치된 랙 정보 반환 */
@@ -189,16 +189,16 @@ export const getNodeDevices = (
   registeredDevices: RegisteredDevice[],
   racks: Rack[],
 ): { device: RegisteredDevice; rackId: string | null; instanceId: string | null }[] => {
-  const nodeRegDevices = registeredDevices.filter((rd) => rd.nodeId === nodeId);
+  const nodeRegDevices = registeredDevices.filter((rd) => rd.deviceGroupId === nodeId);
 
   return nodeRegDevices.map((rd) => {
     let foundRackId: string | null = null;
     let foundInstanceId: string | null = null;
     for (const r of racks) {
-      const deviceInstance = r.devices.find((d) => d.registeredDeviceId === rd.id);
+      const deviceInstance = r.devices.find((d) => d.deviceId === rd.deviceId);
       if (deviceInstance) {
-        foundRackId = r.id;
-        foundInstanceId = deviceInstance.id;
+        foundRackId = r.rackId;
+        foundInstanceId = deviceInstance.itemId;
         break;
       }
     }
@@ -214,16 +214,16 @@ export const getSubtreeDevices = (
   racks: Rack[],
 ): { device: RegisteredDevice; rackId: string | null; instanceId: string | null }[] => {
   const descendantIds = getSubtreeNodeIds(nodes, nodeId);
-  const nodeRegDevices = registeredDevices.filter((rd) => descendantIds.has(rd.nodeId));
+  const nodeRegDevices = registeredDevices.filter((rd) => descendantIds.has(rd.deviceGroupId || ''));
 
   return nodeRegDevices.map((rd) => {
     let foundRackId: string | null = null;
     let foundInstanceId: string | null = null;
     for (const r of racks) {
-      const deviceInstance = r.devices.find((d) => d.registeredDeviceId === rd.id);
+      const deviceInstance = r.devices.find((d) => d.deviceId === rd.deviceId);
       if (deviceInstance) {
-        foundRackId = r.id;
-        foundInstanceId = deviceInstance.id;
+        foundRackId = r.rackId;
+        foundInstanceId = deviceInstance.itemId;
         break;
       }
     }

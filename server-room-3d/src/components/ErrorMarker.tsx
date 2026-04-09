@@ -53,7 +53,7 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
   if (!highestError) return null;
 
   // Calculate position relative to rack center
-  const actualRackHeight = rack.uHeight * U_HEIGHT + 0.1;
+  const actualRackHeight = rack.rackSize * U_HEIGHT + 0.1;
   const position: [number, number, number] = [
     0,
     ERROR_MARKER_HEIGHT - actualRackHeight / 2,
@@ -70,8 +70,8 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
           onClick={(e) => {
             if (isDragging) return;
             e.stopPropagation();
-            selectRack(rack.id);
-            focusRack(rack.id);
+            selectRack(rack.rackId);
+            focusRack(rack.rackId);
           }}
         >
           {/* Cone pointing down */}
@@ -119,8 +119,8 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
               onClick={(e) => {
                 if (isDragging) return;
                 e.stopPropagation();
-                selectRack(rack.id);
-                focusRack(rack.id);
+                selectRack(rack.rackId);
+                focusRack(rack.rackId);
               }}
             >
               {(highestError as string).toUpperCase()}

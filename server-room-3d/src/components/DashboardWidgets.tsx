@@ -82,7 +82,7 @@ export const DashboardWidgets = () => {
 
   // Filter racks by exactly the active node only
   const groupRacks = useMemo(
-    () => racks.filter((r) => r.nodeId === activeNodeId),
+    () => racks.filter((r) => r.mapId === activeNodeId),
     [racks, activeNodeId],
   );
 
@@ -94,10 +94,10 @@ export const DashboardWidgets = () => {
         device.portStates.forEach((port) => {
           if (port.status === "error" && port.errorLevel) {
             errors.push({
-              rackId: rack.id,
-              rackName: rack.displayName || `Rack ${rack.id.slice(0, 4)}`,
-              deviceId: device.id,
-              deviceName: device.name,
+              rackId: rack.rackId,
+              rackName: rack.rackTitle || `Rack ${rack.rackId.slice(0, 4)}`,
+              deviceId: device.itemId,
+              deviceName: device.title,
               portNumber: port.portId,
               severity: port.errorLevel,
             });

@@ -36,47 +36,154 @@ export interface PortState {
 // 장비 타입
 export type DeviceType = "Switch" | "Router" | "Server";
 
-// 장비
+// 장비 (t_rack_device - 랙에 배치된 장비)
 export interface Device {
-  id: string;
+  itemId: string;           // (ex: id)
+  rackId?: string;
+  deviceId?: string;        // (ex: registeredDeviceId)
+  title: string;            // (ex: name)
+  position: number;         // (ex: uPosition)
+  imageName?: string;       // (ex: imageUrl)
+  size: number;             // (ex: uSize)
+  del_yn?: string;
+  modiDate?: string;
+  regDate?: string;
+
+  // UI/3D 확장 (시각화 및 조인 전 임시 속성)
   type: DeviceType;
-  name: string;
-  uSize: number; // 1U, 2U 등 (높이)
-  uPosition: number; // 렉 내부 위치 (1부터 시작, 아래에서 위로)
-  imageUrl?: string; // Custom faceplate image URL
-  modelName?: string; // 모델명 (assets 폴더 내 이미지 매핑)
-  ip?: string;
-  mac?: string;
+  modelName?: string;
   vendor?: VendorName;
-  registeredDeviceId?: string; // 등록 장비 참조 ID
+  IPAddr?: string;
+  macAddr?: string;
   portStates: PortState[];
 }
 
-// 등록 장비 (노드별 실제 장비 인벤토리)
+// 등록 장비 (t_device 마스터 장비 인벤토리)
 export interface RegisteredDevice {
-  id: string;
-  nodeId: string; // 소속 노드 ID
-  deviceName: string; // 사용자 지정 장비명
-  modelName: string; // e.g. "7250 IXR-R6"
-  type: DeviceType;
-  uSize: number;
-  ip: string;
-  mac: string;
-  vendor: VendorName;
+  // 필수 필드 (Primary, 사용자 정의 필수)
+  deviceId: string;
+  IPAddr: string;
+  title: string;
+  macAddr: string;
+
+  // 이외의 t_device 옵셔널 속성들
+  deviceGroupId?: string; // (ex: nodeId)
+  modelId?: number;
+  standardCheck?: number;
+  deviceCheck?: number;
+  standardDeviceId?: number;
+  modelName?: string;
+  hostName?: string;
+  tmid?: string;
+  externalId?: number;
+  IsrAddr?: string;
+  snmpVer?: string;
+  snmpPort?: number;
+  readCommunity?: string;
+  writeCommunity?: string;
+  snmpId?: string;
+  snmpPwd?: string;
+  snmpAuthpass?: string;
+  snmpPrivpass?: string;
+  snmpAuthprotocol?: string;
+  snmpPrivprotocol?: string;
+  snmpV3level?: number;
+  connectType?: string;
+  connectPort?: string;
+  connectId?: string;
+  connectPwd?: string;
+  targetIp?: string;
+  targetPort?: string;
+  reservParam?: string;
+  userSubnet?: string;
+  interfaceSubnet?: string;
+  proxyIp?: string;
+  proxyPort?: string;
+  proxyId?: string;
+  proxyPwd?: string;
+  privilegeUser?: string;
+  privilegeMethod?: string;
+  privilegePwd?: string;
+  memo?: string;
+  colErrStatus?: number;
+  colInvStatus?: string;
+  deviceState?: number;
+  isKnown?: number;
+  errorPredict?: number;
+  regUser?: string;
+  regDate?: string;
+  colDate?: string;
+  modiUser?: string;
+  modiDate?: string;
+  addItem1?: string;
+  addItem2?: string;
+  addItem3?: string;
+  interfaceMacList?: string;
+  osVersion?: string;
+  isDevMonit?: number;
+  isDevSetting?: number;
+  isDeviceOid?: number;
+  snmpControl?: number;
+  cpumemControl?: number;
+  interfaceControl?: number;
+  pingControl?: number;
+  connectControl?: number;
+  sdnControl?: number;
+  syslogControl?: number;
+  syslogPerfControl?: number;
+  diskControl?: number;
+  processControl?: number;
+  tmpHmdControl?: number;
+  cctvControl?: number;
+  ptnTunnelControl?: number;
+  ptnServiceControl?: number;
+  ipmplsLspControl?: number;
+  ipmplsServiceControl?: number;
+  roadmServiceControl?: number;
+  ipmplsEquipControl?: number;
+  roadmEquipControl?: number;
+  ptnEquipControl?: number;
+  transportLinkControl?: number;
+  upsControl?: number;
+  tmpHmdChamberControl?: number;
+  fireDetectionControl?: number;
+  del_yn?: string;
+  system_code_id?: string;
+  delDate?: string;
+  delUser?: string;
+  encoding?: string;
+  deviceOidSetting?: number;
+  lspControl?: number;
+  serviceControl?: number;
+  transportPathControl?: number;
+  vlanarpControl?: number;
+
+  // UI/3D 확장을 위한 기존 속성 유지
+  type?: DeviceType;
+  size?: number; // (ex: uSize)
+  vendor?: VendorName;
 }
 
 // 렉 방향
 export type Orientation = 0 | 90 | 180 | 270;
 
-// 렉
+// 렉 (t_rack 및 3D 속성 통합)
 export interface Rack {
-  id: string;
-  nodeId: string; // 소속 노드 ID
-  displayName?: string; // 사용자가 지정한 랙 이름
-  uHeight: 24 | 32 | 48; // 렉 높이 옵션
-  width: number; // 렉 너비 (0.6, 1.0 등)
-  position: [number, number]; // 그리드 좌표 [x, z]
-  orientation?: Orientation; // Rotation angle in degrees
+  rackId: string;
+  mapId: string; // (ex: nodeId)
+  rackTitle?: string;
+  rackType?: string;
+  rackSize: 24 | 32 | 48; // (ex: uHeight)
+  memo?: string;
+  del_yn?: string;
+  modiDate?: string;
+  regDate?: string;
+
+  // 3D 확장 속성 (새로 편입)
+  width: number;
+  position: [number, number];
+  orientation?: Orientation;
+  
   devices: Device[];
 }
 

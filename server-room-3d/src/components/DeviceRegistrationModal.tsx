@@ -44,13 +44,13 @@ const VENDORS: VendorName[] = [
 ];
 
 // Simple IP format validation (X.X.X.X)
-const isValidIP = (ip: string) =>
-  /^(\d{1,3}\.){3}\d{1,3}$/.test(ip) &&
-  ip.split(".").every((n) => parseInt(n) >= 0 && parseInt(n) <= 255);
+const isValidIP = (IPAddr: string) =>
+  /^(\d{1,3}\.){3}\d{1,3}$/.test(IPAddr) &&
+  IPAddr.split(".").every((n) => parseInt(n) >= 0 && parseInt(n) <= 255);
 
 // Simple MAC format validation (XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX)
-const isValidMAC = (mac: string) =>
-  /^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/.test(mac);
+const isValidMAC = (macAddr: string) =>
+  /^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/.test(macAddr);
 
 const MODAL_STYLES = `
 .drm-overlay {
@@ -365,8 +365,8 @@ const MODAL_STYLES = `
 .col-group { width: 110px; }
 .col-name { width: auto; min-width: 180px; }
 .col-model { width: 130px; }
-.col-ip { width: 110px; }
-.col-mac { width: 150px; }
+.col-IPAddr { width: 110px; }
+.col-macAddr { width: 150px; }
 .col-vendor { width: 100px; }
 .col-actions { width: 66px; }
 
@@ -1748,7 +1748,7 @@ const RegistrationFormModal = ({
   activeNodeId: string;
   nodes: HierarchyNode[];
   registeredDevices: any[];
-  onSuccess: (deviceName: string, isEdit: boolean) => void;
+  onSuccess: (title: string, isEdit: boolean) => void;
 }) => {
   const addRegisteredDevice = useStore((s) => s.addRegisteredDevice);
   const updateRegisteredDevice = useStore((s) => s.updateRegisteredDevice);
@@ -1756,9 +1756,9 @@ const RegistrationFormModal = ({
   // Form state
   const [nodeId, setNodeId] = useState<string>(activeNodeId || "");
   const [selectedModelIdx, setSelectedModelIdx] = useState(0);
-  const [deviceName, setDeviceName] = useState("");
-  const [ip, setIp] = useState("");
-  const [mac, setMac] = useState("");
+  const [title, setDeviceName] = useState("");
+  const [IPAddr, setIp] = useState("");
+  const [macAddr, setMac] = useState("");
   const [vendor, setVendor] = useState<VendorName>("Nokia");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -1767,17 +1767,17 @@ const RegistrationFormModal = ({
   useEffect(() => {
     if (isOpen) {
       if (editingDeviceId) {
-        const device = registeredDevices.find((d) => d.id === editingDeviceId);
+        const device = registeredDevices.find((d) => d.deviceId === editingDeviceId);
         if (device) {
-          setNodeId(device.nodeId);
+          setNodeId(device.deviceGroupId || '');
           const idx = DEVICE_TEMPLATES.findIndex(
             (t) => t.modelName === device.modelName,
           );
           if (idx >= 0) setSelectedModelIdx(idx);
-          setDeviceName(device.deviceName);
-          setIp(device.ip);
-          setMac(device.mac);
-          setVendor(device.vendor);
+          setDeviceName(device.title || '');
+          setIp(device.IPAddr || '');
+          setMac(device.macAddr || '');
+          if (device.vendor) setVendor(device.vendor);
         }
       } else {
         setNodeId(activeNodeId || "");
@@ -1791,12 +1791,11 @@ const RegistrationFormModal = ({
 
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!deviceName.trim()) newErrors.deviceName = "필수 입력";
-    if (!nodeId || nodeId === "") newErrors.nodeId = "위치를 선택하세요";
-    if (!ip.trim()) newErrors.ip = "필수 입력";
-    else if (!isValidIP(ip.trim())) newErrors.ip = "형식: X.X.X.X";
-    if (!mac.trim()) newErrors.mac = "필수 입력";
-    else if (!isValidMAC(mac.trim())) newErrors.mac = "형식: XX:XX:XX:XX:XX:XX";
+    if (!title.trim()) newErrors.title = "필수 입력";
+    if (!IPAddr.trim()) newErrors.IPAddr = "필수 입력";
+    else if (!isValidIP(IPAddr.trim())) newErrors.IPAddr = "형식: X.X.X.X";
+    if (!macAddr.trim()) newErrors.macAddr = "필수 입력";
+    else if (!isValidMAC(macAddr.trim())) newErrors.macAddr = "형식: XX:XX:XX:XX:XX:XX";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -1804,32 +1803,35 @@ const RegistrationFormModal = ({
   const handleSubmit = () => {
     if (!validate()) return;
 
-    const macTrimmed = mac.trim().toUpperCase();
+    const macTrimmed = macAddr.trim().toUpperCase();
     const existing = registeredDevices.find(
-      (d) => d.mac === macTrimmed && d.id !== editingDeviceId,
+      (d) => d.macAddr === macTrimmed && d.deviceId !== editingDeviceId,
     );
     if (existing) {
-      setErrors((prev) => ({ ...prev, mac: "이미 존재하는 MAC입니다." }));
+      setErrors((prev) => ({ ...prev, macAddr: "이미 존재하는 MAC입니다." }));
       return;
     }
 
-    const payload = {
-      nodeId: nodeId,
-      deviceName: deviceName.trim(),
-      modelName: selectedTemplate.modelName,
-      type: selectedTemplate.type,
-      uSize: selectedTemplate.uSize,
-      ip: ip.trim(),
-      mac: macTrimmed,
-      vendor,
+    const payload: any = {
+      title: title.trim(),
+      IPAddr: IPAddr.trim(),
+      macAddr: macTrimmed,
     };
+    // 선택 필드: 값이 있을 때만 포함
+    if (nodeId) payload.deviceGroupId = nodeId;
+    if (selectedTemplate) {
+      payload.modelName = selectedTemplate.modelName;
+      payload.type = selectedTemplate.type;
+      payload.size = selectedTemplate.uSize;
+    }
+    if (vendor) payload.vendor = vendor;
 
     if (editingDeviceId) {
       updateRegisteredDevice(editingDeviceId, payload);
-      onSuccess(deviceName.trim(), true);
+      onSuccess(title.trim(), true);
     } else {
       addRegisteredDevice(payload);
-      onSuccess(deviceName.trim(), false);
+      onSuccess(title.trim(), false);
     }
     onClose();
   };
@@ -1847,7 +1849,7 @@ const RegistrationFormModal = ({
         <div className="drm-form-grid">
           <div className="drm-field">
             <label>
-              위치<span className="drm-required">*</span>
+              위치
             </label>
             <NodePicker
               nodes={nodes}
@@ -1862,7 +1864,7 @@ const RegistrationFormModal = ({
 
           <div className="drm-field">
             <label>
-              모델<span className="drm-required">*</span>
+              모델
             </label>
             <FormSelect
               options={DEVICE_TEMPLATES.map((t, i) => ({
@@ -1881,12 +1883,12 @@ const RegistrationFormModal = ({
             </label>
             <input
               type="text"
-              value={deviceName}
+              value={title}
               onChange={(e) => setDeviceName(e.target.value)}
               placeholder="장비 이름을 입력하세요 (예: 2층-라우터-01)"
             />
-            {errors.deviceName && (
-              <span className="drm-error-hint">{errors.deviceName}</span>
+            {errors.title && (
+              <span className="drm-error-hint">{errors.title}</span>
             )}
           </div>
 
@@ -1896,16 +1898,16 @@ const RegistrationFormModal = ({
             </label>
             <input
               type="text"
-              value={ip}
+              value={IPAddr}
               onChange={(e) => setIp(e.target.value)}
               placeholder="10.0.0.1"
             />
-            {errors.ip && <span className="drm-error-hint">{errors.ip}</span>}
+            {errors.IPAddr && <span className="drm-error-hint">{errors.IPAddr}</span>}
           </div>
 
           <div className="drm-field">
             <label>
-              벤더<span className="drm-required">*</span>
+              벤더
             </label>
             <FormSelect
               options={VENDORS.map((v) => ({ label: v, value: v }))}
@@ -1920,11 +1922,11 @@ const RegistrationFormModal = ({
             </label>
             <input
               type="text"
-              value={mac}
+              value={macAddr}
               onChange={(e) => setMac(e.target.value)}
               placeholder="AA:BB:CC:DD:EE:FF"
             />
-            {errors.mac && <span className="drm-error-hint">{errors.mac}</span>}
+            {errors.macAddr && <span className="drm-error-hint">{errors.macAddr}</span>}
           </div>
         </div>
 
@@ -2372,14 +2374,14 @@ export const DeviceRegistrationModal = () => {
     if (nodeFilter !== "all" && nodeFilter !== "") {
       if (directNodeOnly) {
         // Mode 1: Show only equipment directly in this node
-        list = list.filter((d) => d.nodeId === nodeFilter);
+        list = list.filter((d) => (d.deviceGroupId || "") === nodeFilter);
       } else if (selectedChildNodeIds.size > 0) {
         // Mode 2: Show only equipment directly assigned to the selected nodes
-        list = list.filter((d) => selectedChildNodeIds.has(d.nodeId));
+        list = list.filter((d) => selectedChildNodeIds.has((d.deviceGroupId || "")));
       } else {
         // Mode 3: Show full subtree (default when no specific filter is picked)
         const descendantIds = getSubtreeNodeIds(nodes, nodeFilter);
-        list = list.filter((d) => descendantIds.has(d.nodeId));
+        list = list.filter((d) => descendantIds.has((d.deviceGroupId || "")));
       }
     }
 
@@ -2387,11 +2389,11 @@ export const DeviceRegistrationModal = () => {
       const q = search.trim().toLowerCase();
       list = list.filter(
         (d) =>
-          (d.deviceName || "").toLowerCase().includes(q) ||
-          d.modelName.toLowerCase().includes(q) ||
-          d.ip.toLowerCase().includes(q) ||
-          d.mac.toLowerCase().includes(q) ||
-          d.vendor.toLowerCase().includes(q),
+          (d.title || "").toLowerCase().includes(q) ||
+          (d.modelName || "").toLowerCase().includes(q) ||
+          d.IPAddr.toLowerCase().includes(q) ||
+          d.macAddr.toLowerCase().includes(q) ||
+          (d.vendor || "").toLowerCase().includes(q),
       );
     }
     return list;
@@ -2409,13 +2411,13 @@ export const DeviceRegistrationModal = () => {
   if (!isOpen && !nodeDeleteConfirm) return null;
 
   const handleEditClick = (device: (typeof registeredDevices)[0]) => {
-    setEditingDeviceId(device.id);
+    setEditingDeviceId(device.deviceId);
     setIsRegistrationModalOpen(true);
   };
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedIds(new Set(filteredDevices.map((d) => d.id)));
+      setSelectedIds(new Set(filteredDevices.map((d) => d.deviceId)));
     } else {
       setSelectedIds(new Set());
     }
@@ -2432,7 +2434,7 @@ export const DeviceRegistrationModal = () => {
 
   const isAllSelected =
     filteredDevices.length > 0 &&
-    filteredDevices.every((d) => selectedIds.has(d.id));
+    filteredDevices.every((d) => selectedIds.has(d.deviceId));
 
   const handleImportExcel = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -2465,10 +2467,10 @@ export const DeviceRegistrationModal = () => {
 
       // If there are new nodes in the path, upsert them first and apply mapping
       if (newNodes.length > 0) {
-        const idMap = useStore.getState().upsertNodes(newNodes, false);
+        const { mapping: idMap } = useStore.getState().upsertNodes(newNodes, false);
         parsed.forEach((d) => {
-          if (idMap[d.nodeId]) {
-            d.nodeId = idMap[d.nodeId];
+          if (idMap[(d.deviceGroupId || "")]) {
+            (d as any).deviceGroupId = idMap[(d.deviceGroupId || "")];
           }
         });
       }
@@ -2493,16 +2495,16 @@ export const DeviceRegistrationModal = () => {
       return;
     }
     const selectedDevices = registeredDevices.filter((d) =>
-      selectedIds.has(d.id),
+      selectedIds.has(d.deviceId),
     );
     const scope = nodeFilter === "all" ? "ALL" : getNodeName(nodes, nodeFilter);
     exportRegisteredDevicesToExcel(selectedDevices, nodes, scope);
     showToast("선택한 장비 데이터가 내보내졌습니다.", "success", "export");
   };
 
-  const handleRegistrationSuccess = (deviceName: string, isEdit: boolean) => {
+  const handleRegistrationSuccess = (title: string, isEdit: boolean) => {
     showToast(
-      `장비 "${deviceName}" 정보가 ${isEdit ? "수정" : "등록"}되었습니다.`,
+      `장비 "${title}" 정보가 ${isEdit ? "수정" : "등록"}되었습니다.`,
       "success",
       "add",
     );
@@ -2515,16 +2517,16 @@ export const DeviceRegistrationModal = () => {
     device: (typeof registeredDevices)[0],
   ) => {
     e.stopPropagation();
-    const existing = findExistingMount(device.id);
+    const existing = findExistingMount(device.deviceId);
     setDeviceDeleteConfirm({
-      id: device.id,
-      deviceName: device.deviceName || device.modelName,
+      id: device.deviceId,
+      title: device.title || device.modelName || '',
       rackName: existing?.rackName,
     });
   };
 
   const handleLocateDevice = (device: (typeof registeredDevices)[0]) => {
-    const found = locateDevice(device.id);
+    const found = locateDevice(device.deviceId);
     if (!found) {
       showToast("해당 장비는 랙에 탑재되어 있지 않습니다.", "error");
     } else {
@@ -2947,8 +2949,8 @@ export const DeviceRegistrationModal = () => {
                               <th className="col-group">그룹</th>
                               <th className="col-name">장비명</th>
                               <th className="col-model">모델명</th>
-                              <th className="col-ip">IP 주소</th>
-                              <th className="col-mac">MAC 주소</th>
+                              <th className="col-IPAddr">IP 주소</th>
+                              <th className="col-macAddr">MAC 주소</th>
                               <th className="col-vendor">벤더</th>
                               <th className="col-actions">수정</th>
                               <th className="col-actions">삭제</th>
@@ -2957,7 +2959,7 @@ export const DeviceRegistrationModal = () => {
                           <tbody>
                             {filteredDevices.map((device) => (
                               <tr
-                                key={device.id}
+                                key={device.deviceId}
                                 onClick={() => handleLocateDevice(device)}
                               >
                                 <td className="col-check">
@@ -2972,11 +2974,11 @@ export const DeviceRegistrationModal = () => {
                                   >
                                     <input
                                       type="checkbox"
-                                      checked={selectedIds.has(device.id)}
+                                      checked={selectedIds.has(device.deviceId)}
                                       onChange={(e) => {
                                         e.stopPropagation();
                                         handleSelectRow(
-                                          device.id,
+                                          device.deviceId,
                                           e.target.checked,
                                         );
                                       }}
@@ -2985,12 +2987,12 @@ export const DeviceRegistrationModal = () => {
                                 </td>
                                 <td>
                                   <span className="drm-group-tag group-gwacheon">
-                                    {getNodeName(nodes, device.nodeId)}
+                                    {getNodeName(nodes, device.deviceGroupId || '')}
                                   </span>
                                 </td>
                                 <td>
                                   <div className="drm-device-name">
-                                    {device.deviceName || device.modelName}
+                                    {device.title || device.modelName}
                                   </div>
                                 </td>
                                 <td>{device.modelName}</td>
@@ -3000,7 +3002,7 @@ export const DeviceRegistrationModal = () => {
                                     fontSize: "12px",
                                   }}
                                 >
-                                  {device.ip}
+                                  {device.IPAddr}
                                 </td>
                                 <td
                                   style={{
@@ -3008,7 +3010,7 @@ export const DeviceRegistrationModal = () => {
                                     fontSize: "12px",
                                   }}
                                 >
-                                  {device.mac}
+                                  {device.macAddr}
                                 </td>
                                 <td>
                                   <span className="drm-vendor-tag">

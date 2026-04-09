@@ -670,7 +670,7 @@ export const HierarchyTree = () => {
     // Grouping by actual nodeId
     const groups: Record<string, typeof flat> = {};
     flat.forEach((item) => {
-      const nid = item.device.nodeId;
+      const nid = item.device.deviceGroupId || '';
       if (!groups[nid]) groups[nid] = [];
       groups[nid].push(item);
     });
@@ -983,26 +983,26 @@ export const HierarchyTree = () => {
                             ({ device, rackId, instanceId }) => {
                               const rack = rackId
                                 ? allRacksForMapping.find(
-                                    (r) => r.id === rackId,
+                                    (r) => r.rackId === rackId,
                                   )
                                 : null;
 
                               const equipmentLabel =
-                                device.deviceName ||
+                                device.title ||
                                 device.modelName ||
                                 "Device";
 
                               const rackLabel = rack
-                                ? (rack.displayName ||
-                                    `Rack-${rack.id.slice(0, 4)}`) +
-                                  ` (${rack.uHeight}U)`
+                                ? (rack.rackTitle ||
+                                    `Rack-${rack.rackId.slice(0, 4)}`) +
+                                  ` (${rack.rackSize}U)`
                                 : "미배치 (Inventory)";
 
                               return (
                                 <div
-                                  key={`${activeNodeId}-${device.id}`}
-                                  className={`tree-node tree-node-equipment ${highlightedDeviceId === (instanceId || device.id) ? "highlighted" : ""}`}
-                                  onClick={() => handleDeviceClick(device.id)}
+                                  key={`${activeNodeId}-${device.deviceId}`}
+                                  className={`tree-node tree-node-equipment ${highlightedDeviceId === (instanceId || device.deviceId) ? "highlighted" : ""}`}
+                                  onClick={() => handleDeviceClick(device.deviceId)}
                                 >
                                   <span className="tree-node-icon">📟</span>
                                   <div
@@ -1027,7 +1027,7 @@ export const HierarchyTree = () => {
                                     </span>
                                   </div>
                                   <span className="tree-node-count">
-                                    {device.uSize}U
+                                    {device.size}U
                                   </span>
                                 </div>
                               );

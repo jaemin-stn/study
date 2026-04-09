@@ -350,7 +350,7 @@ export const DevicePanel = () => {
     showToast,
     findExistingMount,
   } = useStore();
-  const rack = racks.find((r) => r.id === selectedRackId);
+  const rack = racks.find((r) => r.rackId === selectedRackId);
 
   // Rack UI name edit state
   const [isEditingName, setIsEditingName] = useState(false);
@@ -394,7 +394,7 @@ export const DevicePanel = () => {
     if (!rack) return;
     const newName = editNameValue.trim();
     if (newName) {
-      updateRack(rack.id, { displayName: newName });
+      updateRack(rack.rackId, { rackTitle: newName });
     }
     setIsEditingName(false);
   };
@@ -402,12 +402,12 @@ export const DevicePanel = () => {
   // Registered devices for this rack's exact node scope
   const groupRegDevices = useMemo(() => {
     if (!rack) return [];
-    return registeredDevices.filter((rd) => rd.nodeId === rack.nodeId);
-  }, [registeredDevices, rack?.nodeId]);
+    return registeredDevices.filter((rd) => rd.deviceGroupId === rack.mapId);
+  }, [registeredDevices, rack?.mapId]);
 
   // Helper to lookup a registered device by ID
   const findRegDevice = (id?: string): RegisteredDevice | undefined =>
-    id ? registeredDevices.find((rd) => rd.id === id) : undefined;
+    id ? registeredDevices.find((rd) => rd.deviceId === id) : undefined;
 
   if (!rack) return null;
 
@@ -428,30 +428,30 @@ export const DevicePanel = () => {
     if (!regDevice) return;
 
     const start = addModalSlot;
-    const end = start + regDevice.uSize - 1;
+    const end = start + (regDevice.size || 1) - 1;
 
-    if (start < 1 || end > rack.uHeight) {
+    if (start < 1 || end > rack.rackSize) {
       showToast(
-        `에러: 장비(${regDevice.uSize}U)가 랙 높이를 초과했습니다.`,
+        `에러: 장비(${regDevice.size || 1}U)가 랙 높이를 초과했습니다.`,
         "error",
       );
       return;
     }
 
     const collision = rack.devices.find((d) => {
-      const dStart = d.uPosition;
-      const dEnd = d.uPosition + d.uSize - 1;
+      const dStart = d.position;
+      const dEnd = d.position + d.size - 1;
       return start <= dEnd && end >= dStart;
     });
 
     if (collision) {
-      showToast(`에러: "${collision.name}" 장비와 겹칩니다.`, "error");
+      showToast(`에러: "${collision.title}" 장비와 겹칩니다.`, "error");
       return;
     }
 
     // Single-mount check: warn if already mounted in another rack
     const existing = findExistingMount(selectedRegDeviceId);
-    if (existing && existing.rackId !== rack.id) {
+    if (existing && existing.rackId !== rack.rackId) {
       setRemountPending({
         regDeviceId: selectedRegDeviceId,
         existingRackId: existing.rackId,
@@ -470,16 +470,16 @@ export const DevicePanel = () => {
 
     const device = {
       type: regDevice.type,
-      name: regDevice.deviceName,
-      uSize: regDevice.uSize,
-      uPosition: slot,
+      title: regDevice.title,
+      size: regDevice.size,
+      position: slot,
       modelName: regDevice.modelName,
       vendor: regDevice.vendor,
-      registeredDeviceId: regDevice.id,
+      deviceId: regDevice.deviceId,
       portStates: [] as PortState[],
-    };
+    } as any; // Type assertion since itemId needs to be generated in useStore
 
-    const success = addDevice(rack.id, device);
+    const success = addDevice(rack.rackId, device);
     if (success) {
       closeAddModal();
     } else {
@@ -514,24 +514,24 @@ export const DevicePanel = () => {
 
     const usedSlots = new Set<number>();
     rack.devices.forEach((d) => {
-      for (let i = 0; i < d.uSize; i++) {
-        usedSlots.add(d.uPosition + i);
+      for (let i = 0; i < d.size; i++) {
+        usedSlots.add(d.position + i);
       }
     });
 
     const rendered = [];
-    for (let u = 1; u <= rack.uHeight; u++) {
-      const device = rack.devices.find((d) => d.uPosition === u);
+    for (let u = 1; u <= rack.rackSize; u++) {
+      const device = rack.devices.find((d) => d.position === u);
       const occupied = usedSlots.has(u);
 
       if (device) {
-        const heightPx = device.uSize * TOTAL_SLOT_HEIGHT - SLOT_MARGIN;
+        const heightPx = device.size * TOTAL_SLOT_HEIGHT - SLOT_MARGIN;
         // Resolve from registered device if available, else fallback
-        const regDev = findRegDevice(device.registeredDeviceId);
+        const regDev = findRegDevice(device.deviceId);
         const displayName =
           (regDev
-            ? regDev.deviceName || regDev.modelName
-            : (device.modelName ?? device.name)) || "Device";
+            ? regDev.title || regDev.modelName
+            : (device.modelName ?? device.title)) || "Device";
         const imageSrc = resolveDeviceImage(
           regDev?.modelName ?? device.modelName,
         );
@@ -553,7 +553,7 @@ export const DevicePanel = () => {
           ? `var(--severity-${highestSeverity})`
           : UNIFIED_DEVICE_BORDER;
 
-        const isHighlighted = highlightedDeviceId === device.id;
+        const isHighlighted = highlightedDeviceId === device.itemId;
 
         rendered.push(
           <div
@@ -567,11 +567,11 @@ export const DevicePanel = () => {
                 : `1px solid ${borderColor}`,
             }}
             onClick={() => {
-              selectDevice(device.id);
+              selectDevice(device.itemId);
               if (selectedRackId) {
                 focusRack(selectedRackId);
               }
-              setHighlightedDevice(device.id, 2500);
+              setHighlightedDevice(device.itemId, 2500);
             }}
           >
             {hasImage && <DeviceTileImage src={imageSrc!} alt={displayName} />}
@@ -622,7 +622,7 @@ export const DevicePanel = () => {
                     flexShrink: 0,
                   }}
                 >
-                  ({device.uSize}U)
+                  ({device.size}U)
                 </span>
               </div>
 
@@ -633,14 +633,14 @@ export const DevicePanel = () => {
                 onClick={(e) => {
                   e.stopPropagation();
                   e.preventDefault();
-                  setDeleteConfirmId(device.id);
+                  setDeleteConfirmId(device.itemId);
                 }}
               >
                 ✕
               </button>
 
               {/* Inline delete confirmation */}
-              {deleteConfirmId === device.id && (
+              {deleteConfirmId === device.itemId && (
                 <div
                   style={{
                     position: "absolute",
@@ -667,7 +667,7 @@ export const DevicePanel = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      removeDevice(rack.id, device.id);
+                      removeDevice(rack.rackId, device.itemId);
                       setDeleteConfirmId(null);
                     }}
                     style={{
@@ -787,10 +787,10 @@ export const DevicePanel = () => {
     // Calculate actual contiguous free space starting from addModalSlot
     const usedSlots = new Set<number>();
     rack.devices.forEach((d) => {
-      for (let i = 0; i < d.uSize; i++) usedSlots.add(d.uPosition + i);
+      for (let i = 0; i < d.size; i++) usedSlots.add(d.position + i);
     });
     let contiguousFreeU = 0;
-    for (let u = addModalSlot; u <= rack.uHeight; u++) {
+    for (let u = addModalSlot; u <= rack.rackSize; u++) {
       if (usedSlots.has(u)) break;
       contiguousFreeU++;
     }
@@ -811,7 +811,7 @@ export const DevicePanel = () => {
                   color: "var(--text-secondary)",
                 }}
               >
-                Position: U{addModalSlot} · {getNodeName(nodes, rack.nodeId)} ·
+                Position: U{addModalSlot} · {getNodeName(nodes, rack.mapId)} ·
                 가용 공간 {contiguousFreeU}U
               </span>
             </div>
@@ -840,20 +840,20 @@ export const DevicePanel = () => {
                 <div className="reg-device-list">
                   {groupRegDevices.map((rd) => {
                     const thumb = resolveDeviceImage(rd.modelName);
-                    const isSelected = selectedRegDeviceId === rd.id;
-                    const placeable = canPlace(rd.uSize);
-                    const existingMount = findExistingMount(rd.id);
+                    const isSelected = selectedRegDeviceId === rd.deviceId;
+                    const placeable = canPlace(rd.size || 1);
+                    const existingMount = findExistingMount(rd.deviceId);
                     const isMountedElsewhere =
-                      !!existingMount && existingMount.rackId !== rack.id;
+                      !!existingMount && existingMount.rackId !== rack.rackId;
                     const isMountedHere =
-                      !!existingMount && existingMount.rackId === rack.id;
+                      !!existingMount && existingMount.rackId === rack.rackId;
                     return (
                       <div
-                        key={rd.id}
+                        key={rd.deviceId}
                         className={`reg-device-item ${isSelected ? "selected" : ""} ${!placeable && !isMountedElsewhere ? "disabled" : ""}`}
                         onClick={() => {
                           if (placeable || isMountedElsewhere)
-                            setSelectedRegDeviceId(rd.id);
+                            setSelectedRegDeviceId(rd.deviceId);
                         }}
                         style={{
                           opacity: placeable || isMountedElsewhere ? 1 : 0.45,
@@ -893,11 +893,11 @@ export const DevicePanel = () => {
                             className="reg-device-item-model"
                             style={{ marginBottom: "2px" }}
                           >
-                            {rd.deviceName || rd.modelName}
+                            {rd.title || rd.modelName}
                           </div>
                           <div className="reg-device-item-details">
-                            {rd.deviceName &&
-                              rd.deviceName !== rd.modelName && (
+                            {rd.title &&
+                              rd.title !== rd.modelName && (
                                 <span
                                   className="reg-device-item-badge"
                                   style={{
@@ -909,12 +909,12 @@ export const DevicePanel = () => {
                                 </span>
                               )}
                             <span className="reg-device-item-badge">
-                              {rd.uSize}U
+                              {rd.size}U
                             </span>
                             <span className="reg-device-item-badge">
                               {rd.vendor}
                             </span>
-                            <span>{rd.ip}</span>
+                            <span>{rd.IPAddr}</span>
                           </div>
                         </div>
                         {(isMountedHere || isMountedElsewhere) && (
@@ -1008,7 +1008,7 @@ export const DevicePanel = () => {
                     <span
                       style={{ color: "var(--text-primary)", fontWeight: 500 }}
                     >
-                      {selectedRegDevice.uSize}U
+                      {selectedRegDevice.size}U
                     </span>
                   </div>
                   <div>
@@ -1016,7 +1016,7 @@ export const DevicePanel = () => {
                     <span
                       style={{ color: "var(--text-primary)", fontWeight: 500 }}
                     >
-                      {selectedRegDevice.ip}
+                      {selectedRegDevice.IPAddr}
                     </span>
                   </div>
                   <div>
@@ -1024,7 +1024,7 @@ export const DevicePanel = () => {
                     <span
                       style={{ color: "var(--text-primary)", fontWeight: 500 }}
                     >
-                      {selectedRegDevice.mac}
+                      {selectedRegDevice.macAddr}
                     </span>
                   </div>
                   <div>
@@ -1070,7 +1070,7 @@ export const DevicePanel = () => {
                 }}
               >
                 {selectedRegDevice
-                  ? `${selectedRegDevice.deviceName || selectedRegDevice.modelName} 배치 (U${addModalSlot})`
+                  ? `${selectedRegDevice.title || selectedRegDevice.modelName} 배치 (U${addModalSlot})`
                   : "장비를 선택하세요"}
               </button>
               <button
@@ -1122,7 +1122,7 @@ export const DevicePanel = () => {
                       }}
                     >
                       「
-                      {selectedRegDevice?.deviceName ||
+                      {selectedRegDevice?.title ||
                         selectedRegDevice?.modelName}
                       」
                     </p>
@@ -1212,7 +1212,7 @@ export const DevicePanel = () => {
             <h2
               onClick={() => {
                 setEditNameValue(
-                  rack.displayName || `Rack ${rack.id.substring(0, 4)}`,
+                  rack.rackTitle || `Rack ${rack.rackId.substring(0, 4)}`,
                 );
                 setIsEditingName(true);
               }}
@@ -1228,7 +1228,7 @@ export const DevicePanel = () => {
               }}
               title="클릭하여 랙 이름 변경"
             >
-              {rack.displayName || `Rack ${rack.id.substring(0, 4)}`}
+              {rack.rackTitle || `Rack ${rack.rackId.substring(0, 4)}`}
               <svg
                 width="14"
                 height="14"
@@ -1251,7 +1251,7 @@ export const DevicePanel = () => {
               color: "var(--text-secondary)",
             }}
           >
-            {rack.uHeight}U Configuration
+            {rack.rackSize}U Configuration
             <span
               style={{
                 marginLeft: "6px",
@@ -1263,7 +1263,7 @@ export const DevicePanel = () => {
                 fontWeight: 600,
               }}
             >
-              {getNodeName(nodes, rack.nodeId)}
+              {getNodeName(nodes, rack.mapId)}
             </span>
           </span>
         </div>
@@ -1297,8 +1297,8 @@ export const DevicePanel = () => {
                 { label: "West (270°)", value: 270 },
               ].map((dir) => {
                 const wouldViolate = checkFrontClearanceViolation(
-                  racks.filter((r) => r.nodeId === rack.nodeId),
-                  rack.id,
+                  racks.filter((r) => r.mapId === rack.mapId),
+                  rack.rackId,
                   rack.position,
                   dir.value as 0 | 90 | 180 | 270,
                 );
@@ -1312,7 +1312,7 @@ export const DevicePanel = () => {
                     onClick={() =>
                       !isDisabled &&
                       updateRackOrientation(
-                        rack.id,
+                        rack.rackId,
                         dir.value as 0 | 90 | 180 | 270,
                       )
                     }
@@ -1392,7 +1392,7 @@ export const DevicePanel = () => {
               </div>
               <div className="confirm-modal-body">
                 <strong>
-                  {rack.displayName || `Rack ${rack.id.substring(0, 4)}`}
+                  {rack.rackTitle || `Rack ${rack.rackId.substring(0, 4)}`}
                 </strong>
                 을(를) 삭제하시겠습니까?
               </div>
@@ -1406,7 +1406,7 @@ export const DevicePanel = () => {
                 <button
                   className="grafana-btn grafana-btn-md grafana-btn-destructive"
                   onClick={() => {
-                    deleteRack(rack.id);
+                    deleteRack(rack.rackId);
                     setIsDeleteRackModalOpen(false);
                     showToast("랙이 삭제되었습니다.", "success");
                   }}

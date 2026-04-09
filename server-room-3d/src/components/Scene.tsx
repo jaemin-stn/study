@@ -74,7 +74,7 @@ export const Scene = () => {
 
   // Strict one-node filtering: only racks placed exactly in this node
   const groupRacks = useMemo(
-    () => racks.filter((r) => r.nodeId === activeNodeId),
+    () => racks.filter((r) => r.mapId === activeNodeId),
     [racks, activeNodeId],
   );
 
@@ -181,7 +181,7 @@ export const Scene = () => {
         {/* Racks (filtered by active group) */}
         {groupRacks.map((rack) => (
           <Rack
-            key={rack.id}
+            key={rack.rackId}
             {...rack}
             draggingRackId={draggingRackId}
             dragPosition={dragPosition}

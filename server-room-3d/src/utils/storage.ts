@@ -9,7 +9,8 @@ import {
   resolvePathToNodeId,
   getAncestorPath,
   getSubtreeNodeIds,
-  isLeafNode
+  isLeafNode,
+  GWACHEON_NODE_ID
 } from "./nodeUtils";
 import * as XLSX from "xlsx";
 import {
@@ -22,15 +23,15 @@ import {
 
 const flattenRacks = (racks: Rack[], nodes?: HierarchyNode[]) =>
   racks.map((r) => ({
-    rackId: r.id,
-    rackName: r.displayName || r.id.substring(0, 8),
-    nodeId: r.nodeId,
+    rackId: r.rackId,
+    rackName: r.rackTitle || r.rackId.substring(0, 8),
+    nodeId: r.mapId,
     ...(nodes && {
-      groupName: getNodeName(nodes, r.nodeId),
-      depth: getNodeDepth(nodes, r.nodeId),
-      nodePath: getFullPath(nodes, r.nodeId),
+      groupName: getNodeName(nodes, r.mapId),
+      depth: getNodeDepth(nodes, r.mapId),
+      nodePath: getFullPath(nodes, r.mapId),
     }),
-    uHeight: r.uHeight,
+    rackSize: r.rackSize,
     width: r.width,
     posX: r.position[0],
     posZ: r.position[1],
@@ -41,27 +42,27 @@ const flattenDevices = (racks: Rack[], nodes?: HierarchyNode[], registeredDevice
   const rows: Record<string, unknown>[] = [];
   for (const r of racks) {
     for (const d of r.devices) {
-      const regDev = registeredDevices?.find((rd) => rd.id === d.registeredDeviceId);
+      const regDev = registeredDevices?.find((rd) => rd.deviceId === d.deviceId);
       rows.push({
-        deviceId: d.id,
-        deviceName: regDev ? regDev.deviceName : d.name,
-        rackId: r.id,
-        rackName: r.displayName || r.id.substring(0, 8),
-        nodeId: r.nodeId,
+        itemId: d.itemId,
+        deviceId: d.deviceId,
+        title: regDev ? regDev.title : d.title,
+        rackId: r.rackId,
+        rackName: r.rackTitle || r.rackId.substring(0, 8),
+        nodeId: r.mapId,
         ...(nodes && {
-          groupName: getNodeName(nodes, r.nodeId),
-          depth: getNodeDepth(nodes, r.nodeId),
-          nodePath: getFullPath(nodes, r.nodeId),
+          groupName: getNodeName(nodes, r.mapId),
+          depth: getNodeDepth(nodes, r.mapId),
+          nodePath: getFullPath(nodes, r.mapId),
         }),
         type: d.type,
-        uSize: d.uSize,
-        uPosition: d.uPosition,
-        imageUrl: d.imageUrl || "",
+        size: d.size,
+        position: d.position,
+        
         modelName: d.modelName || "",
-        ip: d.ip || "",
-        mac: d.mac || "",
+        IPAddr: d.IPAddr || "",
+        macAddr: d.macAddr || "",
         vendor: d.vendor || "",
-        registeredDeviceId: d.registeredDeviceId || "",
       });
     }
   }
@@ -72,17 +73,17 @@ const flattenPorts = (racks: Rack[], nodes?: HierarchyNode[], registeredDevices?
   const rows: Record<string, unknown>[] = [];
   for (const r of racks) {
     for (const d of r.devices) {
-      const regDev = registeredDevices?.find((rd) => rd.id === d.registeredDeviceId);
+      const regDev = registeredDevices?.find((rd) => rd.deviceId === d.deviceId);
       for (const p of d.portStates) {
         rows.push({
           portId: p.portId,
-          deviceId: d.id,
-          deviceName: regDev ? regDev.deviceName : d.name,
-          rackId: r.id,
-          rackName: r.displayName || r.id.substring(0, 8),
-          nodeId: r.nodeId,
+          deviceId: d.deviceId,
+          title: regDev ? regDev.title : d.title,
+          rackId: r.rackId,
+          rackName: r.rackTitle || r.rackId.substring(0, 8),
+          nodeId: r.mapId,
           ...(nodes && {
-            groupName: getNodeName(nodes, r.nodeId),
+            groupName: getNodeName(nodes, r.mapId),
           }),
           status: p.status,
           errorLevel: p.errorLevel || "",
@@ -264,7 +265,7 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
           ? (XLSX.utils.sheet_to_json(portSheet) as Record<string, unknown>[])
           : [];
 
-        const racks: Rack[] = racksFlat.map((r) => {
+        const racks = racksFlat.map((r) => {
           const rackDevices = devicesFlat
             .filter((d) => d.rackId === r.rackId)
             .map((d) => {
@@ -278,22 +279,22 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
                 }));
 
               return {
-                id: d.deviceId,
-                name: d.name,
+                itemId: d.deviceId,
+                title: d.title,
                 type: d.type,
-                uSize: Number(d.uSize),
-                uPosition: Number(d.uPosition),
+                size: Number(d.size),
+                position: Number(d.position),
                 imageUrl: d.imageUrl || undefined,
                 portStates: devicePorts,
               };
             });
 
           return {
-            id: r.rackId as string,
-            nodeId: (r.nodeId as string) || migrateGroupNameToNodeId((r as any).groupName || "과천"),
-            uHeight: Number(r.uHeight) as 24 | 32 | 48,
+            rackId: r.rackId as string,
+            mapId: (r.mapId as string) || migrateGroupNameToNodeId((r as any).groupName || "과천"),
+            rackSize: Number(r.rackSize) as 24 | 32 | 48,
             width: Number(r.width || RACK_WIDTH_STANDARD),
-            position: [Number(r.posX), Number(r.posZ)],
+            position: [Number(r.posX), Number(r.posZ)] as [number, number],
             orientation: Number(r.orientation) as 0 | 90 | 180 | 270,
             devices: rackDevices as any,
           };
@@ -310,7 +311,7 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
 };
 
 export const saveRackToJSON = (rack: Rack, options?: ExportOptions) => {
-  const filename = `rack-${rack.displayName || rack.id.substring(0, 8)}-${Date.now()}.json`;
+  const filename = `rack-${rack.rackTitle || rack.rackId.substring(0, 8)}-${Date.now()}.json`;
   saveToJSON([rack], options, filename);
 };
 
@@ -335,7 +336,7 @@ export const loadRackFromJSON = (file: File): Promise<Rack> => {
 };
 
 export const saveRackToExcel = (rack: Rack, options?: ExportOptions) => {
-  const label = (rack.displayName || rack.id.substring(0, 8)).replace(/[\s\>]+/g, "_");
+  const label = (rack.rackTitle || rack.rackId.substring(0, 8)).replace(/[\s\>]+/g, "_");
   const filename = `${label}_${getFormattedDate()}.xlsx`;
   saveToExcel([rack], options, filename);
 };
@@ -381,17 +382,17 @@ export const loadRackFromExcel = (file: File): Promise<Partial<Rack>> => {
 
           return {
             id: d.deviceId || generateUUID(),
-            name: d.name,
+            name: d.title,
             type: d.type,
-            uSize: Number(d.uSize),
-            uPosition: Number(d.uPosition),
+            size: Number(d.size),
+            position: Number(d.position),
             imageUrl: d.imageUrl || undefined,
             portStates: devicePorts,
           };
         });
 
         const partialRack: Partial<Rack> = {
-          uHeight: Number(r.uHeight) as 24 | 32 | 48,
+          rackSize: Number(r.rackSize) as 24 | 32 | 48,
           width: Number(r.width || RACK_WIDTH_STANDARD),
           orientation: Number(r.orientation) as 0 | 90 | 180 | 270,
           devices: rackDevices as any,
@@ -425,17 +426,17 @@ const flattenRegisteredDevices = (
   nodes: HierarchyNode[],
 ) =>
   devices.map((d) => ({
-    id: d.id,
-    nodeId: d.nodeId,
-    groupName: getNodeName(nodes, d.nodeId),
-    nodePath: getFullPath(nodes, d.nodeId),
-    depth: getNodeDepth(nodes, d.nodeId),
-    deviceName: d.deviceName,
+    id: d.deviceId,
+    deviceGroupId: d.deviceGroupId,
+    groupName: getNodeName(nodes, d.deviceGroupId || ''),
+    nodePath: getFullPath(nodes, d.deviceGroupId || ''),
+    depth: getNodeDepth(nodes, d.deviceGroupId || ''),
+    title: d.title,
     modelName: d.modelName,
     type: d.type,
-    uSize: d.uSize,
-    ip: d.ip,
-    mac: d.mac,
+    size: d.size,
+    IPAddr: d.IPAddr,
+    macAddr: d.macAddr,
     vendor: d.vendor,
   }));
 
@@ -489,22 +490,32 @@ export const exportGroupWorkbook = (
   const wb = XLSX.utils.book_new();
   const isAllScope = request.scopeId === "ALL";
 
-  // Filter dataset by scope before building sheets
+  // Filter dataset by scope before building sheets: Include subtree (descendants)
+  const subtreeIds = isAllScope ? null : getSubtreeNodeIds(nodes, request.scopeId);
+  
   const filteredRacks = isAllScope 
     ? racks 
-    : racks.filter(r => r.nodeId === request.scopeId);
+    : racks.filter(r => subtreeIds!.has(r.mapId));
   
   const filteredRegDevices = isAllScope
     ? registeredDevices
-    : registeredDevices.filter(d => d.nodeId === request.scopeId);
+    : registeredDevices.filter(d => subtreeIds!.has(d.deviceGroupId || ''));
 
   // ── Master sheets (always present) ──
   XLSX.utils.book_append_sheet(wb, buildMetaSheet(request), "_META");
   
-  // Filter nodes for Groups sheet: Include only ancestors and the node itself for targeted export
-  const filteredNodes = isAllScope 
-    ? nodes 
-    : getAncestorPath(nodes, request.scopeId);
+  // Filter nodes for Groups sheet: Include ancestors AND the entire subtree
+  let filteredNodes: HierarchyNode[] = [];
+  if (isAllScope) {
+    filteredNodes = nodes;
+  } else {
+    const ancestors = getAncestorPath(nodes, request.scopeId);
+    const descendants = nodes.filter(n => subtreeIds!.has(n.nodeId));
+    const nodeMap = new Map<string, HierarchyNode>();
+    ancestors.forEach(n => nodeMap.set(n.nodeId, n));
+    descendants.forEach(n => nodeMap.set(n.nodeId, n));
+    filteredNodes = Array.from(nodeMap.values());
+  }
   XLSX.utils.book_append_sheet(wb, buildGroupsSheet(filteredNodes), "Groups");
 
   const allRackRows = flattenRacks(filteredRacks, nodes);
@@ -591,7 +602,7 @@ export const exportRegisteredDevicesToExcel = (
 };
 
 export interface ParsedRegisteredDevicesResult {
-  devices: Omit<RegisteredDevice, "id">[];
+  devices: Omit<RegisteredDevice, "deviceId">[];
   newNodes: HierarchyNode[];
 }
 
@@ -619,9 +630,9 @@ export const parseRegisteredDevicesFromExcel = (
         const rows = XLSX.utils.sheet_to_json(sheet) as Record<string, any>[];
 
         const accumulatedNewNodes: HierarchyNode[] = [];
-        const parsed: Omit<RegisteredDevice, "id">[] = rows
-          .map((r): Omit<RegisteredDevice, "id"> | null => {
-            const nodeIdInFile = r.nodeId || r.groupId;
+        const parsed: Omit<RegisteredDevice, "deviceId">[] = rows
+          .map((r): Omit<RegisteredDevice, "deviceId"> | null => {
+            const nodeIdInFile = r.mapId || r.groupId;
             const path = r.nodePath || r.groupPath || r.path;
             const grpName = r.nodeName || r.groupName || r.group || (nodeIdInFile ? undefined : GROUP_NAME_MAP[r.groupId]);
             
@@ -669,12 +680,12 @@ export const parseRegisteredDevicesFromExcel = (
             
             // 3. Last fallback: use the raw ID from file if still empty
             if (!nid) nid = String(nodeIdInFile || "unassigned");
-            const mac = String(r.mac || "")
+            const mac = String(r.macAddr || "")
               .trim()
               .toUpperCase();
-            const ip = String(r.ip || "").trim();
+            const ip = String(r.IPAddr || "").trim();
             const modelName = String(r.modelName || "").trim();
-            const deviceName = String(r.deviceName || "").trim();
+            const deviceName = String(r.title || "").trim();
             const vendor = String(r.vendor || "Nokia").trim() as any;
 
             if (!modelName || !mac || !ip) return null;
@@ -685,20 +696,20 @@ export const parseRegisteredDevicesFromExcel = (
             const type = (r.type ||
               template?.type ||
               "network") as RegisteredDevice["type"];
-            const uSize = Number(r.uSize) || template?.uSize || 1;
+            const size = Number(r.size) || template?.uSize || 1;
 
             return {
-              nodeId: nid,
+              deviceGroupId: nid,
               modelName,
-              deviceName,
-              ip,
-              mac,
+              title: deviceName,
+              IPAddr: ip,
+              macAddr: mac,
               vendor,
               type,
-              uSize,
+              size,
             };
           })
-          .filter((d): d is Omit<RegisteredDevice, "id"> => d !== null);
+          .filter((d): d is Omit<RegisteredDevice, "deviceId"> => d !== null);
 
         resolve({ devices: parsed, newNodes: accumulatedNewNodes });
       } catch (err) {
@@ -774,7 +785,7 @@ export const importGroupPackage = (
         if (groupsSheet) {
           const rows = XLSX.utils.sheet_to_json(groupsSheet) as any[];
           fileNodes = rows.map(r => ({
-            nodeId: String(r.nodeId || r.groupId || generateUUID()),
+            nodeId: String(r.nodeId || r.mapId || r.groupId || generateUUID()),
             parentId: r.parentId ? String(r.parentId) : null,
             name: String(r.nodeName || r.groupName || ""),
             type: (r.nodeType || "group") as any,
@@ -793,7 +804,7 @@ export const importGroupPackage = (
 
         const getRowInfo = (row: any) => {
           const path = getValue(row, "groupPath") || getValue(row, "nodePath");
-          const nid = getValue(row, "nodeId") || getValue(row, "groupId");
+          const nid = getValue(row, "nodeId") || getValue(row, "mapId") || getValue(row, "groupId") || getValue(row, "id") || getValue(row, "deviceGroupId");
           const name = getValue(row, "groupName") || getValue(row, "nodeName");
           return { path: path ? String(path) : undefined, nid: nid ? String(nid) : undefined, name: name ? String(name) : undefined };
         };
@@ -893,9 +904,10 @@ export const importGroupPackage = (
           const rDevices = devsRaw
             .filter(d => String(getValue(d, "rackId")) === String(getValue(r, "rackId")))
             .map(d => {
-              const dId = String(getValue(d, "deviceId") || generateUUID());
+              const dItemId = String(getValue(d, "itemId") || generateUUID());
+              const dDeviceId = getValue(d, "deviceId") || undefined;
               const dPorts = portsRaw
-                .filter(p => String(getValue(p, "deviceId")) === String(getValue(d, "deviceId")))
+                .filter(p => String(getValue(p, "deviceId")) === String(dDeviceId || dItemId))
                 .map(p => ({
                   portId: String(getValue(p, "portId")),
                   status: (getValue(p, "status") || "normal") as any,
@@ -904,25 +916,25 @@ export const importGroupPackage = (
                 }));
               
               return {
-                id: dId,
-                name: String(getValue(d, "deviceName", "name") || ""),
-                type: (getValue(d, "type") || "network") as any,
-                uSize: Number(getValue(d, "uSize") || 1),
-                uPosition: Number(getValue(d, "uPosition") || 1),
+                itemId: dItemId,
+                title: String(getValue(d, "title", "deviceName", "name") || ""),
+                type: (getValue(d, "type") || "Server") as any,
+                size: Number(getValue(d, "size") || 1),
+                position: Number(getValue(d, "position") || 1),
                 modelName: getValue(d, "modelName"),
-                ip: getValue(d, "ip"),
-                mac: getValue(d, "mac"),
+                IPAddr: getValue(d, "IPAddr", "ip"),
+                macAddr: getValue(d, "macAddr", "mac"),
                 vendor: getValue(d, "vendor"),
-                registeredDeviceId: getValue(d, "registeredDeviceId"),
+                deviceId: dDeviceId,
                 portStates: dPorts
               };
             });
 
           dataByNode[nodeTarget].racks.push({
-            id: rId,
-            nodeId: nodeTarget,
-            displayName: String(getValue(r, "rackName", "displayName") || `Rack`),
-            uHeight: Number(getValue(r, "uHeight") || 48) as any,
+            rackId: rId,
+            mapId: nodeTarget,
+            rackTitle: String(getValue(r, "rackName", "rackTitle") || `Rack`),
+            rackSize: Number(getValue(r, "rackSize") || 48) as any,
             width: Number(getValue(r, "width") || RACK_WIDTH_STANDARD),
             position: [Number(getValue(r, "posX") || 0), Number(getValue(r, "posZ") || 0)],
             orientation: Number(getValue(r, "orientation") || 0) as any,
@@ -943,14 +955,14 @@ export const importGroupPackage = (
           ensureNode(nodeTarget);
 
           dataByNode[nodeTarget].registeredDevices.push({
-            id: String(getValue(d, "id", "registeredDeviceId") || generateUUID()),
-            nodeId: nodeTarget,
-            deviceName: String(getValue(d, "deviceName", "name") || ""),
+            deviceId: String(getValue(d, "deviceId", "id", "registeredDeviceId") || generateUUID()),
+            deviceGroupId: nodeTarget,
+            title: String(getValue(d, "title", "deviceName", "name") || ""),
             modelName: String(getValue(d, "modelName") || ""),
-            type: (getValue(d, "type") || "network") as any,
-            uSize: Number(getValue(d, "uSize") || 1),
-            ip: String(getValue(d, "ip") || ""),
-            mac: String(getValue(d, "mac") || ""),
+            type: (getValue(d, "type") || "Server") as any,
+            size: Number(getValue(d, "size") || 1),
+            IPAddr: String(getValue(d, "IPAddr", "ip") || ""),
+            macAddr: String(getValue(d, "macAddr", "mac") || ""),
             vendor: getValue(d, "vendor")
           });
         });
@@ -1013,14 +1025,14 @@ const generateRegisteredDevices = (
     const formattedMacSuffix = `${macSuffix.slice(0, 2)}:${macSuffix.slice(2, 4)}`;
 
     return {
-      id: generateUUID(),
-      nodeId,
-      deviceName: `${template.modelName}-${nodeName}-${i + 1}`,
+      deviceId: generateUUID(),
+      deviceGroupId: nodeId,
+      title: `${template.modelName}-${nodeName}-${i + 1}`,
       modelName: template.modelName,
       type: template.type,
-      uSize: template.uSize,
-      ip: `${ipParts[0]}.${ipParts[1]}.${thirdOctet}.${lastOctet}`,
-      mac: `00:00:5E:00:${formattedMacSuffix}`.toUpperCase(),
+      size: template.uSize,
+      IPAddr: `${ipParts[0]}.${ipParts[1]}.${thirdOctet}.${lastOctet}`,
+      macAddr: `00:00:5E:00:${formattedMacSuffix}`.toUpperCase(),
       vendor: "Nokia",
     };
   });
@@ -1034,10 +1046,12 @@ export const sampleRegisteredDevices: RegisteredDevice[] = sampleNodes.flatMap((
   if (depth === 1) return []; // STN (root)
   
   let count = 0;
-  if (isLeafNode(sampleNodes, node.nodeId)) {
-    count = 15 + (idx % 10) * 5; // Room level: 15~60
+  if (node.nodeId === GWACHEON_NODE_ID) {
+    count = 800; // Lots of devices for the main server room
+  } else if (isLeafNode(sampleNodes, node.nodeId)) {
+    count = 400 + (idx % 10) * 20; // 400+ to fill 30+ racks
   } else if (depth >= 2) {
-    count = 8 + (idx % 5); // Sites/Centers: 8~12
+    count = 350 + (idx % 5) * 10; 
   }
   return generateRegisteredDevices(node.nodeId, node.name, count, `10.${idx + 1}.1.1`, idx);
 });
@@ -1058,7 +1072,7 @@ const generateGroupRacks = (
 
     const isWide = col === 4 || col === 9;
     const width = isWide ? RACK_WIDTH_WIDE : RACK_WIDTH_STANDARD;
-    const uHeight: 24 | 32 | 48 =
+    const rackSize: 24 | 32 | 48 =
       localIdx % 3 === 0 ? 24 : localIdx % 3 === 1 ? 32 : 48;
 
     const hasError = errorIndexes.includes(localIdx);
@@ -1066,22 +1080,22 @@ const generateGroupRacks = (
     let currentUPos = 1;
 
     // Fill rack until we run out of height or available devices for this node
-    while (currentUPos <= uHeight && deviceIdx < regDevices.length) {
+    while (currentUPos <= rackSize && deviceIdx < regDevices.length) {
       const regDevice = regDevices[deviceIdx];
       
       // Check if it fits in remaining space
-      if (currentUPos + regDevice.uSize - 1 <= uHeight) {
+      if (currentUPos + (regDevice.size || 1) - 1 <= rackSize) {
         const shouldAddError = hasError && devices.length === 0;
         
         devices.push({
-          id: generateUUID(),
-          name: regDevice.deviceName,
-          type: regDevice.type,
-          uSize: regDevice.uSize,
-          uPosition: currentUPos,
+          itemId: generateUUID(),
+          title: regDevice.title,
+          type: regDevice.type || "Server",
+          size: (regDevice.size || 1),
+          position: currentUPos,
           modelName: regDevice.modelName,
           vendor: regDevice.vendor,
-          registeredDeviceId: regDevice.id,
+          deviceId: regDevice.deviceId,
           portStates: shouldAddError
             ? [
                 {
@@ -1096,7 +1110,7 @@ const generateGroupRacks = (
             : [],
         });
         
-        currentUPos += regDevice.uSize + 1; // 1U gap between devices
+        currentUPos += (regDevice.size || 1) + 1; // 1U gap between devices
         deviceIdx++; // Move to next unique device
       } else {
         // Doesn't fit, stop filling this rack
@@ -1110,14 +1124,30 @@ const generateGroupRacks = (
       worldX += (prevIsWide ? RACK_WIDTH_WIDE : RACK_WIDTH_STANDARD); // Remove extra gap
     }
     const stateX = (worldX + width / 2) / GRID_SPACING;
+    
+    // Aisle arrangement if requested
+    let posZ = row * 4.0;
+    let orient = 180;
+    const isAisle = nodeId === GWACHEON_NODE_ID;
+    
+    if (isAisle) {
+      // Create hot/cold aisles
+      // 앞면 간격 1.5, 뒷면 간격 3.0 설정 (한 페어의 Z축 길이는 4.5)
+      const pair = Math.floor(row / 2);
+      const isSecondInPair = row % 2 !== 0;
+      
+      const baseY = pair * 4.5;
+      posZ = baseY + (isSecondInPair ? 1.5 : 0);
+      orient = isSecondInPair ? 0 : 180;
+    }
 
     racks.push({
-      id: generateUUID(),
-      nodeId,
-      uHeight,
+      rackId: generateUUID(),
+      mapId: nodeId,
+      rackSize,
       width,
-      position: [stateX, row * 3.0],
-      orientation: 180,
+      position: [stateX, posZ],
+      orientation: orient as any,
       devices,
     });
   }
@@ -1125,11 +1155,18 @@ const generateGroupRacks = (
 };
 
 export const sampleRacks: Rack[] = sampleNodes.flatMap((node, idx) => {
-  const nodeDevices = sampleRegisteredDevices.filter((d) => d.nodeId === node.nodeId);
+  const nodeDevices = sampleRegisteredDevices.filter((d) => d.deviceGroupId === node.nodeId);
   const depth = getNodeDepth(sampleNodes, node.nodeId);
   
   if (depth < 2) return []; // Only exclude Root (STN)
   
-  const rackCount = 3 + (idx % 6); // 3~8 racks per node (including higher levels)
-  return generateGroupRacks(rackCount, node.nodeId, 5, [1], nodeDevices);
+  let rackCount = 35 + (idx % 6);
+  let colsPerRow = 10;
+  
+  if (node.nodeId === GWACHEON_NODE_ID) {
+    rackCount = 60; // Huge room
+    colsPerRow = 15;
+  }
+  
+  return generateGroupRacks(rackCount, node.nodeId, colsPerRow, [1, 5, 20, 25, 45], nodeDevices);
 });

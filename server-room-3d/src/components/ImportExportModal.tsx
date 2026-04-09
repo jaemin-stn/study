@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { useStore } from "../store/useStore";
 import type { Rack, RegisteredDevice, HierarchyNode } from "../types";
 import type { ExportScope } from "../utils/storage";
-import { getNodeName, getAncestorPath, getNodeEquipmentCount } from "../utils/nodeUtils";
+import { getNodeName, getAncestorPath, getNodeEquipmentCount, getSubtreeNodeIds } from "../utils/nodeUtils";
 import {
   exportGroupWorkbook,
   importGroupPackage,
@@ -221,10 +221,8 @@ export const ImportExportModal = () => {
     registeredDevices,
     importExportModalRackId,
     setImportExportModalRackId,
-    setActiveNode,
     nodes,
     upsertNodes,
-    replaceMultipleNodesData,
     showToast,
     setHierarchyCollapsed,
     pendingImportFile,
@@ -258,25 +256,32 @@ export const ImportExportModal = () => {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
 
   const selectedNodeCounts = useMemo(() => {
+    // Collect all racks from all layouts for global calculation if needed
+    const allRacks: Rack[] = [];
+    Object.values(useStore.getState().layouts).forEach(l => allRacks.push(...(l.racks || [])));
+
     if (selectedScopeId === "ALL") {
-      const rackCount = racks.length;
+      const rackCount = allRacks.length;
       const deviceCount = getNodeEquipmentCount(registeredDevices, "ALL");
-      const portCount = racks.reduce(
-        (sum, r) => sum + r.devices.reduce((s, d) => s + d.portStates.length, 0),
+      const portCount = allRacks.reduce(
+        (sum, r) => sum + (r.devices?.reduce((s, d) => s + (d.portStates?.length || 0), 0) || 0),
         0,
       );
       return { rackCount, deviceCount, portCount };
     }
 
-    const nodeRacks = racks.filter((r) => r.nodeId === selectedScopeId);
-    const rackCount = nodeRacks.length;
-    const deviceCount = getNodeEquipmentCount(registeredDevices, selectedScopeId);
-    const portCount = nodeRacks.reduce(
-      (sum, r) => sum + r.devices.reduce((s, d) => s + d.portStates.length, 0),
+    // Node-specific scope: Include subtree descendants
+    const subtreeIds = getSubtreeNodeIds(nodes, selectedScopeId);
+    const subtreeRacks = allRacks.filter((r) => subtreeIds.has(r.mapId));
+    
+    const rackCount = subtreeRacks.length;
+    const deviceCount = getNodeEquipmentCount(registeredDevices, selectedScopeId); // This utility already handles subtrees by default or can be updated
+    const portCount = subtreeRacks.reduce(
+      (sum, r) => sum + (r.devices?.reduce((s, d) => s + (d.portStates?.length || 0), 0) || 0),
       0,
     );
     return { rackCount, deviceCount, portCount };
-  }, [selectedScopeId, racks, registeredDevices]);
+  }, [selectedScopeId, nodes, registeredDevices]);
 
   const groupImportRef = useRef<HTMLInputElement>(null);
 
@@ -299,9 +304,15 @@ export const ImportExportModal = () => {
 
     setIsExporting(true);
     try {
+      // Aggregate all racks from all layouts to ensure full scope export
+      const allRacks: Rack[] = [];
+      Object.values(useStore.getState().layouts).forEach(l => {
+        if (l.racks) allRacks.push(...l.racks);
+      });
+
       // Small delay to ensure UI updates (disable button) before heavy work
       await new Promise((r) => setTimeout(r, 100));
-      exportGroupWorkbook(racks, registeredDevices, nodes, request);
+      exportGroupWorkbook(allRacks, registeredDevices, nodes, request);
       showToast(`${request.scopeLabel} 내보내기 완료`, "success");
     } finally {
       setIsExporting(false);
@@ -403,76 +414,116 @@ export const ImportExportModal = () => {
           remappedByNode[finalNid] = { racks: [], registeredDevices: [] };
         }
         remappedByNode[finalNid].racks.push(
-          ...nodeData.racks.map((r) => ({ ...r, nodeId: finalNid })),
+          ...nodeData.racks.map((r) => ({ ...r, mapId: finalNid })),
         );
         remappedByNode[finalNid].registeredDevices.push(
-          ...nodeData.registeredDevices.map((d) => ({ ...d, nodeId: finalNid })),
+          ...nodeData.registeredDevices.map((d) => ({ ...d, deviceGroupId: finalNid })),
         );
       });
 
-      // 4. APPLY TO STORE: Unified Merge Architecture
-      // We always UPSERT nodes to merge hierarchy (create missing, update existing)
-      // and REPLACE data for specific nodes provided in the file to preserve others.
-      // This satisfies the "No cross-scope disturbance" requirement.
-      
-      upsertNodes(finalNodes, overwriteNodes, false);
-      replaceMultipleNodesData(remappedByNode);
+      // 4. PREPARE HIERARCHY: Dry run to get mapping and updated nodes array
+      const { mapping: upsertMapping, updatedNodes: nextNodes } = upsertNodes(finalNodes, overwriteNodes, true);
 
-      // 4. Determine Target Node for Focus/Navigation
+      // 5. REMAP ENTITIES: Link racks/devices to final system node IDs
+      const finalRemapped: typeof remappedByNode = {};
+      Object.entries(remappedByNode).forEach(([nid, nodeData]) => {
+        const systemNid = upsertMapping[nid] || nid;
+        if (!finalRemapped[systemNid]) {
+          finalRemapped[systemNid] = { racks: [], registeredDevices: [] };
+        }
+        finalRemapped[systemNid].racks.push(
+          ...nodeData.racks.map(r => ({ ...r, mapId: systemNid })),
+        );
+        finalRemapped[systemNid].registeredDevices.push(
+          ...nodeData.registeredDevices.map(d => ({ ...d, deviceGroupId: systemNid })),
+        );
+      });
+
+      // 6. BUILD STATE UPDATES: Prepare updated layouts and registered devices list
+      const prevState = useStore.getState();
+      const updatedLayouts = { ...prevState.layouts };
+      let updatedRegDevices = [...prevState.registeredDevices];
+      
+      Object.entries(finalRemapped).forEach(([nodeId, nodeData]) => {
+        // Replace registered devices for imported nodes
+        updatedRegDevices = updatedRegDevices.filter(d => d.deviceGroupId !== nodeId);
+        updatedRegDevices.push(...nodeData.registeredDevices);
+        
+        // Update layouts (preserve existing models)
+        updatedLayouts[nodeId] = {
+          racks: nodeData.racks,
+          importedModels: updatedLayouts[nodeId]?.importedModels || []
+        };
+      });
+
+      // 7. DETERMINE TARGET NODE: Where to focus after import
       let targetNodeId: string | null = null;
-      if (
-        importPreview.exportScope.type === "NODE" &&
-        importPreview.exportScope.nodeId
-      ) {
-        targetNodeId =
-          nodeIdMap[importPreview.exportScope.nodeId] ||
-          importPreview.exportScope.nodeId;
+      if (isNodeImport && importPreview.exportScope.nodeId) {
+        const rawNodeId = importPreview.exportScope.nodeId;
+        const mappedId = nodeIdMap[rawNodeId] || rawNodeId;
+        targetNodeId = upsertMapping[mappedId] || mappedId;
       } else {
-        // Fallback: use first node with racks in the imported data
-        targetNodeId =
-          Object.entries(remappedByNode).find(
-            ([_, data]) => data.racks.length > 0,
-          )?.[0] || null;
+        // Fallback: Pick first node that has racks
+        targetNodeId = Object.entries(finalRemapped).find(([_, data]) => data.racks.length > 0)?.[0] || null;
+      }
+      
+      // Secondary fallback: if no racks but we have devices, pick first node with devices
+      if (!targetNodeId) {
+        targetNodeId = Object.entries(finalRemapped).find(([_, data]) => data.registeredDevices.length > 0)?.[0] || null;
       }
 
+      // 8. FINAL ATOMIC UPDATE: Apply everything to store in ONE go
+      const targetLayout = targetNodeId ? (updatedLayouts[targetNodeId] || { racks: [], importedModels: [] }) : { racks: [], importedModels: [] };
+      
+      // Expand target node path before update
       if (targetNodeId) {
-        setActiveNode(targetNodeId);
-        setHierarchyCollapsed(false); // Ensure sidebar is visible
+        useStore.getState().expandNodePath(targetNodeId);
+      }
 
-        // Ensure browser scrolls the selected node into view
+      useStore.setState((state) => ({
+        nodes: nextNodes,
+        layouts: updatedLayouts,
+        racks: targetLayout.racks,
+        importedModels: targetLayout.importedModels,
+        registeredDevices: updatedRegDevices,
+        activeNodeId: targetNodeId || state.activeNodeId,
+        selectedRackId: null,
+        focusedRackId: null,
+        selectedDeviceId: null,
+        // Sync baselines to current state to detect future changes
+        baselineRacks: JSON.parse(JSON.stringify(targetLayout.racks)),
+        baselineModels: JSON.parse(JSON.stringify(targetLayout.importedModels)),
+        baselineNodes: JSON.parse(JSON.stringify(nextNodes)),
+        _importDirty: true,
+      }));
+
+      // 9. UI FEEDBACK & CLEANUP
+      if (targetNodeId) {
+        setHierarchyCollapsed(false);
         setTimeout(() => {
           const selectedEl = document.querySelector(".tree-node.selected");
-          if (selectedEl) {
-            selectedEl.scrollIntoView({ behavior: "smooth", block: "center" });
-          }
-        }, 100);
+          selectedEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 150);
       }
 
-      const totalRacks = Object.values(remappedByNode).reduce(
-        (sum, n) => sum + (n as any).racks.length,
-        0,
-      );
-      const totalDevices = Object.values(remappedByNode).reduce(
-        (sum, n) => sum + (n as any).registeredDevices.length,
-        0,
-      );
-      console.log(`[Import] Final verification: Racks=${totalRacks}, RegisteredDevices=${totalDevices}`);
+      const totalRacks = Object.values(finalRemapped).reduce((sum, n) => sum + n.racks.length, 0);
+      const totalDevices = Object.values(finalRemapped).reduce((sum, n) => sum + n.registeredDevices.length, 0);
       
       if (totalRacks === 0 && totalDevices === 0) {
-        const failMsg = `⚠️ 가져온 데이터가 없습니다. (선택한 범위와 파일의 데이터가 일치하지 않을 수 있습니다.)`;
+        const failMsg = "⚠️ 가져온 데이터가 없습니다. (범위가 일치하지 않을 수 있습니다.)";
         setImportStatus(failMsg);
         showToast(failMsg, "error");
         return;
       }
 
-      let successMsg = `✅ Import 완료! (${Object.keys(remappedByNode).length}개 노드: Racks ${totalRacks}개, Devices ${totalDevices}개) [Scope: ${isNodeImport ? "Node" : "ALL"}]`;
-      if (importPreview.ignoredCount > 0) {
-        successMsg += ` [범위 외 ${importPreview.ignoredCount}건 제외됨]`;
-      }
-      setImportStatus(successMsg);
-      showToast(successMsg, "success");
+      showToast(`✅ Import 완료! (${Object.keys(finalRemapped).length}개 노드: Racks ${totalRacks}개, Devices ${totalDevices}개)`, "success");
       setImportPreview(null);
-      Object.keys(remappedByNode).forEach(nid => {
+
+      // Verify
+      const vs = useStore.getState();
+      console.log(`[Import] Verify: active=${vs.activeNodeId}, racks=${vs.racks.length}`);
+
+      Object.keys(finalRemapped).forEach(nid => {
         useStore.getState().toggleNodeExpansion(nid, true);
       });
       setTimeout(() => {
@@ -580,7 +631,7 @@ export const ImportExportModal = () => {
             💡{" "}
             {selectedScopeId === "ALL"
               ? "전체 노드의 모든 데이터(Racks & Devices)가 하나의 파일로 출력됩니다."
-              : `선택한 노드("${getNodeName(nodes, selectedScopeId)}")에 정의된 데이터만 Export 됩니다. (하위/상위 노드 데이터 제외)`}
+              : `선택한 노드("${getNodeName(nodes, selectedScopeId)}") 및 그 하위 노드(서버실 등)의 모든 데이터가 포함됩니다.`}
           </div>
 
           <div style={{ display: "flex", gap: "10px" }}>

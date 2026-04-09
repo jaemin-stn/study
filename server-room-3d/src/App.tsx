@@ -83,7 +83,7 @@ const DeviceDeleteConfirmModal = () => {
           }}
         >
           <strong style={{ color: "var(--text-primary)" }}>
-            "{confirm.deviceName}"
+            "{confirm.title}"
           </strong>
           {confirm.rackName
             ? `은(는) 「${confirm.rackName}」에 배치되어 있습니다. 삭제하시겠습니까?`

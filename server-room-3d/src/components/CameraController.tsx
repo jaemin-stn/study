@@ -97,9 +97,12 @@ export const CameraController = () => {
     const orientationRad = ((180 - orientation) * Math.PI) / 180;
     const effectiveDistance = distance + 0.5;
 
+    // Position camera strictly in front (no lateral offset) but high enough
+    // to see over any opposing rack in face-to-face aisle arrangements
     const offsetX = Math.sin(orientationRad) * effectiveDistance;
     const offsetZ = Math.cos(orientationRad) * effectiveDistance;
-    const cameraHeight = rackHeight * 0.6 + distance * 0.3;
+    // Raise camera above opposing rack height so it looks down past obstructions
+    const cameraHeight = rackHeight * 1.2 + distance * 0.4;
 
     vTargetPos.current.set(rackX + offsetX, cameraHeight, rackZ + offsetZ);
     vTargetZoom.current = 1;

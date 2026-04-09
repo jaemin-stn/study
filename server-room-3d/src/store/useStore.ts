@@ -401,9 +401,9 @@ export const useStore = create<AppState>((set, get) => ({
     if (!isEditMode) return;
 
     const newEntry = {
-      racks: JSON.parse(JSON.stringify(racks)),
-      importedModels: JSON.parse(JSON.stringify(importedModels)),
-      nodes: JSON.parse(JSON.stringify(nodes)),
+      racks: structuredClone(racks),
+      importedModels: structuredClone(importedModels),
+      nodes: structuredClone(nodes),
     };
 
     set({
@@ -440,9 +440,9 @@ export const useStore = create<AppState>((set, get) => ({
 
     set((state) => ({
       layouts: updatedLayouts,
-      baselineRacks: JSON.parse(JSON.stringify(racks)),
-      baselineModels: JSON.parse(JSON.stringify(importedModels)),
-      baselineNodes: JSON.parse(JSON.stringify(state.nodes)),
+      baselineRacks: structuredClone(racks),
+      baselineModels: structuredClone(importedModels),
+      baselineNodes: structuredClone(state.nodes),
       undoStack: [],
       showUnsavedDialog: false,
       pendingAction: null,
@@ -463,9 +463,9 @@ export const useStore = create<AppState>((set, get) => ({
           activeNodeId: targetNodeId,
           racks: newNodeLayout.racks,
           importedModels: newNodeLayout.importedModels,
-          baselineRacks: JSON.parse(JSON.stringify(newNodeLayout.racks)),
-          baselineModels: JSON.parse(JSON.stringify(newNodeLayout.importedModels)),
-          baselineNodes: JSON.parse(JSON.stringify(get().nodes)),
+          baselineRacks: structuredClone(newNodeLayout.racks),
+          baselineModels: structuredClone(newNodeLayout.importedModels),
+          baselineNodes: structuredClone(get().nodes),
           undoStack: [],
           selectedRackId: null,
           focusedRackId: null,
@@ -497,9 +497,9 @@ export const useStore = create<AppState>((set, get) => ({
     if (baselineRacks && baselineModels && baselineNodes) {
       // Restore from baseline
       set({
-        racks: JSON.parse(JSON.stringify(baselineRacks)),
-        importedModels: JSON.parse(JSON.stringify(baselineModels)),
-        nodes: JSON.parse(JSON.stringify(baselineNodes)),
+        racks: structuredClone(baselineRacks),
+        importedModels: structuredClone(baselineModels),
+        nodes: structuredClone(baselineNodes),
         undoStack: [],
         showUnsavedDialog: false,
         pendingAction: null,
@@ -512,8 +512,8 @@ export const useStore = create<AppState>((set, get) => ({
           layouts: {
             ...state.layouts,
             [activeNodeId]: {
-              racks: JSON.parse(JSON.stringify(baselineRacks)),
-              importedModels: JSON.parse(JSON.stringify(baselineModels)),
+              racks: structuredClone(baselineRacks),
+              importedModels: structuredClone(baselineModels),
             }
           }
         }));
@@ -540,9 +540,9 @@ export const useStore = create<AppState>((set, get) => ({
           activeNodeId: targetNodeId,
           racks: newNodeLayout.racks,
           importedModels: newNodeLayout.importedModels,
-          baselineRacks: JSON.parse(JSON.stringify(newNodeLayout.racks)),
-          baselineModels: JSON.parse(JSON.stringify(newNodeLayout.importedModels)),
-          baselineNodes: JSON.parse(JSON.stringify(get().nodes)),
+          baselineRacks: structuredClone(newNodeLayout.racks),
+          baselineModels: structuredClone(newNodeLayout.importedModels),
+          baselineNodes: structuredClone(get().nodes),
           undoStack: [],
           selectedRackId: null,
           focusedRackId: null,
@@ -590,9 +590,9 @@ export const useStore = create<AppState>((set, get) => ({
       racks: newNodeLayout.racks,
       importedModels: newNodeLayout.importedModels,
       // If in edit mode, the new node's layout becomes the new baseline for dirty checks
-      baselineRacks: isEditMode ? JSON.parse(JSON.stringify(newNodeLayout.racks)) : get().baselineRacks,
-      baselineModels: isEditMode ? JSON.parse(JSON.stringify(newNodeLayout.importedModels)) : get().baselineModels,
-      baselineNodes: isEditMode ? JSON.parse(JSON.stringify(get().nodes)) : get().baselineNodes,
+      baselineRacks: isEditMode ? structuredClone(newNodeLayout.racks) : get().baselineRacks,
+      baselineModels: isEditMode ? structuredClone(newNodeLayout.importedModels) : get().baselineModels,
+      baselineNodes: isEditMode ? structuredClone(get().nodes) : get().baselineNodes,
       undoStack: [], // Clear undo stack on node switch to prevent mixing node states
       selectedRackId: null,
       focusedRackId: null,
@@ -1086,9 +1086,9 @@ export const useStore = create<AppState>((set, get) => ({
     if (enabled) {
       // Entering Edit Mode: Snapshot current state as baseline
       set({
-        baselineRacks: JSON.parse(JSON.stringify(racks)),
-        baselineModels: JSON.parse(JSON.stringify(importedModels)),
-        baselineNodes: JSON.parse(JSON.stringify(get().nodes)),
+        baselineRacks: structuredClone(racks),
+        baselineModels: structuredClone(importedModels),
+        baselineNodes: structuredClone(get().nodes),
         undoStack: [],
         isEditMode: true,
       });
@@ -1313,9 +1313,9 @@ export const useStore = create<AppState>((set, get) => ({
       focusedRackId: null,
       selectedModelId: null,
       // Set baselines to pre-load state so dirty detection works
-      baselineRacks: JSON.parse(JSON.stringify(state.racks)),
-      baselineModels: JSON.parse(JSON.stringify(state.importedModels)),
-      baselineNodes: JSON.parse(JSON.stringify(state.nodes)),
+      baselineRacks: structuredClone(state.racks),
+      baselineModels: structuredClone(state.importedModels),
+      baselineNodes: structuredClone(state.nodes),
       _importDirty: true,
     }));
   },
@@ -1376,9 +1376,9 @@ export const useStore = create<AppState>((set, get) => ({
       let updatedLayouts = { ...state.layouts };
 
       // Capture pre-import state for baseline (so getIsDirty detects changes)
-      const preImportRacks = JSON.parse(JSON.stringify(state.racks));
-      const preImportModels = JSON.parse(JSON.stringify(state.importedModels));
-      const preImportNodes = JSON.parse(JSON.stringify(state.nodes));
+      const preImportRacks = structuredClone(state.racks);
+      const preImportModels = structuredClone(state.importedModels);
+      const preImportNodes = structuredClone(state.nodes);
 
       Object.entries(data).forEach(([nodeId, nodeData]) => {
         updatedRegDevices = updatedRegDevices.filter(

@@ -52,7 +52,8 @@ const DeviceDeleteConfirmModal = () => {
       <div
         onClick={handleCancel}
         style={{
-          position: "fixed", inset: 0,
+          position: "fixed",
+          inset: 0,
           background: "rgba(0,0,0,0.55)",
           zIndex: 99998,
         }}
@@ -61,7 +62,8 @@ const DeviceDeleteConfirmModal = () => {
         onClick={(e) => e.stopPropagation()}
         style={{
           position: "fixed",
-          top: "50%", left: "50%",
+          top: "50%",
+          left: "50%",
           transform: "translate(-50%,-50%)",
           zIndex: 99999,
           background: "var(--bg-primary)",
@@ -72,20 +74,39 @@ const DeviceDeleteConfirmModal = () => {
           boxShadow: "0 24px 80px rgba(0,0,0,0.6)",
         }}
       >
-        <p style={{ margin: "0 0 20px 0", fontSize: "15px", color: "var(--text-primary)", lineHeight: 1.5 }}>
-          <strong style={{ color: "var(--text-primary)" }}>"{ confirm.deviceName }"</strong>
-          {confirm.rackName ? `은(는) 「${confirm.rackName}」에 배치되어 있습니다. 삭제하시겠습니까?` : "을(를) 삭제하시겠습니까?"}
+        <p
+          style={{
+            margin: "0 0 20px 0",
+            fontSize: "15px",
+            color: "var(--text-primary)",
+            lineHeight: 1.5,
+          }}
+        >
+          <strong style={{ color: "var(--text-primary)" }}>
+            "{confirm.deviceName}"
+          </strong>
+          {confirm.rackName
+            ? `은(는) 「${confirm.rackName}」에 배치되어 있습니다. 삭제하시겠습니까?`
+            : "을(를) 삭제하시겠습니까?"}
         </p>
         {confirm.rackName && (
-          <div style={{
-            fontSize: "12px", color: "var(--severity-critical)",
-            background: "rgba(239,68,68,0.1)", padding: "10px 12px",
-            borderRadius: "8px", marginBottom: "20px", lineHeight: 1.5,
-          }}>
+          <div
+            style={{
+              fontSize: "12px",
+              color: "var(--severity-critical)",
+              background: "rgba(239,68,68,0.1)",
+              padding: "10px 12px",
+              borderRadius: "8px",
+              marginBottom: "20px",
+              lineHeight: 1.5,
+            }}
+          >
             ⚠️ 삭제하면 현재 배치된 위치에서도 함께 제거됩니다.
           </div>
         )}
-        <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+        <div
+          style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}
+        >
           <button
             className="grafana-btn grafana-btn-secondary"
             style={{ padding: "8px 20px", fontSize: "13px" }}
@@ -232,10 +253,11 @@ function App() {
       if ((e.ctrlKey || e.metaKey) && e.key === "z") {
         // Prevent undo when typing in inputs/textareas
         const activeElem = document.activeElement;
-        const isInput = activeElem instanceof HTMLInputElement || 
-                        activeElem instanceof HTMLTextAreaElement ||
-                        (activeElem as HTMLElement)?.isContentEditable;
-        
+        const isInput =
+          activeElem instanceof HTMLInputElement ||
+          activeElem instanceof HTMLTextAreaElement ||
+          (activeElem as HTMLElement)?.isContentEditable;
+
         if (!isInput) {
           e.preventDefault();
           undo();
@@ -323,7 +345,7 @@ function App() {
                 ? "var(--severity-success-text)"
                 : "var(--text-secondary)",
               display: "flex",
-              alignItems: "center"
+              alignItems: "center",
             }}
           >
             {isEditMode ? "Edit Mode: ON" : "Edit Mode: OFF"}
@@ -405,7 +427,8 @@ function App() {
               }}
               title="장비 관리"
             >
-              <ArchiveBoxIcon />장비
+              <ArchiveBoxIcon />
+              장비
             </button>
 
             <div className="grafana-toolbar-divider" />
@@ -420,14 +443,16 @@ function App() {
                 }}
                 title="Export Room Data"
               >
-                <ArrowUpTrayIcon />Export
+                <ArrowUpTrayIcon />
+                Export
               </button>
               <button
                 className="grafana-btn grafana-btn-md grafana-btn-secondary"
                 title="Import Room Data"
                 onClick={handleToolbarImportClick}
               >
-                <ArrowDownTrayIcon />Import
+                <ArrowDownTrayIcon />
+                Import
               </button>
               <input
                 type="file"
@@ -453,7 +478,8 @@ function App() {
                   transition: "all 0.2s ease",
                 }}
               >
-                <FloppyIcon />Save
+                <FloppyIcon />
+                Save
               </button>
 
               <button
@@ -512,7 +538,7 @@ const FitToModelsButton = () => {
       style={{
         position: "absolute",
         top: "240px",
-        right: "440px",
+        right: "380px",
         zIndex: 1000,
         display: "flex",
         flexDirection: "column",
@@ -549,7 +575,9 @@ const FitToModelsButton = () => {
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.transform = "scale(1)";
-          e.currentTarget.style.borderColor = isDarkMode ? "#526484" : "#dbdfea";
+          e.currentTarget.style.borderColor = isDarkMode
+            ? "#526484"
+            : "#dbdfea";
         }}
       >
         <ArrowsPointingOutIcon style={{ width: "22px", height: "22px" }} />
@@ -559,9 +587,13 @@ const FitToModelsButton = () => {
           fontSize: "10px",
           fontWeight: 800,
           color: isDarkMode ? "#ffffff" : "#364a63",
-          textShadow: isDarkMode ? "0 1px 2px rgba(0,0,0,0.8)" : "0 1px 2px rgba(255,255,255,0.8)",
+          textShadow: isDarkMode
+            ? "0 1px 2px rgba(0,0,0,0.8)"
+            : "0 1px 2px rgba(255,255,255,0.8)",
           pointerEvents: "none",
-          background: isDarkMode ? "rgba(42,51,66,0.9)" : "rgba(255,255,255,0.9)",
+          background: isDarkMode
+            ? "rgba(42,51,66,0.9)"
+            : "rgba(255,255,255,0.9)",
           padding: "2px 8px",
           borderRadius: "12px",
           whiteSpace: "nowrap",

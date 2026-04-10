@@ -114,8 +114,6 @@ export const DashboardWidgets = () => {
     "critical",
   );
 
-  const activeNodeName = useMemo(() => getNodeName(nodes, activeNodeId), [nodes, activeNodeId]);
-
   // Collect ALL racks from ALL nodes
   const allRacks = useMemo(() => {
     const result = [...racks]; // Current active node racks (including unsaved edits)

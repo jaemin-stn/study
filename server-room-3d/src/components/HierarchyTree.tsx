@@ -14,7 +14,7 @@ import {
   getSubtreeDevices,
   isLeafNode,
 } from "../utils/nodeUtils";
-import { getHighestError, ERROR_COLORS } from "../utils/errorHelpers";
+import { getHighestError } from "../utils/errorHelpers";
 
 // ─── Inline Styles ───────────────────────────────────────────────────────────
 

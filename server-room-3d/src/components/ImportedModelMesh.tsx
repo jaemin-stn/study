@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { type ThreeEvent } from "@react-three/fiber";
-import { useGLTF, Html, Billboard, TransformControls } from "@react-three/drei";
+import { useGLTF, Html, Billboard, PivotControls } from "@react-three/drei";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
 import type { ImportedModel } from "../types";
@@ -230,17 +230,11 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
   const isPartition = model.builtinType === "Partition";
   const isClock = model.builtinType === "Clock";
 
-  const transformMode = useStore((s) => s.transformMode);
   const updateModel = useStore((s) => s.updateModel);
   const setModelDragging = useStore((s) => s.setModelDragging);
-  const [activeAxis, setActiveAxis] = useState<string | null>(null);
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
-    const {
-      isEditMode: editMode,
-      selectRack,
-      selectModel,
-    } = useStore.getState();
+    const { isEditMode: editMode, selectRack, selectModel } = useStore.getState();
 
     if (!editMode) {
       selectRack(null);
@@ -251,21 +245,10 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
     selectModel(model.id);
   };
 
-  // Display position
-  const displayPos: [number, number, number] = model.position;
-
   // Visual feedback
-  const getAxisColor = (axis: string | null) => {
-    if (axis === "X" || axis === "x") return "#FF5A5F";
-    if (axis === "Y" || axis === "y") return "#4CD964";
-    if (axis === "Z" || axis === "z") return "#4A90FF";
-    if (axis === "XY" || axis === "YZ" || axis === "XZ") return "#FCD34D";
-    return isMoveEnabled ? "#4ade80" : "#f97316";
-  };
-  const highlightColor = getAxisColor(activeAxis);
+  const highlightColor = isMoveEnabled ? "#4ade80" : "#f97316";
   const highlightOpacity = isMoveEnabled ? 0.6 : 0.35;
 
-  // Highlight box size — use Wall dimensions if applicable
   const wp = model.wallParams ?? DEFAULT_WALL_PARAMS;
   const pp = model.partitionParams ?? DEFAULT_PARTITION_PARAMS;
 
@@ -285,12 +268,19 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
         ? [0, 0.85 / 2, 0]
         : [0, 0, 0];
 
+  const matrix = useMemo(() => {
+    const m = new THREE.Matrix4();
+    m.compose(
+      new THREE.Vector3(...model.position),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(...model.rotation)),
+      new THREE.Vector3(...model.scale),
+    );
+    return m;
+  }, [model.position, model.rotation, model.scale]);
+
   const innerContent = (
     <group
       ref={setTarget}
-      position={displayPos}
-      rotation={model.rotation}
-      scale={model.scale}
       onPointerDown={handlePointerDown}
       onPointerOver={() => {
         if (isEditMode) {
@@ -317,7 +307,7 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
         <GltfMesh url={model.dataUrl} />
       )}
 
-      {/* Selection highlight box & Plane Guide */}
+      {/* Selection highlight box */}
       {isSelected && (
         <group position={hlCenter}>
           <mesh>
@@ -329,31 +319,6 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
               opacity={highlightOpacity}
             />
           </mesh>
-
-          {/* Plane Guide Visualization */}
-          {activeAxis && ["XY", "YZ", "XZ"].includes(activeAxis) && (
-            <group
-              rotation={[
-                activeAxis === "XZ" ? Math.PI / 2 : 0,
-                activeAxis === "YZ" ? Math.PI / 2 : 0,
-                0,
-              ]}
-            >
-              <mesh>
-                <planeGeometry args={[2, 2]} />
-                <meshBasicMaterial
-                  color="#FCD34D"
-                  transparent
-                  opacity={0.15}
-                  side={THREE.DoubleSide}
-                />
-              </mesh>
-              <gridHelper
-                args={[2, 12, "#FCD34D", "#FCD34D"]}
-                rotation={[Math.PI / 2, 0, 0]}
-              />
-            </group>
-          )}
         </group>
       )}
       {/* Lock/Unlock status label */}
@@ -361,7 +326,13 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
         <Billboard
           position={[
             0,
-            isWall ? wp.height + 0.4 : isPartition ? pp.height + 0.4 : isClock ? 1.25 : 1.4,
+            isWall
+              ? wp.height + 0.4
+              : isPartition
+                ? pp.height + 0.4
+                : isClock
+                  ? 1.25
+                  : 1.4,
             0,
           ]}
         >
@@ -398,33 +369,43 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
 
   return (
     <>
-      {shouldTransform && target && (
-        <TransformControls
-          object={target}
-          mode={transformMode}
-          size={1.1}
-          onMouseDown={() => setModelDragging(model.id)}
-          onMouseUp={() => {
-            setModelDragging(null);
-            setActiveAxis(null);
-            const p = target.position;
-            const r = target.rotation;
-            const s = target.scale;
+      {shouldTransform ? (
+        <PivotControls
+          matrix={matrix}
+          anchor={[0, 0, 0]}
+          depthTest={true}
+          fixed
+          scale={75}
+          lineWidth={2.5}
+          disableSliders={false}
+          onDragStart={() => setModelDragging(model.id)}
+          onDrag={(m) => {
+            const p = new THREE.Vector3();
+            const r = new THREE.Quaternion();
+            const s = new THREE.Vector3();
+            m.decompose(p, r, s);
+            const euler = new THREE.Euler().setFromQuaternion(r);
             updateModel(model.id, {
               position: [p.x, p.y, p.z],
-              rotation: [r.x, r.y, r.z],
+              rotation: [euler.x, euler.y, euler.z],
               scale: [s.x, s.y, s.z],
             });
           }}
-          onChange={(e: any) => {
-            // e.target is the TransformControls instance
-            if (e?.target?.axis !== activeAxis) {
-              setActiveAxis(e?.target?.axis || null);
-            }
+          onDragEnd={() => {
+            setModelDragging(null);
           }}
-        />
+        >
+          {innerContent}
+        </PivotControls>
+      ) : (
+        <group
+          position={model.position}
+          rotation={model.rotation}
+          scale={model.scale}
+        >
+          {innerContent}
+        </group>
       )}
-      {innerContent}
     </>
   );
 };

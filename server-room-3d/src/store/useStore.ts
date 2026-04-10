@@ -94,8 +94,7 @@ export interface AppState {
   fitToScene: () => void;
 
   // Editor Transform State
-  transformMode: "translate" | "rotate" | "scale";
-  setTransformMode: (mode: "translate" | "rotate" | "scale") => void;
+
 
   // Actions
   reparentNode: (nodeId: string, newParentId: string | null) => void;
@@ -402,8 +401,7 @@ export const useStore = create<AppState>((set, get) => ({
   fitToScene: () =>
     set((state) => ({ triggerFitToScene: state.triggerFitToScene + 1 })),
 
-  transformMode: "translate",
-  setTransformMode: (mode) => set({ transformMode: mode }),
+
 
   getIsDirty: () => {
     const {

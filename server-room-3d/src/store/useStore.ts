@@ -380,7 +380,7 @@ export const useStore = create<AppState>((set, get) => ({
   modelDragOffset: null,
 
   toast: null,
-  showToast: (message, type, source) => {
+  showToast: (message, type) => {
     set({ toast: { message, type } });
     setTimeout(() => {
       const current = get().toast;

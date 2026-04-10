@@ -1419,6 +1419,7 @@ const ModelProperties = ({
             }}
             onClick={() => {
               const { addImportedModel } = useStore.getState();
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
               const { id, ...modelData } = model;
               addImportedModel({
                 ...modelData,

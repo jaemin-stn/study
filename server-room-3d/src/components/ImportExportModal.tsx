@@ -217,7 +217,6 @@ const ModalStyles = React.memo(() => <style>{IMPORT_EXPORT_STYLES}</style>);
 export const ImportExportModal = () => {
   const {
     activeNodeId,
-    racks,
     registeredDevices,
     importExportModalRackId,
     setImportExportModalRackId,
@@ -464,12 +463,12 @@ export const ImportExportModal = () => {
         targetNodeId = upsertMapping[mappedId] || mappedId;
       } else {
         // Fallback: Pick first node that has racks
-        targetNodeId = Object.entries(finalRemapped).find(([_, data]) => data.racks.length > 0)?.[0] || null;
+        targetNodeId = Object.entries(finalRemapped).find(([, data]) => data.racks.length > 0)?.[0] || null;
       }
       
       // Secondary fallback: if no racks but we have devices, pick first node with devices
       if (!targetNodeId) {
-        targetNodeId = Object.entries(finalRemapped).find(([_, data]) => data.registeredDevices.length > 0)?.[0] || null;
+        targetNodeId = Object.entries(finalRemapped).find(([, data]) => data.registeredDevices.length > 0)?.[0] || null;
       }
 
       // 8. FINAL ATOMIC UPDATE: Apply everything to store in ONE go

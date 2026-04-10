@@ -2143,12 +2143,11 @@ export const DeviceRegistrationModal = () => {
   const handleDragOver = useCallback(
     (
       e: React.DragEvent,
-      id: string,
-      _position: "before" | "after" | "inside",
+      nodeId: string,
     ) => {
       e.preventDefault();
-      if (draggedNodeId === id) return;
-      setDragOverNodeId(id);
+      if (draggedNodeId === nodeId) return;
+      setDragOverNodeId(nodeId);
     },
     [draggedNodeId],
   );

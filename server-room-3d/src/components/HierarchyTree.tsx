@@ -648,7 +648,7 @@ export const HierarchyTree = () => {
   const allRacksForMapping = useMemo(() => {
     const fromLayouts = Object.entries(layouts)
       .filter(([nid]) => nid !== activeNodeId)
-      .flatMap(([_, l]) => l.racks || []);
+      .flatMap(([, l]) => l.racks || []);
     return [...fromLayouts, ...racks];
   }, [layouts, racks, activeNodeId]);
 
@@ -785,7 +785,6 @@ export const HierarchyTree = () => {
     (
       e: React.DragEvent,
       nodeId: string,
-      _position: "before" | "after" | "inside",
     ) => {
       e.preventDefault();
       if (draggedNodeId === nodeId) return;

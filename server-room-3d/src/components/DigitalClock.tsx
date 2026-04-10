@@ -50,7 +50,7 @@ export const DigitalClock = forwardRef<THREE.Mesh, DigitalClockProps>(({
     `;
     document.head.appendChild(style);
     document.fonts.ready.then(() => setFontsLoaded(true));
-    return () => { try { document.head.removeChild(style); } catch (e) { } };
+    return () => { try { document.head.removeChild(style); } catch { } };
   }, []);
 
   const lastTimeRef = useRef(0);

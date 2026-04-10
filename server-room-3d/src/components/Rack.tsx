@@ -623,27 +623,48 @@ const DeviceMesh = ({
     };
   }, [device.portStates]);
 
-  useFrame(({ clock }) => {
+  // Cache Color objects to avoid per-frame allocation
+  const highlightColor = useMemo(() => new THREE.Color("#4dabf7"), []);
+  const blackColor = useMemo(() => new THREE.Color("#000000"), []);
+
+  const needsAnimation = isHighlighted || (hasError && !!errorColor);
+
+  // Reset emissive once when animation stops (instead of every frame)
+  useEffect(() => {
+    if (!needsAnimation) {
+      const bodyMat = meshRef.current?.material;
+      const faceMat = faceplateRef.current?.material;
+      if (bodyMat instanceof THREE.MeshStandardMaterial) {
+        bodyMat.emissive.copy(blackColor);
+        bodyMat.emissiveIntensity = 0;
+        bodyMat.opacity = 1.0;
+      }
+      if (faceMat instanceof THREE.MeshStandardMaterial) {
+        faceMat.emissive.copy(blackColor);
+        faceMat.emissiveIntensity = 0;
+        faceMat.opacity = 1.0;
+      }
+    }
+  }, [needsAnimation, blackColor]);
+
+  // Only register useFrame when animation is actually needed
+  useFrame(needsAnimation ? ({ clock }) => {
     const bodyMat = meshRef.current?.material;
     const faceMat = faceplateRef.current?.material;
 
     if (isHighlighted) {
-      // Soft blue pulse for localized highlight (approx 1.25s per pulse cycle)
       const pulse =
         0.5 + Math.sin(clock.getElapsedTime() * Math.PI * 1.6) * 0.5;
-      const highlightColor = new THREE.Color("#4dabf7"); // Soft theme-like blue
 
       if (bodyMat instanceof THREE.MeshStandardMaterial) {
-        bodyMat.emissive.set(highlightColor);
+        bodyMat.emissive.copy(highlightColor);
         bodyMat.emissiveIntensity = pulse * 4;
       }
       if (faceMat instanceof THREE.MeshStandardMaterial) {
-        faceMat.emissive.set(highlightColor);
+        faceMat.emissive.copy(highlightColor);
         faceMat.emissiveIntensity = pulse * 4;
       }
     } else if (hasError && errorColor) {
-      // 1 second interval blink (uniform transition)
-      // Pulse intensity between 0 and 0.6 for a subtle, uniform glow
       const intensity =
         0.3 + Math.sin(clock.getElapsedTime() * Math.PI * 2) * 0.3;
 
@@ -651,24 +672,12 @@ const DeviceMesh = ({
         bodyMat.emissive.set(errorColor);
         bodyMat.emissiveIntensity = intensity;
       }
-
       if (faceMat instanceof THREE.MeshStandardMaterial) {
         faceMat.emissive.set(errorColor);
         faceMat.emissiveIntensity = intensity;
       }
-    } else {
-      if (bodyMat instanceof THREE.MeshStandardMaterial) {
-        bodyMat.emissive.set("#000000");
-        bodyMat.emissiveIntensity = 0;
-        bodyMat.opacity = 1.0;
-      }
-      if (faceMat instanceof THREE.MeshStandardMaterial) {
-        faceMat.emissive.set("#000000");
-        faceMat.emissiveIntensity = 0;
-        faceMat.opacity = 1.0;
-      }
     }
-  });
+  } : () => {});
 
   return (
     <group

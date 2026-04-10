@@ -6,6 +6,8 @@ import { ExclamationCircleIcon, ChartBarIcon } from "./Icons";
 
 // Error item for table display
 interface ErrorItem {
+  nodeId: string;
+  nodeName: string;
   rackId: string;
   rackName: string;
   deviceId: string;
@@ -70,7 +72,9 @@ const MOCK_SENSOR_DATA: Record<string, SensorData> = {
 export const DashboardWidgets = () => {
   const racks = useStore((state) => state.racks);
   const nodes = useStore((state) => state.nodes);
+  const layouts = useStore((state) => state.layouts);
   const activeNodeId = useStore((state) => state.activeNodeId);
+  const setActiveNode = useStore((state) => state.setActiveNode);
   const selectRack = useStore((state) => state.selectRack);
   const focusRack = useStore((state) => state.focusRack);
   const selectDevice = useStore((state) => state.selectDevice);
@@ -80,20 +84,28 @@ export const DashboardWidgets = () => {
 
   const activeNodeName = useMemo(() => getNodeName(nodes, activeNodeId), [nodes, activeNodeId]);
 
-  // Filter racks by exactly the active node only
-  const groupRacks = useMemo(
-    () => racks.filter((r) => r.mapId === activeNodeId),
-    [racks, activeNodeId],
-  );
+  // Collect ALL racks from ALL nodes
+  const allRacks = useMemo(() => {
+    const result = [...racks]; // Current active node racks (including unsaved edits)
+    Object.entries(layouts).forEach(([nid, layout]) => {
+      if (nid !== activeNodeId) {
+        result.push(...(layout.racks || []));
+      }
+    });
+    return result;
+  }, [racks, layouts, activeNodeId]);
 
-  // Collect all errors from group racks only
+  // Collect all errors from all racks
   const allErrors = useMemo<ErrorItem[]>(() => {
     const errors: ErrorItem[] = [];
-    groupRacks.forEach((rack) => {
+    allRacks.forEach((rack) => {
+      const nodeName = getNodeName(nodes, rack.mapId);
       rack.devices.forEach((device) => {
         device.portStates.forEach((port) => {
           if (port.status === "error" && port.errorLevel) {
             errors.push({
+              nodeId: rack.mapId,
+              nodeName: nodeName,
               rackId: rack.rackId,
               rackName: rack.rackTitle || `Rack ${rack.rackId.slice(0, 4)}`,
               deviceId: device.itemId,
@@ -106,10 +118,15 @@ export const DashboardWidgets = () => {
       });
     });
     return errors;
-  }, [groupRacks]);
+  }, [allRacks, nodes]);
 
   // Handle error row click
   const handleErrorRowClick = (error: ErrorItem) => {
+    // If from another node, switch first
+    if (activeNodeId !== error.nodeId) {
+      setActiveNode(error.nodeId);
+    }
+
     // First select and focus the rack
     selectRack(error.rackId);
     focusRack(error.rackId);
@@ -154,7 +171,7 @@ export const DashboardWidgets = () => {
             <span style={{ fontSize: "18px", display: "flex", color: "var(--severity-critical)", alignSelf: "center", marginRight: "8px" }}>
               <ExclamationCircleIcon style={{ width: 20, height: 20 }} />
             </span>
-            {activeNodeName} Error Summary
+            Overall Error Summary
           </h3>
         </div>
         <div className="grafana-panel-content">
@@ -229,11 +246,15 @@ export const DashboardWidgets = () => {
               {/* Sticky Header */}
               <div
                 className="grafana-table-header"
-                style={{ gridTemplateColumns: "1fr 1.2fr 0.6fr" }}
+                style={{ 
+                  gridTemplateColumns: "1fr 1.3fr 0.8fr",
+                  color: "var(--text-secondary)", // Slightly darker than the default table header text
+                  fontWeight: 700 
+                }}
               >
-                <div className="grafana-table-cell">Rack</div>
+                <div className="grafana-table-cell">Node</div>
                 <div className="grafana-table-cell">Equipment</div>
-                <div className="grafana-table-cell">Port</div>
+                <div className="grafana-table-cell" style={{ textAlign: "center" }}>Port</div>
               </div>
 
               {/* Scrollable Body */}
@@ -244,14 +265,14 @@ export const DashboardWidgets = () => {
                       key={idx}
                       className="grafana-table-row"
                       style={{
-                        gridTemplateColumns: "1fr 1.2fr 0.6fr",
+                        gridTemplateColumns: "1fr 1.3fr 0.8fr",
                         fontSize: "var(--font-size-xs)",
                       }}
                       onClick={() => handleErrorRowClick(err)}
                     >
-                      <div className="grafana-table-cell">{err.rackName}</div>
+                      <div className="grafana-table-cell" title={err.nodeName}>{err.nodeName}</div>
                       <div className="grafana-table-cell" title={err.deviceName}>{err.deviceName}</div>
-                      <div className="grafana-table-cell">{err.portNumber}</div>
+                      <div className="grafana-table-cell" style={{ textAlign: "center" }}>{err.portNumber}</div>
                     </div>
                   ))
                 ) : (

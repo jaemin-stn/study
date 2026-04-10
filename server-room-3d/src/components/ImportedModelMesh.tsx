@@ -220,7 +220,6 @@ const GltfMesh = ({ url }: { url: string }) => {
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
-  const [target, setTarget] = useState<THREE.Group | null>(null);
   const selectedModelId = useStore((s) => s.selectedModelId);
   const isEditMode = useStore((s) => s.isEditMode);
   const isSelected = selectedModelId === model.id;
@@ -280,7 +279,6 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
 
   const innerContent = (
     <group
-      ref={setTarget}
       onPointerDown={handlePointerDown}
       onPointerOver={() => {
         if (isEditMode) {

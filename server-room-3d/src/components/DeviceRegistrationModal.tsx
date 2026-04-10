@@ -36,7 +36,7 @@ import {
   getNodeEquipmentCount,
   getSubtreeNodeIds,
 } from "../utils/nodeUtils";
-import { getHighestError, ERROR_COLORS } from "../utils/errorHelpers";
+import { getHighestError } from "../utils/errorHelpers";
 const VENDORS: VendorName[] = [
   "코위버PTN",
   "CISCO",

@@ -1126,22 +1126,22 @@ const generateGroupRacks = (
     }
     const stateX = (worldX + width / 2) / GRID_SPACING;
     
-    // Aisle arrangement: face-to-face pairs with 1.5 unit front gap
+    // Aisle arrangement: face-to-face pairs with 1.75 unit front gap
     let posZ = row * 4.0;
     let orient = 180;
     
     if (faceToFace) {
       // Hot/cold aisle layout:
       // Row 0: orient=180, z = baseY         (앞면이 아래를 향함)
-      // Row 1: orient=0,   z = baseY + 1.5   (앞면이 위를 향함) -> cold aisle = 1.5칸
-      // Row 2: orient=180, z = baseY + 4.5   (다음 페어, hot aisle gap = 3.0)
-      // Row 3: orient=0,   z = baseY + 6.0   ...
+      // Row 1: orient=0,   z = baseY + 1.75  (앞면이 위를 향함) -> cold aisle = 1.75칸
+      // Row 2: orient=180, z = baseY + 4.75  (다음 페어, hot aisle gap = 3.0)
+      // Row 3: orient=0,   z = baseY + 6.5   ...
       const pair = Math.floor(row / 2);
       const isSecondInPair = row % 2 !== 0;
       
-      const pairSpacing = 4.5; // 1.5 cold + 3.0 hot
+      const pairSpacing = 4.75; // 1.75 cold + 3.0 hot
       const baseY = pair * pairSpacing;
-      posZ = baseY + (isSecondInPair ? 1.5 : 0);
+      posZ = baseY + (isSecondInPair ? 1.75 : 0);
       orient = isSecondInPair ? 0 : 180;
     }
 

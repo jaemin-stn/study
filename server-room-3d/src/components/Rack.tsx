@@ -606,7 +606,7 @@ const DeviceMesh = ({
   const meshRef = useRef<THREE.Mesh>(null);
   const faceplateRef = useRef<THREE.Mesh>(null);
   const highlightedDeviceId = useStore((s) => s.highlightedDeviceId);
-  const isHighlighted = highlightedDeviceId === device.itemId;
+  const isHighlighted = highlightedDeviceId === device.itemId || (device.deviceId && highlightedDeviceId === device.deviceId);
 
   const deviceH = device.size * U_HEIGHT;
   const bottomY = -rackHeight / 2;

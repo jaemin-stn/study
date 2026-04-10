@@ -695,7 +695,7 @@ export const useStore = create<AppState>((set, get) => ({
         if (placed) {
           foundNodeId = nodeId;
           foundRackId = rack.rackId;
-          foundDeviceId = placed.deviceId || "";
+          foundDeviceId = placed.itemId; // Use itemId for 3D highlight matching
           break;
         }
       }

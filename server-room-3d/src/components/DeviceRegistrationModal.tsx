@@ -33,6 +33,7 @@ import {
   getChildren,
   getAncestorPath,
   getSubtreeEquipmentCount,
+  getNodeEquipmentCount,
   getSubtreeNodeIds,
 } from "../utils/nodeUtils";
 const VENDORS: VendorName[] = [
@@ -1301,7 +1302,7 @@ const TreeNodeItem = ({
   const hasChildren = children.length > 0;
   const isExpanded = expandedIds.has(node.nodeId);
   const isSelected = selectedNodeId === node.nodeId;
-  const count = getSubtreeEquipmentCount(nodes, registeredDevices, node.nodeId);
+  const count = getNodeEquipmentCount(registeredDevices, node.nodeId);
 
   const isMatch =
     nodeSearch && node.name.toLowerCase().includes(nodeSearch.toLowerCase());
@@ -2807,11 +2808,8 @@ export const DeviceRegistrationModal = () => {
                             </span>{" "}
                             등록 장비 목록
                           </div>
-                          <div className="drm-badge highlight">
-                            {getNodeName(nodes, nodeFilter)}
-                          </div>
-                          <div className="drm-badge">
-                            {filteredDevices.length}건
+                          <div className="drm-badge highlight" style={{ fontWeight: 700 }}>
+                            {getNodeName(nodes, nodeFilter)} (직속: {getNodeEquipmentCount(registeredDevices, nodeFilter)}건 / 전체: {getSubtreeEquipmentCount(nodes, registeredDevices, nodeFilter)}건)
                           </div>
                           {selectedIds.size > 0 && (
                             <div className="drm-badge highlight">

@@ -10,6 +10,7 @@ import type { HierarchyNode } from "../types";
 import {
   getChildren,
   getSubtreeEquipmentCount,
+  getNodeEquipmentCount,
   getSubtreeDevices,
   isLeafNode,
 } from "../utils/nodeUtils";
@@ -630,15 +631,11 @@ export const HierarchyTree = () => {
     }
   }, [renamingId]);
 
-  // Calculate recursive (subtree) equipment counts
+  // Calculate direct node equipment counts (ONLY devices directly in this node)
   const equipmentCounts = useMemo(() => {
     const counts = new Map<string, number>();
     nodes.forEach((n) => {
-      const count = getSubtreeEquipmentCount(
-        nodes,
-        registeredDevices,
-        n.nodeId,
-      );
+      const count = getNodeEquipmentCount(registeredDevices, n.nodeId);
       if (count > 0) counts.set(n.nodeId, count);
     });
     return counts;

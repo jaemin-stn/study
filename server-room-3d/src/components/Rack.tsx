@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, forwardRef, Suspense } from "react";
+import { useEffect, useMemo, useRef, forwardRef, Suspense, memo } from "react";
 import { RoundedBox, useTexture, Billboard, Html } from "@react-three/drei";
 import { animated, useSpring } from "@react-spring/three";
 import { type ThreeEvent, useThree, useFrame } from "@react-three/fiber";
@@ -22,7 +22,7 @@ interface RackProps extends RackType {
   dragPosition: [number, number] | null;
 }
 
-export const Rack = ({
+export const Rack = memo(({
   rackId,
   rackTitle,
   rackSize,
@@ -30,24 +30,21 @@ export const Rack = ({
   position,
   devices,
   mapId,
+  orientation: orientationProp,
   draggingRackId,
   dragPosition,
 }: RackProps) => {
-  const selectedRackId = useStore((state: AppState) => state.selectedRackId);
-  const hoveredRackId = useStore((state: AppState) => state.hoveredRackId);
-  const focusedRackId = useStore((state: AppState) => state.focusedRackId);
+  // Boolean selectors: only re-render when THIS rack's selection state changes
+  const isSelected = useStore((state: AppState) => state.selectedRackId === rackId);
+  const isHovered = useStore((state: AppState) => state.hoveredRackId === rackId);
+  const isFocused = useStore((state: AppState) => state.focusedRackId === rackId);
   const { theme } = useTheme();
 
-  const isSelected = selectedRackId === rackId;
-  const isHovered = hoveredRackId === rackId;
-  const isFocused = focusedRackId === rackId;
   const isInternalFocused = isSelected || isFocused;
   const isInternalDragging = draggingRackId === rackId;
   const isDarkMode = theme === "dark";
-  const orientation = useStore(
-    (state: AppState) =>
-      state.racks.find((r: RackType) => r.rackId === rackId)?.orientation ?? 180,
-  );
+  // Use orientation from props directly instead of searching store.racks
+  const orientation = orientationProp ?? 180;
 
   const { raycaster, mouse, camera } = useThree();
   const floorPlane = useMemo(
@@ -591,7 +588,7 @@ export const Rack = ({
       />
     </animated.group>
   );
-};
+});
 
 const DeviceMesh = ({
   device,

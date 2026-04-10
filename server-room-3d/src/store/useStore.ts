@@ -11,7 +11,7 @@ import {
   getFrontDirection,
   getEffectiveDimensions,
 } from "../utils/rackGeometry";
-import { migrateGroupNameToNodeId } from "../utils/nodeUtils";
+import { migrateGroupNameToNodeId, NONE_NODE_ID } from "../utils/nodeUtils";
 import * as THREE from "three";
 import { layoutsEqual } from "../utils/comparison";
 
@@ -1722,6 +1722,7 @@ export const useStore = create<AppState>((set, get) => ({
       const updatedNodes = [...stateNodes];
 
       newNodes.forEach((n) => {
+        if (n.nodeId === NONE_NODE_ID) return;
         mapping[n.nodeId] = n.nodeId;
         const matchIdx = updatedNodes.findIndex((ex) => ex.nodeId === n.nodeId);
         if (matchIdx >= 0) {

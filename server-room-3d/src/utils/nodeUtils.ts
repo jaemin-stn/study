@@ -17,6 +17,7 @@ export const DAEJEON_CENTER_NODE_ID = "daejeon-center";
 export const GWACHEON_NODE_ID = "gwacheon-room-1f"; // Keep same var name for backwards compat
 export const GWACHEON_ROOM_2F_NODE_ID = "gwacheon-room-2f"; 
 export const DAEJEON_NODE_ID = "daejeon-room-1f"; // Keep same var name for backwards compat
+export const NONE_NODE_ID = "none";
 
 // ─── Default Tree ──────────────────────────────────────────────────────────────
 
@@ -129,7 +130,7 @@ export const getNodeName = (
   nodes: HierarchyNode[],
   nodeId: string | null,
 ): string => {
-  if (!nodeId) return "없음";
+  if (!nodeId || nodeId === NONE_NODE_ID) return "없음";
   
   // 1. Direct match
   const direct = findNode(nodes, nodeId);

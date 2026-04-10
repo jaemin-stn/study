@@ -10,7 +10,8 @@ import {
   getAncestorPath,
   getSubtreeNodeIds,
   isLeafNode,
-  GWACHEON_NODE_ID
+  GWACHEON_NODE_ID,
+  NONE_NODE_ID
 } from "./nodeUtils";
 import * as XLSX from "xlsx";
 import {
@@ -640,40 +641,49 @@ export const parseRegisteredDevicesFromExcel = (
             
             // 1. Try to resolve by path first (Full Hierarchy)
             if (path) {
-              const { nodeId: resolvedId, newNodes } = resolvePathToNodeId(nodes, String(path), accumulatedNewNodes);
-              if (newNodes.length > 0) {
-                // Deduplicate before adding to accumulated array
-                newNodes.forEach(nn => {
-                    if (!accumulatedNewNodes.some(ex => ex.nodeId === nn.nodeId)) {
-                        accumulatedNewNodes.push(nn);
-                    }
-                });
+              const strPath = String(path).trim();
+              if (strPath === "없음" || strPath.toLowerCase() === "none") {
+                nid = NONE_NODE_ID;
+              } else {
+                const { nodeId: resolvedId, newNodes } = resolvePathToNodeId(nodes, strPath, accumulatedNewNodes);
+                if (newNodes.length > 0) {
+                  // Deduplicate before adding to accumulated array
+                  newNodes.forEach(nn => {
+                      if (!accumulatedNewNodes.some(ex => ex.nodeId === nn.nodeId)) {
+                          accumulatedNewNodes.push(nn);
+                      }
+                  });
+                }
+                nid = resolvedId;
               }
-              nid = resolvedId;
             } 
             // 2. If no path, but we have a group name, try name-based resolution
             else if (!nid && grpName) {
               const strName = String(grpName).trim();
-              // Try to find in current nodes or newly discovered nodes
-              const matched = [...nodes, ...accumulatedNewNodes].find(n => n.name.toLowerCase() === strName.toLowerCase());
-              if (matched) {
-                nid = matched.nodeId;
+              if (strName === "없음" || strName.toLowerCase() === "none") {
+                nid = NONE_NODE_ID;
               } else {
-                // If not found, try legacy mapping
-                const migrated = migrateGroupNameToNodeId(strName);
-                if (migrated !== strName) {
-                    nid = migrated;
+                // Try to find in current nodes or newly discovered nodes
+                const matched = [...nodes, ...accumulatedNewNodes].find(n => n.name.toLowerCase() === strName.toLowerCase());
+                if (matched) {
+                  nid = matched.nodeId;
                 } else {
-                    // Create new node under root as fallback
-                    const { nodeId: resolvedId, newNodes } = resolvePathToNodeId(nodes, strName, accumulatedNewNodes);
-                    if (newNodes.length > 0) {
-                        newNodes.forEach(nn => {
-                            if (!accumulatedNewNodes.some(ex => ex.nodeId === nn.nodeId)) {
-                                accumulatedNewNodes.push(nn);
-                            }
-                        });
-                    }
-                    nid = resolvedId;
+                  // If not found, try legacy mapping
+                  const migrated = migrateGroupNameToNodeId(strName);
+                  if (migrated !== strName) {
+                      nid = migrated;
+                  } else {
+                      // Create new node under root as fallback
+                      const { nodeId: resolvedId, newNodes } = resolvePathToNodeId(nodes, strName, accumulatedNewNodes);
+                      if (newNodes.length > 0) {
+                          newNodes.forEach(nn => {
+                              if (!accumulatedNewNodes.some(ex => ex.nodeId === nn.nodeId)) {
+                                  accumulatedNewNodes.push(nn);
+                              }
+                          });
+                      }
+                      nid = resolvedId;
+                  }
                 }
               }
             }
@@ -852,7 +862,9 @@ export const importGroupPackage = (
           const { path, nid, name } = info;
           
           if (path) {
-            const { nodeId: resId, newNodes } = resolvePathToNodeId(systemNodes, String(path), resolutionNodes);
+            const strPath = String(path).trim();
+            if (strPath === "없음" || strPath.toLowerCase() === "none") return NONE_NODE_ID;
+            const { nodeId: resId, newNodes } = resolvePathToNodeId(systemNodes, strPath, resolutionNodes);
             newNodes.forEach(nn => {
                if (!resolutionNodes.some(ex => ex.nodeId === nn.nodeId)) resolutionNodes.push(nn);
             });
@@ -862,7 +874,9 @@ export const importGroupPackage = (
           if (nid && nodeIdMap[String(nid)]) return nodeIdMap[String(nid)];
 
           if (name) {
-             const match = resolutionNodes.find(n => n.name.toLowerCase() === String(name).toLowerCase());
+             const strName = String(name).trim();
+             if (strName === "없음" || strName.toLowerCase() === "none") return NONE_NODE_ID;
+             const match = resolutionNodes.find(n => n.name.toLowerCase() === strName.toLowerCase());
              if (match) return match.nodeId;
           }
 

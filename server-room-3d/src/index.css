@@ -48,3 +48,9 @@ a {
 a:hover {
   text-decoration: underline;
 }
+
+/* ErrorMarker bounce animation (replaces per-frame useFrame callback) */
+@keyframes errorBounce {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}

@@ -1308,7 +1308,7 @@ export const useStore = create<AppState>((set, get) => ({
     return null;
   },
 
-  removeDevice: (rackId, deviceId) => {
+  removeDevice: (rackId, targetId) => {
     const { isEditMode, pushUndoState } = get();
     if (isEditMode) pushUndoState();
     set((state) => {
@@ -1318,7 +1318,9 @@ export const useStore = create<AppState>((set, get) => ({
           r.rackId === rackId
             ? {
                 ...r,
-                devices: r.devices.filter((d) => d.deviceId !== deviceId),
+                devices: r.devices.filter(
+                  (d) => d.deviceId !== targetId && d.itemId !== targetId,
+                ),
               }
             : r,
         );

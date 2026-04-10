@@ -1,5 +1,4 @@
-import { useRef, useMemo } from "react";
-import { useFrame } from "@react-three/fiber";
+import { useMemo } from "react";
 import { useStore } from "../store/useStore";
 import type { Rack } from "../types";
 import {
@@ -17,10 +16,6 @@ interface ErrorMarkerProps {
 }
 
 export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
-  const selectRack = useStore((state) => state.selectRack);
-  const focusRack = useStore((state) => state.focusRack);
-  const markerRef = useRef<THREE.Group>(null);
-
   // Find the highest-severity error across all devices in this rack
   const highestError = useMemo<ErrorLevel | null>(() => {
     let bestLevel: ErrorLevel | null = null;
@@ -37,19 +32,7 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
     return bestLevel;
   }, [rack.devices]);
 
-  // Animation
-  useFrame(({ clock }) => {
-    if (markerRef.current) {
-      // Bounce
-      markerRef.current.position.y =
-        Math.sin(clock.getElapsedTime() * 3) * 0.15;
-    }
-  });
-
-  const isDraggingRack = useStore((state) => state.isDragging);
-  const draggingModelId = useStore((state) => state.draggingModelId);
-  const isDragging = isDraggingRack || draggingModelId !== null;
-
+  // Early return BEFORE any hooks that would cause issues
   if (!highestError) return null;
 
   // Calculate position relative to rack center
@@ -62,24 +45,32 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
 
   const color = ERROR_COLORS[highestError];
 
+  const handleClick = (e: React.MouseEvent | THREE.Event) => {
+    // Read drag state only on click (no subscription needed)
+    const { isDragging, draggingModelId, selectRack, focusRack } =
+      useStore.getState();
+    if (isDragging || draggingModelId !== null) return;
+    if ("stopPropagation" in e) (e as React.MouseEvent).stopPropagation();
+    selectRack(rack.rackId);
+    focusRack(rack.rackId);
+  };
+
   return (
     <group position={position}>
       <Billboard follow={true}>
-        <group
-          ref={markerRef}
-          onClick={(e) => {
-            if (isDragging) return;
-            e.stopPropagation();
-            selectRack(rack.rackId);
-            focusRack(rack.rackId);
-          }}
-        >
-          {/* Cone pointing down */}
+        <group>
+          {/* Cone pointing down — CSS-animated bounce via Html wrapper */}
           <mesh
             position={[0, 0, 0]}
             rotation={[Math.PI, 0, 0]}
             renderOrder={1000}
-            raycast={isDragging ? () => null : undefined}
+            onClick={(e) => {
+              const { isDragging, draggingModelId } = useStore.getState();
+              if (isDragging || draggingModelId !== null) return;
+              e.stopPropagation();
+              useStore.getState().selectRack(rack.rackId);
+              useStore.getState().focusRack(rack.rackId);
+            }}
           >
             <coneGeometry args={[0.2, 0.4, 32]} />
             <meshStandardMaterial
@@ -92,7 +83,7 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
             />
           </mesh>
 
-          {/* Error Label UI */}
+          {/* Error Label UI — bounce via CSS animation instead of useFrame */}
           <Html
             position={[0, 0.5, 0]}
             center
@@ -112,16 +103,12 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
                 border: `2px solid ${color}`,
                 whiteSpace: "nowrap",
                 boxShadow: `0 0 15px ${color}88`,
-                cursor: isDragging ? "default" : "pointer",
-                pointerEvents: isDragging ? "none" : "auto",
+                cursor: "pointer",
+                pointerEvents: "auto",
                 userSelect: "none",
+                animation: "errorBounce 1s ease-in-out infinite",
               }}
-              onClick={(e) => {
-                if (isDragging) return;
-                e.stopPropagation();
-                selectRack(rack.rackId);
-                focusRack(rack.rackId);
-              }}
+              onClick={handleClick as React.MouseEventHandler}
             >
               {(highestError as string).toUpperCase()}
             </div>

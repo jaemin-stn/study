@@ -575,17 +575,19 @@ export const Rack = memo(({
           />
         ))}
       </group>
-
-      <ErrorMarker
-        rack={{
-          rackId,
-          rackSize,
-          position,
-          devices,
-          width,
-          mapId,
-        }}
-      />
+      {/* Only mount ErrorMarker when rack has error devices */}
+      {devices.some((d) => d.portStates?.some((p) => p.status === "error")) && (
+        <ErrorMarker
+          rack={{
+            rackId,
+            rackSize,
+            position,
+            devices,
+            width,
+            mapId,
+          }}
+        />
+      )}
     </animated.group>
   );
 });

@@ -856,40 +856,126 @@ body {
   margin: 0 0 var(--spacing-md) 0;
 }
 
-/* Sensor widget */
+/* Sensor widget - Weather App Style */
 .grafana-sensor-widget {
   background: linear-gradient(
-    135deg,
-    var(--theme-primary),
-    var(--theme-secondary)
+    to bottom right,
+    var(--bg-primary),
+    var(--bg-secondary)
   );
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-md);
-  color: #ffffff;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
 }
 
-.grafana-sensor-card {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-md);
-  text-align: center;
-  flex: 1;
+.weather-list {
+  display: flex;
+  flex-direction: column;
 }
 
-.grafana-sensor-label {
-  font-size: var(--font-size-xs);
-  opacity: 0.85;
-  margin-bottom: var(--spacing-xs);
+.weather-row {
+  display: grid;
+  grid-template-columns: 1fr 50px 80px 35px 45px;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-weak);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: var(--font-size-sm);
+  color: var(--text-primary);
+  min-height: 48px;
 }
 
-.grafana-sensor-value {
-  font-size: var(--font-size-xxl);
-  font-weight: var(--font-weight-bold);
+.weather-row:last-child {
+  border-bottom: none;
 }
 
-.grafana-sensor-unit {
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-regular);
+.weather-row:hover {
+  background: var(--hover-bg);
+}
+
+.weather-row.active {
+  background: var(--selected-bg);
+  font-weight: 600;
+  border-left: 3px solid var(--theme-primary);
+  padding-left: 13px; /* 16px - 3px border */
+}
+
+.weather-node-name {
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.weather-icon {
+  display: flex;
+  justify-content: center;
+  color: var(--theme-primary);
+}
+
+.weather-temp {
+  text-align: right;
+  font-weight: 600;
+  padding-right: 8px;
+}
+
+.weather-bar-container {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+}
+
+.weather-track {
+  width: 100%;
+  height: 4px;
+  background: var(--border-medium);
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Temperature Gradient: Cool Blue -> Warm Orange */
+.weather-temp-gradient {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background: linear-gradient(to right, #3b82f6, #6576ff, #f97316, #ef4444);
+  opacity: 0.9;
+}
+
+/* Humidity Water Drop Styles */
+.weather-drop-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.weather-drop-svg {
+  filter: drop-shadow(0 0 2px rgba(101, 118, 255, 0.2));
+}
+
+.weather-humidity-percent {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.weather-active-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--theme-primary);
+  border-radius: 50%;
+  box-shadow: 0 0 4px var(--theme-primary);
+}
+
+.weather-dot-container {
+  width: 14px; /* 6px dot + 8px margin */
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 /* Keyboard hints */

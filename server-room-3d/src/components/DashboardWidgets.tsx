@@ -4,6 +4,38 @@ import type { ErrorLevel } from "../types";
 import { getNodeName, GWACHEON_NODE_ID, DAEJEON_NODE_ID } from "../utils/nodeUtils";
 import { ExclamationCircleIcon, ChartBarIcon } from "./Icons";
 
+// Responsive Water Drop SVG component
+const WaterDropIcon = ({ percentage }: { percentage: number }) => {
+  // Map 0-100% to fill level (SVG Y coordinates roughly from 22 down to 2)
+  const fillY = 22 - (percentage / 100) * 20;
+  
+  return (
+    <svg width="18" height="22" viewBox="0 0 24 24" fill="none" className="weather-drop-svg">
+      <defs>
+        <clipPath id={`drop-clip-${percentage.toFixed(0)}`}>
+          <path d="M12 2.1C12 2.1 5 10 5 15.5C5 19.1 7.9 22 11.5 22C15.1 22 18 19.1 18 15.5C18 10 11 2.1 11 2.1H12Z" />
+        </clipPath>
+      </defs>
+      {/* Background/Outline */}
+      <path 
+        d="M12 2.1C12 2.1 5 10 5 15.5C5 19.1 7.9 22 11.5 22C15.1 22 18 19.1 18 15.5C18 10 11 2.1 11 2.1H12Z" 
+        stroke="var(--border-medium)" 
+        strokeWidth="1.5" 
+        strokeLinecap="round"
+      />
+      {/* Filling Rect */}
+      <rect 
+        x="0" 
+        y={fillY} 
+        width="24" 
+        height="24" 
+        fill="var(--theme-primary)" 
+        clipPath={`url(#drop-clip-${percentage.toFixed(0)})`}
+      />
+    </svg>
+  );
+};
+
 // Error item for table display
 interface ErrorItem {
   nodeId: string;
@@ -156,11 +188,23 @@ export const DashboardWidgets = () => {
     return allErrors.filter((err) => err.severity === selectedSeverity);
   }, [allErrors, selectedSeverity]);
 
-  // Mock sensor data per exact active node
-  const sensorData: SensorData = useMemo(() => {
-    if (activeNodeId && MOCK_SENSOR_DATA[activeNodeId]) return MOCK_SENSOR_DATA[activeNodeId];
-    return { temperature: null, humidity: null };
-  }, [activeNodeId]);
+  // Collect sensor data for all nodes in the hierarchy
+  const allNodeSensors = useMemo(() => {
+    // Priority 1: Nodes that actually exist in hierarchy
+    const sensorList = nodes
+      .map(node => ({
+        id: node.nodeId,
+        name: node.name,
+        data: MOCK_SENSOR_DATA[node.nodeId] || { 
+          temperature: 20 + Math.random() * 5, 
+          humidity: 30 + Math.random() * 40 
+        }
+      }))
+      .filter(n => n.id !== "root"); // Skip root if needed
+
+    // Return only nodes that exist in hierarchy
+    return sensorList;
+  }, [nodes]);
 
   return (
     <div className="dashboard-widgets-container">
@@ -297,52 +341,83 @@ export const DashboardWidgets = () => {
         </div>
       </div>
 
-      {/* Widget 2: Sensor Averages - Grafana Panel Style */}
+      {/* Widget 2: Global Sensor Overview - Refined Weather Style */}
       <div className="grafana-panel">
         <div className="grafana-panel-header">
           <h3 className="grafana-panel-title">
             <span style={{ fontSize: "16px", display: "flex", color: "#6366f1", alignSelf: "center", marginRight: "8px" }}>
               <ChartBarIcon style={{ width: 18, height: 18 }} />
             </span>
-            {activeNodeName} Sensors
+            System Environment Overview
           </h3>
         </div>
-        <div
-          className="grafana-sensor-widget"
-          style={{
-            margin: "0",
-            borderRadius: "0 0 var(--radius-lg) var(--radius-lg)",
-          }}
-        >
-          <div style={{ display: "flex", gap: "12px" }}>
-            {/* Temperature */}
-            <div className="grafana-sensor-card">
-              <div className="grafana-sensor-label">Avg Temperature</div>
-              {sensorData.temperature !== null ? (
-                <div className="grafana-sensor-value">
-                  {sensorData.temperature.toFixed(1)}
-                  <span className="grafana-sensor-unit">°C</span>
-                </div>
-              ) : (
-                <div style={{ opacity: 0.7 }}>No data</div>
-              )}
-            </div>
-
-            {/* Humidity */}
-            <div className="grafana-sensor-card">
-              <div className="grafana-sensor-label">Avg Humidity</div>
-              {sensorData.humidity !== null ? (
-                <div className="grafana-sensor-value">
-                  {sensorData.humidity.toFixed(0)}
-                  <span className="grafana-sensor-unit">%</span>
-                </div>
-              ) : (
-                <div style={{ opacity: 0.7 }}>No data</div>
-              )}
-            </div>
+        <div className="grafana-sensor-widget">
+          <div className="weather-list">
+            {allNodeSensors.length > 0 ? (
+              allNodeSensors.map((node) => {
+                const isActive = node.id === activeNodeId;
+                const temp = node.data.temperature || 0;
+                const hum = node.data.humidity || 0;
+                
+                // Normalize temp for gauge bar (assuming 15°C - 35°C range)
+                const tempPercent = Math.min(100, Math.max(0, ((temp - 15) / 20) * 100));
+                
+                return (
+                  <div 
+                    key={node.id} 
+                    className={`weather-row ${isActive ? "active" : ""}`}
+                    onClick={() => setActiveNode(node.id)}
+                  >
+                    <div className="weather-node-name" title={node.name}>
+                      <div style={{ display: "flex", alignItems: "center", width: "100%" }}>
+                        <div className="weather-dot-container">
+                          {isActive && <div className="weather-active-dot" />}
+                        </div>
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {node.name}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    {/* Temperature Info (Value & Gauge only) */}
+                    <div className="weather-temp">
+                      {temp.toFixed(1)}°
+                    </div>
+                    <div className="weather-bar-container" title={`Temperature: ${temp.toFixed(1)}°C`}>
+                      <div className="weather-track">
+                        <div 
+                          className="weather-temp-gradient" 
+                          style={{ width: `${tempPercent}%` }} 
+                        />
+                      </div>
+                    </div>
+  
+                    {/* Humidity Info (Drop Icon & Percent) */}
+                    <div className="weather-drop-wrap" title={`Humidity: ${hum.toFixed(0)}%`}>
+                      <WaterDropIcon percentage={hum} />
+                    </div>
+                    <div className="weather-humidity-percent">
+                      {hum.toFixed(0)}%
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div 
+                style={{ 
+                  padding: "40px 20px", 
+                  textAlign: "center", 
+                  color: "var(--text-tertiary)",
+                  fontSize: "var(--font-size-sm)"
+                }}
+              >
+                No sensor nodes found
+              </div>
+            )}
           </div>
         </div>
       </div>
+
     </div>
   );
 };

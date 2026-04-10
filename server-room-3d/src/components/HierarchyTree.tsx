@@ -14,10 +14,24 @@ import {
   getSubtreeDevices,
   isLeafNode,
 } from "../utils/nodeUtils";
+import { getHighestError, ERROR_COLORS } from "../utils/errorHelpers";
 
 // ─── Inline Styles ───────────────────────────────────────────────────────────
 
 const TREE_STYLES = `
+.tree-node-equipment.has-error .tree-node-name {
+  color: var(--severity-critical-text);
+}
+.equipment-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.tree-node-equipment.has-error {
+  border-left: 2px solid var(--severity-critical);
+  background: rgba(239, 68, 68, 0.05);
+}
 .hierarchy-tree {
   width: 100%;
   background: var(--bg-primary);
@@ -976,7 +990,10 @@ export const HierarchyTree = () => {
                             </div>
                           )}
                           {group.devices.map(
-                            ({ device, rackId, instanceId }) => {
+                            ({ device, rackId, instanceId, portStates }) => {
+                              const highestError = getHighestError(portStates);
+                              const hasError = !!highestError;
+
                               const rack = rackId
                                 ? allRacksForMapping.find(
                                     (r) => r.rackId === rackId,
@@ -997,10 +1014,15 @@ export const HierarchyTree = () => {
                               return (
                                 <div
                                   key={`${activeNodeId}-${device.deviceId}`}
-                                  className={`tree-node tree-node-equipment ${highlightedDeviceId === (instanceId || device.deviceId) ? "highlighted" : ""}`}
+                                  className={`tree-node tree-node-equipment ${highlightedDeviceId === (instanceId || device.deviceId) ? "highlighted" : ""} ${hasError ? "has-error" : ""}`}
                                   onClick={() => handleDeviceClick(device.deviceId)}
                                 >
-                                  <span className="tree-node-icon">📟</span>
+                                  <span 
+                                    className="tree-node-icon"
+                                    style={{ color: hasError ? highestError.color : "inherit" }}
+                                  >
+                                    {hasError ? "⚠" : "📟"}
+                                  </span>
                                   <div
                                     className="tree-node-name"
                                     style={{
@@ -1008,9 +1030,18 @@ export const HierarchyTree = () => {
                                       flexDirection: "column",
                                     }}
                                   >
-                                    <span style={{ fontWeight: 600 }}>
-                                      {equipmentLabel}
-                                    </span>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                      <span style={{ fontWeight: 600 }}>
+                                        {equipmentLabel}
+                                      </span>
+                                      {hasError && (
+                                        <span 
+                                          className="equipment-status-dot" 
+                                          style={{ background: highestError.color }}
+                                          title={highestError.level}
+                                        />
+                                      )}
+                                    </div>
                                     <span
                                       style={{
                                         fontSize: "9px",

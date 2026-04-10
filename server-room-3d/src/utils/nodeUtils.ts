@@ -194,15 +194,22 @@ export const getNodeDevices = (
   return nodeRegDevices.map((rd) => {
     let foundRackId: string | null = null;
     let foundInstanceId: string | null = null;
+    let foundPortStates: any[] | undefined = undefined;
     for (const r of racks) {
       const deviceInstance = r.devices.find((d) => d.deviceId === rd.deviceId);
       if (deviceInstance) {
         foundRackId = r.rackId;
         foundInstanceId = deviceInstance.itemId;
+        foundPortStates = deviceInstance.portStates;
         break;
       }
     }
-    return { device: rd, rackId: foundRackId, instanceId: foundInstanceId };
+    return { 
+      device: rd, 
+      rackId: foundRackId, 
+      instanceId: foundInstanceId,
+      portStates: foundPortStates 
+    };
   });
 };
 
@@ -212,22 +219,34 @@ export const getSubtreeDevices = (
   nodeId: string,
   registeredDevices: RegisteredDevice[],
   racks: Rack[],
-): { device: RegisteredDevice; rackId: string | null; instanceId: string | null }[] => {
+): { 
+  device: RegisteredDevice; 
+  rackId: string | null; 
+  instanceId: string | null;
+  portStates: any[] | undefined;
+}[] => {
   const descendantIds = getSubtreeNodeIds(nodes, nodeId);
   const nodeRegDevices = registeredDevices.filter((rd) => descendantIds.has(rd.deviceGroupId || ''));
 
   return nodeRegDevices.map((rd) => {
     let foundRackId: string | null = null;
     let foundInstanceId: string | null = null;
+    let foundPortStates: any[] | undefined = undefined;
     for (const r of racks) {
       const deviceInstance = r.devices.find((d) => d.deviceId === rd.deviceId);
       if (deviceInstance) {
         foundRackId = r.rackId;
         foundInstanceId = deviceInstance.itemId;
+        foundPortStates = deviceInstance.portStates;
         break;
       }
     }
-    return { device: rd, rackId: foundRackId, instanceId: foundInstanceId };
+    return { 
+      device: rd, 
+      rackId: foundRackId, 
+      instanceId: foundInstanceId,
+      portStates: foundPortStates 
+    };
   });
 };
 

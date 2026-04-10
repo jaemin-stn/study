@@ -36,6 +36,7 @@ import {
   getNodeEquipmentCount,
   getSubtreeNodeIds,
 } from "../utils/nodeUtils";
+import { getHighestError, ERROR_COLORS } from "../utils/errorHelpers";
 const VENDORS: VendorName[] = [
   "코위버PTN",
   "CISCO",
@@ -369,6 +370,7 @@ const MODAL_STYLES = `
 .col-IPAddr { width: 110px; }
 .col-macAddr { width: 150px; }
 .col-vendor { width: 100px; }
+.col-status { width: 80px; }
 .col-actions { width: 66px; }
 
 /* 2-Line Name Clamping */
@@ -2078,6 +2080,7 @@ export const DeviceRegistrationModal = () => {
   const locateDevice = useStore((s) => s.locateDevice);
   const setDeviceDeleteConfirm = useStore((s) => s.setDeviceDeleteConfirm);
   const findExistingMount = useStore((s) => s.findExistingMount);
+  const racks = useStore((s) => s.racks);
 
   // Table state
   const [search, setSearch] = useState("");
@@ -2949,6 +2952,7 @@ export const DeviceRegistrationModal = () => {
                               <th className="col-IPAddr">IP 주소</th>
                               <th className="col-macAddr">MAC 주소</th>
                               <th className="col-vendor">벤더</th>
+                              <th className="col-status">상태</th>
                               <th className="col-actions">수정</th>
                               <th className="col-actions">삭제</th>
                             </tr>
@@ -3013,6 +3017,52 @@ export const DeviceRegistrationModal = () => {
                                   <span className="drm-vendor-tag">
                                     {device.vendor}
                                   </span>
+                                </td>
+                                <td>
+                                  {(() => {
+                                    // Find if this registered device is placed in any rack
+                                    let instance: any = null;
+                                    for (const r of racks) {
+                                      const found = r.devices.find((d) => d.deviceId === device.deviceId);
+                                      if (found) {
+                                        instance = found;
+                                        break;
+                                      }
+                                    }
+
+                                    if (!instance) {
+                                      return (
+                                        <span className="drm-badge" style={{ opacity: 0.5, fontSize: '10px' }}>
+                                          미배치
+                                        </span>
+                                      );
+                                    }
+
+                                    const highestError = getHighestError(instance.portStates);
+                                    if (!highestError) {
+                                      return (
+                                        <span className="drm-badge" style={{ color: '#4ade80', borderColor: 'rgba(74, 222, 128, 0.3)', background: 'rgba(74, 222, 128, 0.1)' }}>
+                                          정상
+                                        </span>
+                                      );
+                                    }
+
+                                    return (
+                                      <span 
+                                        className="drm-badge" 
+                                        style={{ 
+                                          color: highestError.color, 
+                                          borderColor: `${highestError.color}44`, 
+                                          background: `${highestError.color}11` 
+                                        }}
+                                        title={highestError.level}
+                                      >
+                                        {highestError.level === 'critical' ? '심각' : 
+                                         highestError.level === 'major' ? '경고' : 
+                                         highestError.level === 'minor' ? '주의' : '알림'}
+                                      </span>
+                                    );
+                                  })()}
                                 </td>
                                 <td style={{ textAlign: "center" }}>
                                   <button

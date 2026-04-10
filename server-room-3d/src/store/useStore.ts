@@ -514,6 +514,7 @@ export const useStore = create<AppState>((set, get) => ({
           modelDragPosition: null,
           modelDragOffset: null,
           preFocusCameraState: null,
+          triggerFitToScene: get().triggerFitToScene + 1,
         });
       } else if (pendingAction.type === "editMode") {
         get().setEditMode(pendingAction.value);
@@ -591,6 +592,7 @@ export const useStore = create<AppState>((set, get) => ({
           modelDragPosition: null,
           modelDragOffset: null,
           preFocusCameraState: null,
+          triggerFitToScene: get().triggerFitToScene + 1,
         });
       } else if (pendingAction.type === "editMode") {
         get().setEditMode(pendingAction.value);
@@ -649,6 +651,7 @@ export const useStore = create<AppState>((set, get) => ({
       modelDragPosition: null,
       modelDragOffset: null,
       preFocusCameraState: null,
+      triggerFitToScene: get().triggerFitToScene + 1,
     });
   },
   setImportExportModalRackId: (id) => set({ importExportModalRackId: id }),
@@ -1434,6 +1437,7 @@ export const useStore = create<AppState>((set, get) => ({
       baselineModels: structuredClone(state.importedModels),
       baselineNodes: structuredClone(state.nodes),
       _importDirty: true,
+      triggerFitToScene: state.triggerFitToScene + 1,
     }));
   },
 

@@ -108,17 +108,17 @@ export const Breadcrumb = () => {
     [nodes, activeNodeId],
   );
 
-  const MAX_VISIBLE = 5;
+  const MAX_VISIBLE = 3;
   const displayPath = useMemo(() => {
     if (path.length <= MAX_VISIBLE) return path.map(n => ({ ...n, isEllipsis: false }));
 
     const first = path[0];
-    const lastThree = path.slice(-3);
+    const lastTwo = path.slice(-2);
 
     return [
       { ...first, isEllipsis: false },
       { nodeId: 'ellipsis', name: '...', isEllipsis: true },
-      ...lastThree.map(n => ({ ...n, isEllipsis: false }))
+      ...lastTwo.map(n => ({ ...n, isEllipsis: false }))
     ];
   }, [path]);
 
@@ -138,7 +138,7 @@ export const Breadcrumb = () => {
               {node.isEllipsis ? (
                 <span 
                   className="breadcrumb-ellipsis" 
-                  data-tooltip={`생략된 경로: ${path.slice(1, -3).map(n => n.name).join(" > ")}`}
+                  data-tooltip={`생략된 경로: ${path.slice(1, -2).map(n => n.name).join(" > ")}`}
                 >
                   ...
                 </span>

@@ -3,10 +3,11 @@ import { type ThreeEvent } from "@react-three/fiber";
 import { useGLTF, Html, Billboard, PivotControls } from "@react-three/drei";
 import * as THREE from "three";
 import { useStore } from "../store/useStore";
-import type { ImportedModel } from "../types";
+import type { ImportedModel, LightParams } from "../types";
 import {
   DEFAULT_WALL_PARAMS,
   DEFAULT_PARTITION_PARAMS,
+  DEFAULT_LIGHT_PARAMS,
 } from "../utils/builtinModels";
 import { DigitalClock } from "./DigitalClock";
 
@@ -168,6 +169,84 @@ const PartitionMesh = ({ model }: { model: ImportedModel }) => {
 };
 
 /* ------------------------------------------------------------------ */
+/*  Light mesh — server-room ceiling LED panel fixture                 */
+/* ------------------------------------------------------------------ */
+const LightMesh = ({ model }: { model: ImportedModel }) => {
+  const params: LightParams = model.lightParams ?? DEFAULT_LIGHT_PARAMS;
+
+  // Panel dimensions (typical 600×1200mm ceiling light scaled to scene units)
+  const panelW = 1.2;
+  const panelD = 0.6;
+  const panelH = 0.06;
+  const frameThick = 0.02;
+
+  return (
+    <group>
+      {/* ── Outer aluminium housing / frame ── */}
+      <mesh position={[0, 0, 0]} castShadow>
+        <boxGeometry args={[panelW, panelH, panelD]} />
+        <meshStandardMaterial
+          color="#b0b0b0"
+          roughness={0.35}
+          metalness={0.7}
+        />
+      </mesh>
+
+      {/* ── Inner diffuser panel (emissive — the actual glowing surface) ── */}
+      <mesh position={[0, -(panelH / 2 - 0.005), 0]}>
+        <boxGeometry
+          args={[panelW - frameThick * 2, 0.01, panelD - frameThick * 2]}
+        />
+        <meshStandardMaterial
+          color={params.color}
+          emissive={params.color}
+          emissiveIntensity={1.2}
+          roughness={0.9}
+          metalness={0}
+          toneMapped={false}
+        />
+      </mesh>
+
+      {/* ── Ceiling mount brackets (two short tabs) ── */}
+      {[-0.35, 0.35].map((xOff) => (
+        <mesh key={xOff} position={[xOff, panelH / 2 + 0.06, 0]}>
+          <boxGeometry args={[0.04, 0.12, 0.04]} />
+          <meshStandardMaterial
+            color="#888"
+            roughness={0.4}
+            metalness={0.6}
+          />
+        </mesh>
+      ))}
+
+      {/* ── Thin top plate connecting brackets ── */}
+      <mesh position={[0, panelH / 2 + 0.12, 0]}>
+        <boxGeometry args={[0.8, 0.015, 0.06]} />
+        <meshStandardMaterial
+          color="#999"
+          roughness={0.4}
+          metalness={0.5}
+        />
+      </mesh>
+
+      {/* ── Actual directional light emitter ── */}
+      <directionalLight
+        position={[0, 0, 0]}
+        intensity={params.intensity}
+        color={params.color}
+        castShadow={params.castShadow}
+        shadow-mapSize={[params.shadowMapSize, params.shadowMapSize]}
+        shadow-camera-far={50}
+        shadow-camera-left={-15}
+        shadow-camera-right={15}
+        shadow-camera-top={15}
+        shadow-camera-bottom={-15}
+      />
+    </group>
+  );
+};
+
+/* ------------------------------------------------------------------ */
 /*  GLB mesh — loads from dataUrl (base64 or public URL)               */
 /* ------------------------------------------------------------------ */
 const GltfMesh = ({ url }: { url: string }) => {
@@ -228,6 +307,7 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
   const isWall = model.builtinType === "Wall";
   const isPartition = model.builtinType === "Partition";
   const isClock = model.builtinType === "Clock";
+  const isLight = model.builtinType === "Light";
 
   const updateModel = useStore((s) => s.updateModel);
   const setModelDragging = useStore((s) => s.setModelDragging);
@@ -257,7 +337,9 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
       ? [pp.length + 0.1, pp.height + 0.1, pp.thickness + 0.1]
       : isClock
         ? [1.3, 0.95, 0.15]
-        : [1.1, 1.1, 1.1];
+        : isLight
+          ? [1.4, 0.3, 0.8]
+          : [1.1, 1.1, 1.1];
 
   const hlCenter: [number, number, number] = isWall
     ? [0, wp.height / 2, 0]
@@ -265,7 +347,9 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
       ? [0, pp.height / 2, 0]
       : isClock
         ? [0, 0.85 / 2, 0]
-        : [0, 0, 0];
+        : isLight
+          ? [0, 0.03, 0]
+          : [0, 0, 0];
 
   const matrix = useMemo(() => {
     const m = new THREE.Matrix4();
@@ -301,6 +385,8 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
         <PartitionMesh model={model} />
       ) : isClock ? (
         <DigitalClock />
+      ) : isLight ? (
+        <LightMesh model={model} />
       ) : (
         <GltfMesh url={model.dataUrl} />
       )}
@@ -330,7 +416,9 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
                 ? pp.height + 0.4
                 : isClock
                   ? 1.25
-                  : 1.4,
+                  : isLight
+                    ? 0.6
+                    : 1.4,
             0,
           ]}
         >

@@ -72,6 +72,9 @@ export const Scene = () => {
   const draggingModelId = useStore((state) => state.draggingModelId);
   const { theme } = useTheme();
 
+  // Check if any user-placed Light model exists in the scene
+  const hasUserLight = importedModels.some((m) => m.builtinType === "Light");
+
   // Strict one-node filtering: only racks placed exactly in this node
   const groupRacks = useMemo(
     () => racks.filter((r) => r.mapId === activeNodeId),
@@ -140,12 +143,15 @@ export const Scene = () => {
       }}
     >
       <ambientLight intensity={isDarkMode ? 0.6 : 0.8} />
-      <directionalLight
-        position={[10, 20, 5]}
-        intensity={isDarkMode ? 1.2 : 1.5}
-        castShadow
-        shadow-mapSize={[1024, 1024]}
-      />
+      {/* Only render default directional light if no user-placed Light model exists */}
+      {!hasUserLight && (
+        <directionalLight
+          position={[10, 20, 5]}
+          intensity={isDarkMode ? 1.2 : 1.5}
+          castShadow
+          shadow-mapSize={[1024, 1024]}
+        />
+      )}
       <hemisphereLight
         intensity={isDarkMode ? 0.4 : 0.6}
         color="#ffffff"

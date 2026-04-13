@@ -148,15 +148,17 @@ export const CameraController = () => {
       bbox.expandByPoint(new THREE.Vector3(rackX + hw, rackHeight, rackZ + hd));
     });
 
-    // Include Imported Models
-    importedModels.forEach((model) => {
-      // Basic position inclusion. 
-      // Note: Ideally we would calculate actual mesh bounds, but position + some padding is a good start.
-      // If the model is a builtin one like DigitalClock, we know its height is ~2m
-      const pos = new THREE.Vector3(...model.position);
-      bbox.expandByPoint(pos);
-      bbox.expandByPoint(pos.clone().add(new THREE.Vector3(0, 2, 0))); // Add some height
-    });
+    // Include Imported Models (exclude Light — they are above the scene and would skew framing)
+    importedModels
+      .filter((m) => m.builtinType !== "Light")
+      .forEach((model) => {
+        // Basic position inclusion. 
+        // Note: Ideally we would calculate actual mesh bounds, but position + some padding is a good start.
+        // If the model is a builtin one like DigitalClock, we know its height is ~2m
+        const pos = new THREE.Vector3(...model.position);
+        bbox.expandByPoint(pos);
+        bbox.expandByPoint(pos.clone().add(new THREE.Vector3(0, 2, 0))); // Add some height
+      });
 
     if (bbox.isEmpty()) return;
 

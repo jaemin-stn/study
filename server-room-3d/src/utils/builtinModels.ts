@@ -1,4 +1,4 @@
-import type { BuiltinModelType, WallParams, PartitionParams } from "../types";
+import type { BuiltinModelType, WallParams, PartitionParams, LightParams } from "../types";
 
 export interface BuiltinModelDef {
   type: BuiltinModelType;
@@ -15,6 +15,14 @@ export const DEFAULT_WALL_PARAMS: WallParams = {
   length: 5,
   thickness: 0.15,
   color: "#8a8a8a",
+};
+
+/** Default light parameters */
+export const DEFAULT_LIGHT_PARAMS: LightParams = {
+  intensity: 1.5,
+  color: "#ffffff",
+  castShadow: true,
+  shadowMapSize: 1024,
 };
 
 /** Default partition parameters */
@@ -69,5 +77,12 @@ export const BUILTIN_MODELS: BuiltinModelDef[] = [
     emoji: "⏰",
     assetUrl: "", // procedural component
     fileName: "__builtin_clock",
+  },
+  {
+    type: "Light",
+    label: "Light",
+    emoji: "💡",
+    assetUrl: "", // procedural — emits directional light
+    fileName: "__builtin_light",
   },
 ];

@@ -1,10 +1,11 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import { useStore } from "../store/useStore";
-import type { ImportedModel, WallParams, PartitionParams } from "../types";
+import type { ImportedModel, WallParams, PartitionParams, LightParams } from "../types";
 import {
   BUILTIN_MODELS,
   DEFAULT_WALL_PARAMS,
   DEFAULT_PARTITION_PARAMS,
+  DEFAULT_LIGHT_PARAMS,
 } from "../utils/builtinModels";
 import type { BuiltinModelDef } from "../utils/builtinModels";
 import {
@@ -172,6 +173,18 @@ export const ModelImporter = () => {
           scale: [1, 1, 1],
           isMoveEnabled: false,
           builtinType: "Clock",
+        });
+      } else if (def.type === "Light") {
+        addImportedModel({
+          name: "Light",
+          fileName: def.fileName,
+          dataUrl: "",
+          position: [5, 10, 5],
+          rotation: [0, 0, 0],
+          scale: [1, 1, 1],
+          isMoveEnabled: false,
+          builtinType: "Light",
+          lightParams: { ...DEFAULT_LIGHT_PARAMS },
         });
       } else {
         addImportedModel({
@@ -828,7 +841,9 @@ export const ModelImporter = () => {
                           ? "🖥️"
                           : m.builtinType === "Desk2"
                             ? "📐"
-                            : "📦";
+                            : m.builtinType === "Light"
+                              ? "💡"
+                              : "📦";
                 return (
                   <div
                     key={idx}
@@ -952,6 +967,17 @@ const updatePartitionParam = (
 ) => {
   const current = model.partitionParams ?? DEFAULT_PARTITION_PARAMS;
   onUpdate({ partitionParams: { ...current, [field]: value } });
+};
+
+/** Helper to update a single light param field */
+const updateLightParam = (
+  model: ImportedModel,
+  onUpdate: ModelPropertiesProps["onUpdate"],
+  field: keyof LightParams,
+  value: number | string | boolean,
+) => {
+  const current = model.lightParams ?? DEFAULT_LIGHT_PARAMS;
+  onUpdate({ lightParams: { ...current, [field]: value } });
 };
 
 const ModelProperties = ({
@@ -1366,6 +1392,159 @@ const ModelProperties = ({
                   style={{ fontSize: "11px", color: "var(--text-tertiary)" }}
                 >
                   {pp.color}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
+
+      {/* Light-specific parametric controls */}
+      {model.builtinType === "Light" &&
+        (() => {
+          const lp = model.lightParams ?? DEFAULT_LIGHT_PARAMS;
+          return (
+            <div style={{ marginBottom: "16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  color: "var(--text-secondary)",
+                  marginBottom: "8px",
+                }}
+              >
+                Light Parameters
+              </label>
+              <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
+                {numInput(
+                  "Intensity",
+                  lp.intensity,
+                  (v) =>
+                    updateLightParam(
+                      model,
+                      onUpdate,
+                      "intensity",
+                      Math.max(0, v),
+                    ),
+                  0.1,
+                )}
+                {numInput(
+                  "Shadow Res",
+                  lp.shadowMapSize,
+                  (v) => {
+                    const clamped = Math.min(4096, Math.max(256, v));
+                    updateLightParam(
+                      model,
+                      onUpdate,
+                      "shadowMapSize",
+                      clamped,
+                    );
+                  },
+                  256,
+                )}
+              </div>
+
+              {/* Shadow Toggle */}
+              <div style={{ marginBottom: "12px" }}>
+                <span
+                  style={{
+                    fontSize: "9px",
+                    fontWeight: 700,
+                    color: "var(--text-tertiary)",
+                    textTransform: "uppercase",
+                    display: "block",
+                    marginBottom: "6px",
+                  }}
+                >
+                  Shadow
+                </span>
+                <div style={{ display: "flex", gap: "4px" }}>
+                  <button
+                    onClick={() =>
+                      updateLightParam(model, onUpdate, "castShadow", true)
+                    }
+                    style={{
+                      flex: 1,
+                      padding: "6px 0",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      background: lp.castShadow
+                        ? "var(--selected-bg)"
+                        : "var(--bg-secondary)",
+                      color: lp.castShadow
+                        ? "var(--theme-primary)"
+                        : "var(--text-secondary)",
+                      border: "1px solid",
+                      borderColor: lp.castShadow
+                        ? "var(--theme-primary)"
+                        : "var(--border-medium)",
+                      borderRadius: "var(--radius-sm)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    ON
+                  </button>
+                  <button
+                    onClick={() =>
+                      updateLightParam(model, onUpdate, "castShadow", false)
+                    }
+                    style={{
+                      flex: 1,
+                      padding: "6px 0",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      background: !lp.castShadow
+                        ? "var(--selected-bg)"
+                        : "var(--bg-secondary)",
+                      color: !lp.castShadow
+                        ? "var(--theme-primary)"
+                        : "var(--text-secondary)",
+                      border: "1px solid",
+                      borderColor: !lp.castShadow
+                        ? "var(--theme-primary)"
+                        : "var(--border-medium)",
+                      borderRadius: "var(--radius-sm)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    OFF
+                  </button>
+                </div>
+              </div>
+
+              {/* Color picker */}
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "8px" }}
+              >
+                <span
+                  style={{
+                    fontSize: "9px",
+                    fontWeight: 700,
+                    color: "var(--text-tertiary)",
+                  }}
+                >
+                  COLOR
+                </span>
+                <input
+                  type="color"
+                  value={lp.color}
+                  onChange={(e) =>
+                    updateLightParam(model, onUpdate, "color", e.target.value)
+                  }
+                  style={{
+                    width: "32px",
+                    height: "24px",
+                    padding: 0,
+                    border: "1px solid var(--border-medium)",
+                    borderRadius: "var(--radius-sm)",
+                    cursor: "pointer",
+                    background: "transparent",
+                  }}
+                />
+                <span
+                  style={{ fontSize: "11px", color: "var(--text-tertiary)" }}
+                >
+                  {lp.color}
                 </span>
               </div>
             </div>

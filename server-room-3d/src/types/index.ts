@@ -198,7 +198,8 @@ export type BuiltinModelType =
   | "Desk"
   | "Desk2"
   | "Partition"
-  | "Clock";
+  | "Clock"
+  | "Light";
 
 // 가시성 모드 (투명 유리 vs 불투명)
 export type VisibilityMode = "transparent" | "opaque";
@@ -220,6 +221,14 @@ export interface WallParams {
   color: string; // hex color
 }
 
+// Light 파라메트릭 파라미터
+export interface LightParams {
+  intensity: number; // 빛 세기
+  color: string; // hex color
+  castShadow: boolean; // 그림자 여부
+  shadowMapSize: number; // 그림자 해상도 (256 ~ 4096)
+}
+
 // 임포트된 3D 모델
 export interface ImportedModel {
   id: string;
@@ -238,4 +247,6 @@ export interface ImportedModel {
   wallParams?: WallParams;
   /** Partition-specific parametric dimensions (only when builtinType === "Partition") */
   partitionParams?: PartitionParams;
+  /** Light-specific parameters (only when builtinType === "Light") */
+  lightParams?: LightParams;
 }

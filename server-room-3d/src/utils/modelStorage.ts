@@ -17,11 +17,13 @@ import type {
   BuiltinModelType,
   WallParams,
   PartitionParams,
+  LightParams,
 } from "../types";
 import {
   BUILTIN_MODELS,
   DEFAULT_WALL_PARAMS,
   DEFAULT_PARTITION_PARAMS,
+  DEFAULT_LIGHT_PARAMS,
 } from "./builtinModels";
 
 // ─── Schema ──────────────────────────────────────────────────────────────────
@@ -43,6 +45,7 @@ export interface SerializedModel {
   builtinType?: BuiltinModelType;
   wallParams?: WallParams;
   partitionParams?: PartitionParams;
+  lightParams?: LightParams;
 }
 
 export interface ModelExportPackage {
@@ -81,6 +84,7 @@ export async function exportModels(models: ImportedModel[]): Promise<void> {
       builtinType: m.builtinType,
       wallParams: m.wallParams ? { ...m.wallParams } : undefined,
       partitionParams: m.partitionParams ? { ...m.partitionParams } : undefined,
+      lightParams: m.lightParams ? { ...m.lightParams } : undefined,
     };
   });
 
@@ -256,6 +260,9 @@ export function deserializeModels(
         : undefined,
       partitionParams: m.partitionParams
         ? { ...DEFAULT_PARTITION_PARAMS, ...m.partitionParams }
+        : undefined,
+      lightParams: m.lightParams
+        ? { ...DEFAULT_LIGHT_PARAMS, ...m.lightParams }
         : undefined,
     };
   });

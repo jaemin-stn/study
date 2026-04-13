@@ -167,8 +167,9 @@ export const Scene = () => {
       <Suspense fallback={null}>
         <Environment preset={isDarkMode ? "night" : "city"} />
 
-        {/* Visual Grid */}
+        {/* Visual Grid – offset slightly below y=0 to prevent z-fighting with model floors */}
         <Grid
+          position={[0, -0.01, 0]}
           args={[40, 40]}
           cellSize={GRID_SPACING}
           cellColor={gridCellColor}

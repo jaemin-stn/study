@@ -371,7 +371,7 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
         <PivotControls
           matrix={matrix}
           anchor={[0, 0, 0]}
-          depthTest={true}
+          depthTest={false}
           fixed
           scale={75}
           lineWidth={2.5}

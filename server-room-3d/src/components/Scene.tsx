@@ -176,6 +176,7 @@ export const Scene = () => {
           sectionColor={gridSectionColor}
           fadeDistance={50}
           infiniteGrid
+          followCamera={false}
         />
 
         {/* Racks (filtered by active group) */}

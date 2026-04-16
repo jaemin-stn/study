@@ -225,23 +225,15 @@ export const Rack = memo(({
           />
         </mesh>
 
-        {/* ── LEFT SIDE PANEL (full frame + perforated sheet) ── */}
+        {/* ── LEFT SIDE PANEL (perforated sheet only) ── */}
         {(() => {
-          // Frame rail dimensions – derived from rack structure
-          const ft = 0.02; // frame thickness (matches rack structure 0.03 top/bottom)
-          const panelW = depth - 0.04; // perforated sheet width (Z-axis of rack)
-          const panelH = height - 0.06; // perforated sheet height
-          const railW = 0.08; // width of top/bottom horizontal rails
-          const railV = 0.08; // width of front/back vertical rails
-          const innerW = panelW - railV * 2; // hole opening width
-          const innerH = panelH - railW * 2; // hole opening height
-          const xOff = -width / 2 - 0.005; // X position (just outside rack edge)
-          const zFront = 0.003; // z-offset to avoid z-fighting with the plane
+          const panelW = depth - 0.04;
+          const panelH = height - 0.06;
+          const xOff = -width / 2;
           return (
             <group position={[xOff, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
-              {/* Perforated sheet (inset within the frame opening) */}
               <mesh>
-                <planeGeometry args={[innerW, innerH]} />
+                <planeGeometry args={[panelW, panelH]} />
                 <meshStandardMaterial
                   color={frameColor}
                   roughness={0.7}
@@ -251,64 +243,21 @@ export const Rack = memo(({
                   alphaTest={0.5}
                   side={THREE.DoubleSide}
                   depthWrite={false}
-                />
-              </mesh>
-              {/* Frame – Top rail (full width, fills gap to rack top) */}
-              <mesh position={[0, (panelH - railW) / 2, zFront]}>
-                <boxGeometry args={[panelW, railW, ft]} />
-                <meshStandardMaterial
-                  color={frameColor}
-                  roughness={0.6}
-                  metalness={0.9}
-                />
-              </mesh>
-              {/* Frame – Bottom rail */}
-              <mesh position={[0, -(panelH - railW) / 2, zFront]}>
-                <boxGeometry args={[panelW, railW, ft]} />
-                <meshStandardMaterial
-                  color={frameColor}
-                  roughness={0.6}
-                  metalness={0.9}
-                />
-              </mesh>
-              {/* Frame – Front vertical rail (door side, fills to corner post) */}
-              <mesh position={[panelW / 2 - railV / 2, 0, zFront]}>
-                <boxGeometry args={[railV, panelH - railW * 2, ft]} />
-                <meshStandardMaterial
-                  color={frameColor}
-                  roughness={0.6}
-                  metalness={0.9}
-                />
-              </mesh>
-              {/* Frame – Back vertical rail (rear panel side) */}
-              <mesh position={[-panelW / 2 + railV / 2, 0, zFront]}>
-                <boxGeometry args={[railV, panelH - railW * 2, ft]} />
-                <meshStandardMaterial
-                  color={frameColor}
-                  roughness={0.6}
-                  metalness={0.9}
                 />
               </mesh>
             </group>
           );
         })()}
 
-        {/* ── RIGHT SIDE PANEL (full frame + perforated sheet) ── */}
+        {/* ── RIGHT SIDE PANEL (perforated sheet only) ── */}
         {(() => {
-          const ft = 0.02;
           const panelW = depth - 0.04;
           const panelH = height - 0.06;
-          const railW = 0.08;
-          const railV = 0.08;
-          const innerW = panelW - railV * 2;
-          const innerH = panelH - railW * 2;
-          const xOff = width / 2 + 0.005;
-          const zFront = 0.003;
+          const xOff = width / 2;
           return (
             <group position={[xOff, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-              {/* Perforated sheet */}
               <mesh>
-                <planeGeometry args={[innerW, innerH]} />
+                <planeGeometry args={[panelW, panelH]} />
                 <meshStandardMaterial
                   color={frameColor}
                   roughness={0.7}
@@ -318,42 +267,6 @@ export const Rack = memo(({
                   alphaTest={0.5}
                   side={THREE.DoubleSide}
                   depthWrite={false}
-                />
-              </mesh>
-              {/* Frame – Top rail */}
-              <mesh position={[0, (panelH - railW) / 2, zFront]}>
-                <boxGeometry args={[panelW, railW, ft]} />
-                <meshStandardMaterial
-                  color={frameColor}
-                  roughness={0.6}
-                  metalness={0.9}
-                />
-              </mesh>
-              {/* Frame – Bottom rail */}
-              <mesh position={[0, -(panelH - railW) / 2, zFront]}>
-                <boxGeometry args={[panelW, railW, ft]} />
-                <meshStandardMaterial
-                  color={frameColor}
-                  roughness={0.6}
-                  metalness={0.9}
-                />
-              </mesh>
-              {/* Frame – Front vertical rail */}
-              <mesh position={[panelW / 2 - railV / 2, 0, zFront]}>
-                <boxGeometry args={[railV, panelH - railW * 2, ft]} />
-                <meshStandardMaterial
-                  color={frameColor}
-                  roughness={0.6}
-                  metalness={0.9}
-                />
-              </mesh>
-              {/* Frame – Back vertical rail */}
-              <mesh position={[-panelW / 2 + railV / 2, 0, zFront]}>
-                <boxGeometry args={[railV, panelH - railW * 2, ft]} />
-                <meshStandardMaterial
-                  color={frameColor}
-                  roughness={0.6}
-                  metalness={0.9}
                 />
               </mesh>
             </group>

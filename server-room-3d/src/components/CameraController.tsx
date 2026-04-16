@@ -12,7 +12,9 @@ export const CameraController = () => {
   const highlightedDeviceId = useStore((state) => state.highlightedDeviceId);
   const racks = useStore((state) => state.racks);
   const isEditMode = useStore((state) => state.isEditMode);
-  const setPreFocusCameraState = useStore((state) => state.setPreFocusCameraState);
+  const setPreFocusCameraState = useStore(
+    (state) => state.setPreFocusCameraState,
+  );
 
   const lastProcessedRackId = useRef<string | null>(null);
   const lastWasFocused = useRef<boolean>(false);
@@ -26,11 +28,16 @@ export const CameraController = () => {
   const isAnimating = useRef(false);
 
   // Common function to set up animation to a rack
-  const setupFocus = (targetRackId: string | null, isExplicitFocus: boolean) => {
+  const setupFocus = (
+    targetRackId: string | null,
+    isExplicitFocus: boolean,
+  ) => {
     const currentState = useStore.getState();
     const storedSnapshot = currentState.preFocusCameraState;
 
-    console.log(`[CameraController] setupFocus - target: ${targetRackId}, isExplicit: ${isExplicitFocus}, hasSnapshot: ${!!storedSnapshot}`);
+    console.log(
+      `[CameraController] setupFocus - target: ${targetRackId}, isExplicit: ${isExplicitFocus}, hasSnapshot: ${!!storedSnapshot}`,
+    );
 
     // If focus is specifically cleared (from non-null to null), and we have a snapshot, trigger restoration
     if (!isExplicitFocus && lastWasFocused.current && storedSnapshot) {
@@ -44,8 +51,12 @@ export const CameraController = () => {
     }
 
     // Only process if the target rack or focus state actually changes
-    if (targetRackId === lastProcessedRackId.current && isExplicitFocus === lastWasFocused.current) return;
-    
+    if (
+      targetRackId === lastProcessedRackId.current &&
+      isExplicitFocus === lastWasFocused.current
+    )
+      return;
+
     lastProcessedRackId.current = targetRackId;
     lastWasFocused.current = isExplicitFocus;
 
@@ -70,7 +81,11 @@ export const CameraController = () => {
       const orbitControls = controls as unknown as OrbitControls;
       setPreFocusCameraState({
         position: [camera.position.x, camera.position.y, camera.position.z],
-        target: [orbitControls.target.x, orbitControls.target.y, orbitControls.target.z],
+        target: [
+          orbitControls.target.x,
+          orbitControls.target.y,
+          orbitControls.target.z,
+        ],
         zoom: camera.zoom,
       });
     }
@@ -95,17 +110,68 @@ export const CameraController = () => {
 
     const orientation = rack.orientation ?? 180;
     const orientationRad = ((180 - orientation) * Math.PI) / 180;
-    const effectiveDistance = distance + 0.5;
 
-    // Position camera strictly in front (no lateral offset) but high enough
-    // to see over any opposing rack in face-to-face aisle arrangements
-    const offsetX = Math.sin(orientationRad) * effectiveDistance;
-    const offsetZ = Math.cos(orientationRad) * effectiveDistance;
-    // Raise camera above opposing rack height so it looks down past obstructions
-    const cameraHeight = rackHeight * 1.2 + distance * 0.4;
+    const camDirX = Math.sin(orientationRad);
+    const camDirZ = Math.cos(orientationRad);
+
+    // 맞은편 랙(장애물) 탐색
+    let obstructionDist = Infinity;
+    const activeNodeId = useStore.getState().activeNodeId;
+    const allRacks = racks.filter(
+      (r) => r.mapId === activeNodeId && r.rackId !== rack.rackId,
+    );
+
+    for (const other of allRacks) {
+      const otherX = other.position[0] * GRID_SPACING;
+      const otherZ = other.position[1] * GRID_SPACING;
+
+      const dx = otherX - rackX;
+      const dz = otherZ - rackZ;
+
+      // 카메라가 바라보는 방향으로의 투영 거리 (상대방 랙의 중심점까지 거리)
+      const proj = dx * camDirX + dz * camDirZ;
+
+      if (proj <= 0.1) continue; // 뒤에 있거나 같은 위치
+
+      // 카메라 시야 폭 검사
+      const perpDist = Math.abs(dx * camDirZ - dz * camDirX);
+      if (perpDist > 1.2) continue; // 시야를 명확히 벗어남
+
+      if (proj < obstructionDist) {
+        obstructionDist = proj; // 가장 가까운 맞은편 랙
+      }
+    }
+
+    // 카메라 유효 거리 설정
+    // 랙이 다 보이도록 하는 최소 거리에 0.2의 여유를 둠
+    let effectiveDistance = Math.max(distance, 1.8);
+
+    if (obstructionDist !== Infinity) {
+      const safeMaxDistance = obstructionDist - 0.7;
+      if (effectiveDistance > safeMaxDistance) {
+        effectiveDistance = Math.max(safeMaxDistance, 1.2);
+      }
+    }
+
+    // 첨부해주신 이미지(목표 시점)처럼 항상 랙 윗부분(지붕)이 살짝 보이면서
+    // 위에서 아래로 내려다보는 구도를 만들기 위해 카메라 기준 높이를 랙보다 높게 고정합니다.
+    const cameraHeight = rackHeight + 0.6; // 랙 지붕보다 항상 0.6m 높게
+
+    // 시선 중심점(LookAt)을 랙의 중앙보다 살짝 아래로 두어,
+    // 위에서 아래로 향하는 각도를 자연스럽게 형성하고 전면 장비들이 모두 뷰에 꽉 차게 합니다.
+    vTargetLookAt.current.set(rackX, rackHeight * 0.4, rackZ);
+
+    let targetZoom = 1.0;
+    const requiredBaseDistance = Math.max(distHeight, distWidth) * 1.1;
+    if (effectiveDistance < requiredBaseDistance) {
+      targetZoom = effectiveDistance / requiredBaseDistance;
+    }
+
+    const offsetX = camDirX * effectiveDistance;
+    const offsetZ = camDirZ * effectiveDistance;
 
     vTargetPos.current.set(rackX + offsetX, cameraHeight, rackZ + offsetZ);
-    vTargetZoom.current = 1;
+    vTargetZoom.current = targetZoom;
 
     isAnimating.current = true;
   };
@@ -114,9 +180,14 @@ export const CameraController = () => {
   useEffect(() => {
     if (!controls) return;
     const orbit = controls as any;
-    const onStart = () => { isInteracting.current = true; isAnimating.current = false; };
-    const onEnd = () => { isInteracting.current = false; };
-    
+    const onStart = () => {
+      isInteracting.current = true;
+      isAnimating.current = false;
+    };
+    const onEnd = () => {
+      isInteracting.current = false;
+    };
+
     orbit.addEventListener("start", onStart);
     orbit.addEventListener("end", onEnd);
     return () => {
@@ -152,7 +223,7 @@ export const CameraController = () => {
     importedModels
       .filter((m) => m.builtinType !== "Light")
       .forEach((model) => {
-        // Basic position inclusion. 
+        // Basic position inclusion.
         // Note: Ideally we would calculate actual mesh bounds, but position + some padding is a good start.
         // If the model is a builtin one like DigitalClock, we know its height is ~2m
         const pos = new THREE.Vector3(...model.position);
@@ -170,7 +241,7 @@ export const CameraController = () => {
     const maxDim = Math.max(size.x, size.y, size.z);
     const perspectiveCamera = camera as THREE.PerspectiveCamera;
     const fov = perspectiveCamera.fov;
-    
+
     // Fit calculation
     const distance = maxDim / (2 * Math.tan((fov * Math.PI) / 360));
     const padding = 2.0; // Comfortable margin
@@ -181,7 +252,7 @@ export const CameraController = () => {
     vTargetPos.current.set(
       center.x + finalDistance * 0.7,
       center.y + finalDistance * 0.8,
-      center.z + finalDistance * 0.7
+      center.z + finalDistance * 0.7,
     );
     vTargetZoom.current = 1;
 
@@ -214,7 +285,11 @@ export const CameraController = () => {
     orbitControls.target.lerp(vTargetLookAt.current, alpha);
 
     if (Math.abs(state.camera.zoom - vTargetZoom.current) > 0.001) {
-      state.camera.zoom = THREE.MathUtils.lerp(state.camera.zoom, vTargetZoom.current, alpha);
+      state.camera.zoom = THREE.MathUtils.lerp(
+        state.camera.zoom,
+        vTargetZoom.current,
+        alpha,
+      );
       state.camera.updateProjectionMatrix();
     }
 

@@ -872,24 +872,68 @@ export const useStore = create<AppState>((set, get) => ({
 
     let finalPos = spawnPos;
     if (checkCollision(nodeRacks, null, spawnPos, width)) {
+      // 기존 랙들의 실제 크기를 기반으로 정확히 옆에 붙는 후보 위치를 생성
+      const newDims = getEffectiveDimensions(width, 180);
+      const candidates: [number, number][] = [];
+
+      for (const other of nodeRacks) {
+        const otherDims = getEffectiveDimensions(
+          other.width,
+          other.orientation ?? 180,
+        );
+        const ox = other.position[0] * GRID_SPACING;
+        const oz = other.position[1] * GRID_SPACING;
+
+        const halfSumX = (otherDims.effectiveWidth + newDims.effectiveWidth) / 2;
+        const halfSumZ = (otherDims.effectiveDepth + newDims.effectiveDepth) / 2;
+        const GAP = 0.01; // 최소 이격 거리
+
+        // 좌/우/앞/뒤로 딱 붙는 후보들
+        candidates.push(
+          [(ox + halfSumX + GAP) / GRID_SPACING, other.position[1]],
+          [(ox - halfSumX - GAP) / GRID_SPACING, other.position[1]],
+          [other.position[0], (oz + halfSumZ + GAP) / GRID_SPACING],
+          [other.position[0], (oz - halfSumZ - GAP) / GRID_SPACING],
+        );
+      }
+
+      // 스폰 위치에서 가장 가까운 후보부터 탐색
+      candidates.sort((a, b) => {
+        const da =
+          Math.abs(a[0] - spawnPos[0]) + Math.abs(a[1] - spawnPos[1]);
+        const db =
+          Math.abs(b[0] - spawnPos[0]) + Math.abs(b[1] - spawnPos[1]);
+        return da - db;
+      });
+
       let found = false;
-      for (let radius = 1; radius <= 20; radius++) {
-        for (const dx of [-radius, 0, radius]) {
-          for (const dz of [-radius, 0, radius]) {
-            if (dx === 0 && dz === 0) continue;
-            const candidate: [number, number] = [
-              spawnPos[0] + dx * (1 / 15),
-              spawnPos[1] + dz * (1 / 15),
-            ];
-            if (!checkCollision(nodeRacks, null, candidate, width)) {
-              finalPos = candidate;
-              found = true;
-              break;
-            }
-          }
-          if (found) break;
+      for (const candidate of candidates) {
+        if (!checkCollision(nodeRacks, null, candidate, width)) {
+          finalPos = candidate;
+          found = true;
+          break;
         }
-        if (found) break;
+      }
+
+      // 후보 탐색 실패 시 기존 그리드 탐색 fallback
+      if (!found) {
+        for (let radius = 1; radius <= 20 && !found; radius++) {
+          for (const dx of [-radius, 0, radius]) {
+            for (const dz of [-radius, 0, radius]) {
+              if (dx === 0 && dz === 0) continue;
+              const candidate: [number, number] = [
+                spawnPos[0] + (dx * width) / GRID_SPACING,
+                spawnPos[1] + (dz * (newDims.effectiveDepth + 0.02)) / GRID_SPACING,
+              ];
+              if (!checkCollision(nodeRacks, null, candidate, width)) {
+                finalPos = candidate;
+                found = true;
+                break;
+              }
+            }
+            if (found) break;
+          }
+        }
       }
     }
 

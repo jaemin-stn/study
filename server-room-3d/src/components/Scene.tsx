@@ -47,14 +47,8 @@ const DragHandler = () => {
         const offsetX = dragOffset ? dragOffset[0] : 0;
         const offsetZ = dragOffset ? dragOffset[1] : 0;
 
-        // Snap to grid immediately for "fixed" feel during movement, supporting 0.25 increments
-        const snappedX =
-          (Math.round(((tempPoint.x - offsetX) / GRID_SPACING) * 4) / 4) *
-          GRID_SPACING;
-        const snappedZ =
-          (Math.round(((tempPoint.z - offsetZ) / GRID_SPACING) * 4) / 4) *
-          GRID_SPACING;
-        updateDragPosition([snappedX, snappedZ]);
+        // No grid snapping – use raw world coordinates for smooth movement
+        updateDragPosition([tempPoint.x - offsetX, tempPoint.z - offsetZ]);
       }
     }
   });
@@ -99,9 +93,9 @@ export const Scene = () => {
         const rackId = state.draggingRackId;
 
         if (rackId && dragPos) {
-          // Snap to 0.25 for both X and Z
-          const gridX = Math.round((dragPos[0] / GRID_SPACING) * 4) / 4;
-          const gridZ = Math.round((dragPos[1] / GRID_SPACING) * 4) / 4;
+          // Convert raw world position to grid units (no rounding – free movement)
+          const gridX = dragPos[0] / GRID_SPACING;
+          const gridZ = dragPos[1] / GRID_SPACING;
           state.endDrag(rackId, [gridX, gridZ]);
         } else {
           state.setDragging(false, null);

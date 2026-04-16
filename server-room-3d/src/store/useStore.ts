@@ -1099,26 +1099,58 @@ export const useStore = create<AppState>((set, get) => ({
 
     let finalPosition = [...newPosition] as [number, number];
     const SNAP_THRESHOLD = 0.5;
-
     const worldX = newPosition[0] * GRID_SPACING;
     const nodeRacks = racks.filter((r) => r.mapId === rack.mapId);
 
+    let xSnapped = false;
     for (const other of nodeRacks) {
       if (other.rackId === id) continue;
-      if (Math.abs(other.position[1] - newPosition[1]) > 0.1) continue;
+      // ── X축 스냅 (좌우로 나란히 붙이기): 같은 Z 행 ──
+      if (Math.abs(other.position[1] - newPosition[1]) <= 0.1) {
+        const otherWorldX = other.position[0] * GRID_SPACING;
+        const gap =
+          Math.abs(worldX - otherWorldX) - (rack.width + other.width) / 2;
 
-      const otherWorldX = other.position[0] * GRID_SPACING;
-      const gap =
-        Math.abs(worldX - otherWorldX) - (rack.width + other.width) / 2;
-
-      if (gap >= -0.1 && gap < SNAP_THRESHOLD) {
-        const direction = worldX > otherWorldX ? 1 : -1;
-        const snappedWorldX =
-          otherWorldX + (direction * (other.width + rack.width)) / 2;
-        finalPosition[0] = snappedWorldX / GRID_SPACING;
-        break;
+        if (gap >= -0.1 && gap < SNAP_THRESHOLD) {
+          const direction = worldX > otherWorldX ? 1 : -1;
+          const snappedWorldX =
+            otherWorldX + (direction * (other.width + rack.width)) / 2;
+          finalPosition[0] = snappedWorldX / GRID_SPACING;
+          xSnapped = true;
+          break;
+        }
       }
     }
+
+    // ── Z축 스냅 (앞뒤로 붙이기 / back-to-back): 같은 X 열 ──
+    if (!xSnapped) {
+      const worldZ = newPosition[1] * GRID_SPACING;
+      const RACK_D = 1.0; // RACK_DEPTH 상수와 동일
+
+      for (const other of nodeRacks) {
+        if (other.rackId === id) continue;
+        const otherWorldX = other.position[0] * GRID_SPACING;
+        // 같은 X 열: X 거리가 두 랙 폭 절반의 합 이내
+        if (
+          Math.abs(worldX - otherWorldX) >
+          (rack.width + other.width) / 2 + 0.1
+        )
+          continue;
+
+        const otherWorldZ = other.position[1] * GRID_SPACING;
+        const zGap =
+          Math.abs(worldZ - otherWorldZ) - (RACK_D + RACK_D) / 2;
+
+        if (zGap >= -0.1 && zGap < SNAP_THRESHOLD) {
+          const direction = worldZ > otherWorldZ ? 1 : -1;
+          const snappedWorldZ =
+            otherWorldZ + (direction * (RACK_D + RACK_D)) / 2;
+          finalPosition[1] = snappedWorldZ / GRID_SPACING;
+          break;
+        }
+      }
+    }
+
 
     const colliding = checkCollision(
       nodeRacks,

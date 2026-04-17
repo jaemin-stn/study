@@ -399,7 +399,14 @@ export const useStore = create<AppState>((set, get) => ({
 
   triggerFitToScene: 0,
   fitToScene: () =>
-    set((state) => ({ triggerFitToScene: state.triggerFitToScene + 1 })),
+    set((state) => ({
+      triggerFitToScene: state.triggerFitToScene + 1,
+      focusedRackId: null,
+      selectedRackId: null,
+      selectedDeviceId: null,
+      selectedModelId: null,
+      preFocusCameraState: null,
+    })),
 
 
 

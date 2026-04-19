@@ -1172,26 +1172,72 @@ const generateGroupRacks = (
   return racks;
 };
 
-export const sampleRacks: Rack[] = sampleNodes.flatMap((node, idx) => {
-  const nodeDevices = sampleRegisteredDevices.filter((d) => d.deviceGroupId === node.nodeId);
-  const depth = getNodeDepth(sampleNodes, node.nodeId);
-  
-  if (depth < 2) return []; // Exclude Root (STN)
-  
-  const isLeaf = isLeafNode(sampleNodes, node.nodeId);
-  
-  if (node.nodeId === GWACHEON_NODE_ID) {
-    // Showcase room: 60 racks, 15 per row, face-to-face
-    return generateGroupRacks(60, node.nodeId, 15, [1, 5, 12, 20, 25, 30, 45, 55], nodeDevices, true);
+// 수도권 과천 랙에 삽입할 7250 IXR-X1 장비 (포트 에러 포함)
+const IX1_PORT_ERROR_DEVICE: Device = {
+  itemId: "iXR-X1-demo-device-001",
+  deviceId: "iXR-X1-demo-registered-001",
+  title: "7250 IXR-X1 (Demo)",
+  type: "Router",
+  modelName: "7250 IXR-X1",
+  vendor: "Nokia",
+  size: 1,
+  position: 1, // U1 위치에 탑재
+  // port-5 (critical), port-13 (major), port-21 (warning) 에러
+  portStates: [
+    { portId: "port-5",  status: "error", errorLevel: "critical", errorMessage: "Link down - Physical layer failure" },
+    { portId: "port-13", status: "error", errorLevel: "major",    errorMessage: "CRC error rate exceeded threshold" },
+    { portId: "port-21", status: "error", errorLevel: "warning",  errorMessage: "High latency detected" },
+    { portId: "port-1",  status: "normal" },
+    { portId: "port-3",  status: "normal" },
+    { portId: "port-7",  status: "normal" },
+    { portId: "port-9",  status: "normal" },
+    { portId: "port-11", status: "normal" },
+    { portId: "port-15", status: "normal" },
+    { portId: "port-17", status: "normal" },
+    { portId: "port-19", status: "normal" },
+    { portId: "port-23", status: "normal" },
+  ],
+};
+
+export const sampleRacks: Rack[] = (() => {
+  const racks = sampleNodes.flatMap((node, idx) => {
+    const nodeDevices = sampleRegisteredDevices.filter((d) => d.deviceGroupId === node.nodeId);
+    const depth = getNodeDepth(sampleNodes, node.nodeId);
+
+    if (depth < 2) return []; // Exclude Root (STN)
+
+    const isLeaf = isLeafNode(sampleNodes, node.nodeId);
+
+    if (node.nodeId === GWACHEON_NODE_ID) {
+      // Showcase room: 60 racks, 15 per row, face-to-face
+      return generateGroupRacks(60, node.nodeId, 15, [1, 5, 12, 20, 25, 30, 45, 55], nodeDevices, true);
+    }
+
+    if (isLeaf) {
+      // All server rooms: 30+ racks, face-to-face aisle layout
+      const rackCount = 30 + (idx % 10);
+      return generateGroupRacks(rackCount, node.nodeId, 10, [2, 8, 15, 22], nodeDevices, true);
+    }
+
+    // Middle hierarchy nodes (regions, centers): small number, no face-to-face
+    const rackCount = 5 + (idx % 4);
+    return generateGroupRacks(rackCount, node.nodeId, 5, [1], nodeDevices, false);
+  });
+
+  // 수도권(과천) 첫 번째 랙에 IXR-X1 데모 장비 삽입
+  const gwacheonRackIdx = racks.findIndex((r) => r.mapId === GWACHEON_NODE_ID);
+  if (gwacheonRackIdx !== -1) {
+    const targetRack = racks[gwacheonRackIdx];
+    // 기존 디바이스들의 position을 2U부터 밀어서 U1에 IXR-X1 삽입
+    const shiftedDevices = targetRack.devices.map((d) => ({
+      ...d,
+      position: d.position + 2, // IXR-X1(1U) + 1U gap 확보
+    }));
+    racks[gwacheonRackIdx] = {
+      ...targetRack,
+      devices: [IX1_PORT_ERROR_DEVICE, ...shiftedDevices],
+    };
   }
-  
-  if (isLeaf) {
-    // All server rooms: 30+ racks, face-to-face aisle layout
-    const rackCount = 30 + (idx % 10);
-    return generateGroupRacks(rackCount, node.nodeId, 10, [2, 8, 15, 22], nodeDevices, true);
-  }
-  
-  // Middle hierarchy nodes (regions, centers): small number, no face-to-face
-  const rackCount = 5 + (idx % 4);
-  return generateGroupRacks(rackCount, node.nodeId, 5, [1], nodeDevices, false);
-});
+
+  return racks;
+})();

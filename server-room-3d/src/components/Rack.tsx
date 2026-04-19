@@ -10,7 +10,8 @@ import type { Rack as RackType, Device } from "../types";
 import { ErrorMarker } from "./ErrorMarker";
 import { U_HEIGHT, GRID_SPACING, DEVICE_DEPTH } from "./constants";
 import { getHighestError } from "../utils/errorHelpers";
-import { resolveDeviceImage } from "../utils/deviceAssets";
+import { resolveDeviceImage, resolveDeviceSvgContent } from "../utils/deviceAssets";
+import { PortErrorOverlay } from "./PortErrorOverlay";
 
 // Snapshot of selectedRackId captured inside handlePointerDown BEFORE selectRack()
 // mutates it. Since the Interaction Layer is geometrically closer to the camera,
@@ -468,6 +469,7 @@ export const Rack = memo(({
             device={device}
             rackHeight={height}
             rackWidth={width}
+            isFocused={isFocused}
             onSelect={() => {
               const { focusRack, selectDevice, isEditMode } =
                 useStore.getState();
@@ -509,11 +511,13 @@ const DeviceMesh = ({
   device,
   rackHeight,
   rackWidth,
+  isFocused,
   onSelect,
 }: {
   device: Device;
   rackHeight: number;
   rackWidth: number;
+  isFocused: boolean;
   onSelect: () => void;
 }) => {
   const meshRef = useRef<THREE.Mesh>(null);
@@ -535,11 +539,20 @@ const DeviceMesh = ({
     };
   }, [device.portStates]);
 
+  // SVG 포트 에러 오버레이 가능 여부 체크 (포커싱 시 사용)
+  const hasSvgContent = useMemo(
+    () => !!resolveDeviceSvgContent(device.modelName),
+    [device.modelName],
+  );
+  // 포커싱 상태이고 SVG 있으면 → 전체 반짝임 끄고 포트별 오버레이 사용
+  const usePortOverlay = isFocused && hasError && hasSvgContent;
+
   // Cache Color objects to avoid per-frame allocation
   const highlightColor = useMemo(() => new THREE.Color("#4dabf7"), []);
   const blackColor = useMemo(() => new THREE.Color("#000000"), []);
 
-  const needsAnimation = isHighlighted || (hasError && !!errorColor);
+  // 포커싱 + SVG 오버레이 모드면 body 전체 반짝임 억제
+  const needsAnimation = isHighlighted || (hasError && !!errorColor && !usePortOverlay);
 
   // Reset emissive once when animation stops (instead of every frame)
   useEffect(() => {
@@ -626,7 +639,7 @@ const DeviceMesh = ({
                   width={deviceWidth}
                   height={deviceH - 0.005}
                   ref={faceplateRef}
-                  hasError={hasError}
+                  hasError={hasError && !usePortOverlay}
                 />
               ) : (
                 <DeviceFaceplate
@@ -634,8 +647,18 @@ const DeviceMesh = ({
                   width={deviceWidth}
                   height={deviceH - 0.005}
                   ref={faceplateRef}
-                  hasError={hasError}
+                  hasError={hasError && !usePortOverlay}
                   errorColor={errorColor}
+                />
+              )}
+
+              {/* 포커싱 시 SVG 포트 에러 오버레이 (포트별 반짝임) */}
+              {usePortOverlay && (
+                <PortErrorOverlay
+                  modelName={device.modelName ?? ""}
+                  portStates={device.portStates}
+                  worldWidth={deviceWidth}
+                  worldHeight={deviceH - 0.005}
                 />
               )}
             </group>

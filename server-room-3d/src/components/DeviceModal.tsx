@@ -32,10 +32,30 @@ export const DeviceModal = () => {
 
   if (!device) return null;
 
+  // 에러 레벨별 LED 색상
+  const severityColor: Record<string, string> = {
+    critical: "var(--severity-critical)",
+    major:    "var(--severity-major, #e05c17)",
+    minor:    "var(--severity-minor)",
+    warning:  "var(--severity-warning, #f2cc0c)",
+  };
+
   const renderPort = (portIndex: number) => {
-    const portId = `p${portIndex + 1}`;
-    const error = device?.portStates.find((p) => p.portId === portId);
-    const isHighlighted = highlightedPortId === portId;
+    // portId 포맷: 신형 "port-N", 구형 "pN" — 둘 다 지원
+    const portIdNew = `port-${portIndex + 1}`;
+    const portIdLegacy = `p${portIndex + 1}`;
+    const portState = device?.portStates.find(
+      (p) => p.portId === portIdNew || p.portId === portIdLegacy,
+    );
+    const portId = portState?.portId ?? portIdNew; // 표시용 ID
+    const isError = portState?.status === "error";
+    const isHighlighted = highlightedPortId === portId || highlightedPortId === portIdNew || highlightedPortId === portIdLegacy;
+    const ledColor = isHighlighted
+      ? "var(--severity-minor)"
+      : isError
+        ? (severityColor[portState?.errorLevel ?? ""] ?? "var(--severity-critical)")
+        : "var(--severity-success)";
+
 
     return (
       <div
@@ -45,9 +65,9 @@ export const DeviceModal = () => {
           height: "32px",
           backgroundColor: "var(--bg-tertiary)",
           border: isHighlighted
-            ? "2px solid var(--severity-minor)"
-            : error
-              ? "1px solid var(--severity-critical)"
+            ? `2px solid ${ledColor}`
+            : isError
+              ? `1px solid ${ledColor}`
               : "1px solid var(--border-medium)",
           borderRadius: "var(--radius-sm)",
           display: "flex",
@@ -56,16 +76,18 @@ export const DeviceModal = () => {
           position: "relative",
           cursor: "pointer",
           boxShadow: isHighlighted
-            ? "0 0 15px rgba(242, 204, 12, 0.5)"
-            : error
-              ? "0 0 8px var(--severity-critical-bg)"
+            ? `0 0 15px rgba(242, 204, 12, 0.5)`
+            : isError
+              ? `0 0 8px ${ledColor}66`
               : "none",
           transform: isHighlighted ? "scale(1.15)" : "scale(1)",
           transition: "all 0.2s",
           zIndex: isHighlighted ? 10 : 1,
         }}
         title={
-          error ? `${portId}: ${error.errorMessage}` : `${portId}: Operational`
+          isError
+            ? `${portId}: ${portState?.errorMessage ?? "Error"} (${portState?.errorLevel ?? ""})`
+            : `${portId}: Operational`
         }
       >
         <div
@@ -86,12 +108,8 @@ export const DeviceModal = () => {
             width: "4px",
             height: "4px",
             borderRadius: "50%",
-            backgroundColor: error
-              ? "var(--severity-critical)"
-              : "var(--severity-success)",
-            boxShadow: error
-              ? "0 0 4px var(--severity-critical)"
-              : "0 0 4px var(--severity-success)",
+            backgroundColor: ledColor,
+            boxShadow: `0 0 4px ${ledColor}`,
           }}
         />
         {/* Port label for highlighted port */}
@@ -209,55 +227,61 @@ export const DeviceModal = () => {
             </div>
           </div>
 
-          {/* Active Faults */}
-          {device.portStates.length > 0 && (
-            <div
-              style={{
-                marginTop: "16px",
-                padding: "16px",
-                backgroundColor: "var(--severity-critical-bg)",
-                borderLeft: "4px solid var(--severity-critical)",
-                borderRadius: "var(--radius-md)",
-              }}
-            >
-              <h4
+          {/* Active Faults – status === 'error' 포트만 표시 */}
+          {(() => {
+            const errorPorts = device.portStates.filter((p) => p.status === "error");
+            if (errorPorts.length === 0) return null;
+            return (
+              <div
                 style={{
-                  color: "var(--severity-critical-text)",
-                  margin: "0 0 12px 0",
-                  fontSize: "var(--font-size-md)",
-                  fontWeight: "var(--font-weight-semibold)",
+                  marginTop: "16px",
+                  padding: "16px",
+                  backgroundColor: "var(--severity-critical-bg)",
+                  borderLeft: "4px solid var(--severity-critical)",
+                  borderRadius: "var(--radius-md)",
                 }}
               >
-                Active Faults
-              </h4>
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: "8px" }}
-              >
-                {device.portStates.map((err, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      color: "var(--text-primary)",
-                      fontSize: "var(--font-size-sm)",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <strong style={{ color: "var(--severity-critical-text)" }}>
-                      {err.portId}
-                    </strong>
-                    <span>{err.errorMessage}</span>
-                    <span
-                      className={`grafana-badge ${err.errorLevel ? severityBadgeClass[err.errorLevel] || "" : ""}`}
+                <h4
+                  style={{
+                    color: "var(--severity-critical-text)",
+                    margin: "0 0 12px 0",
+                    fontSize: "var(--font-size-md)",
+                    fontWeight: "var(--font-weight-semibold)",
+                  }}
+                >
+                  Active Faults
+                </h4>
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: "8px" }}
+                >
+                  {errorPorts.map((err, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        color: "var(--text-primary)",
+                        fontSize: "var(--font-size-sm)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
                     >
-                      {err.errorLevel || "unknown"}
-                    </span>
-                  </div>
-                ))}
+                      <strong style={{ color: "var(--severity-critical-text)" }}>
+                        {err.portId}
+                      </strong>
+                      <span>{err.errorMessage}</span>
+                      {err.errorLevel && (
+                        <span
+                          className={`grafana-badge ${severityBadgeClass[err.errorLevel] ?? ""}`}
+                        >
+                          {err.errorLevel.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       </div>
     </div>,

@@ -1114,7 +1114,7 @@ const generateGroupRacks = (
           portStates: shouldAddError
             ? [
                 {
-                  portId: `p${Math.floor(Math.random() * 24) + 1}`,
+                  portId: `port-${Math.floor(Math.random() * 24) + 1}`,
                   status: "error" as const,
                   errorLevel: (
                     ["warning", "minor", "major", "critical"] as const

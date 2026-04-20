@@ -49,9 +49,9 @@ for (const [path, mod] of Object.entries(svgRawModules)) {
  */
 export const resolveDeviceImage = (modelName?: string): string | undefined => {
   if (!modelName) return undefined;
-  return (
-    deviceImageMap.get(modelName) ?? deviceImageMap.get(modelName.toLowerCase())
-  );
+  
+  // 1. Try to find PNG URL
+  return deviceImageMap.get(modelName) ?? deviceImageMap.get(modelName.toLowerCase());
 };
 
 /**
@@ -67,13 +67,14 @@ export const resolveDeviceSvgContent = (modelName?: string): string | undefined 
 };
 
 /** Get all available model image entries (for debugging) */
-export const getAvailableModelImages = (): string[] =>
-  Array.from(
-    new Set(
-      Array.from(deviceImageMap.keys()).filter(
-        (k) =>
-          k !== k.toLowerCase() ||
-          !deviceImageMap.has(k.charAt(0).toUpperCase() + k.slice(1)),
-      ),
-    ),
+export const getAvailableModelImages = (): string[] => {
+  const combined = new Set([
+    ...Array.from(deviceImageMap.keys()),
+    ...Array.from(deviceSvgContentMap.keys()),
+  ]);
+  return Array.from(combined).filter(
+    (k) =>
+      k !== k.toLowerCase() ||
+      !combined.has(k.charAt(0).toUpperCase() + k.slice(1))
   );
+};

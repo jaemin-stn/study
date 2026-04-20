@@ -1,16 +1,18 @@
 import React, { useRef } from "react";
 import { Scene } from "./components/Scene";
 import { DevicePanel } from "./components/DevicePanel";
-import { DeviceModal } from "./components/DeviceModal";
 import { DashboardWidgets } from "./components/DashboardWidgets";
 import { ThemeToggle } from "./components/ThemeToggle";
 import { FocusCarousel } from "./components/FocusCarousel";
-import { ImportExportModal } from "./components/ImportExportModal";
-import { ModelImporter } from "./components/ModelImporter";
-import { DeviceRegistrationModal } from "./components/DeviceRegistrationModal";
 import { Breadcrumb } from "./components/Breadcrumb";
 import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
+
+const DeviceModal = React.lazy(() => import("./components/DeviceModal").then((m) => ({ default: m.DeviceModal })));
+const ImportExportModal = React.lazy(() => import("./components/ImportExportModal").then((m) => ({ default: m.ImportExportModal })));
+const ModelImporter = React.lazy(() => import("./components/ModelImporter").then((m) => ({ default: m.ModelImporter })));
+const DeviceRegistrationModal = React.lazy(() => import("./components/DeviceRegistrationModal").then((m) => ({ default: m.DeviceRegistrationModal })));
 import {
+
   ArrowUpTrayIcon,
   ArrowDownTrayIcon,
   SparklesIcon,
@@ -24,7 +26,7 @@ import {
   sampleRacks,
   sampleRegisteredDevices,
   sampleNodes,
-} from "./utils/storage";
+} from "./utils/sampleData";
 import { createPortal } from "react-dom";
 
 /* ---------- Device Delete Confirmation Modal (top-level, z=99999) ---------- */
@@ -500,19 +502,35 @@ function App() {
       {selectedRackId && <DevicePanel />}
 
       {/* Global Device Modal */}
-      <DeviceModal />
+      {selectedDeviceId && (
+        <React.Suspense fallback={null}>
+          <DeviceModal />
+        </React.Suspense>
+      )}
 
       {/* Global Import/Export Modal */}
-      <ImportExportModal />
+      {importExportModalRackId !== null && (
+        <React.Suspense fallback={null}>
+          <ImportExportModal />
+        </React.Suspense>
+      )}
 
       {/* Device Registration Modal */}
-      <DeviceRegistrationModal />
+      {deviceRegistrationModalOpen && (
+        <React.Suspense fallback={null}>
+          <DeviceRegistrationModal />
+        </React.Suspense>
+      )}
 
       {/* Device Delete Confirm Modal - top-level, always above everything */}
       <DeviceDeleteConfirmModal />
 
       {/* 3D Model Importer (Edit Mode only) */}
-      <ModelImporter />
+      {isEditMode && (
+        <React.Suspense fallback={null}>
+          <ModelImporter />
+        </React.Suspense>
+      )}
 
       {/* Rack Navigation Carousel (Normal Mode) */}
       <FocusCarousel />

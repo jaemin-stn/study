@@ -35,9 +35,7 @@ export const CameraController = () => {
     const currentState = useStore.getState();
     const storedSnapshot = currentState.preFocusCameraState;
 
-    console.log(
-      `[CameraController] setupFocus - target: ${targetRackId}, isExplicit: ${isExplicitFocus}, hasSnapshot: ${!!storedSnapshot}`,
-    );
+
 
     // If focus is specifically cleared (from non-null to null), and we have a snapshot, trigger restoration
     if (!isExplicitFocus && lastWasFocused.current && storedSnapshot) {

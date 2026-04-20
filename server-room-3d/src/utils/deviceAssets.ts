@@ -14,10 +14,10 @@ const assetModules = import.meta.glob<{ default: string }>("../assets/*.png", {
   eager: true,
 });
 
-// Eagerly import all SVG files from src/assets/ as raw text
+// Lazy import all SVG files from src/assets/ as raw text
 // Using ?raw avoids fetch() and URL-encoding issues with special char filenames.
+// By NOT specifying eager: true, these huge strings are put in separate chunks and loaded on demand.
 const svgRawModules = import.meta.glob<{ default: string }>("../assets/*.svg", {
-  eager: true,
   query: "?raw",
 });
 
@@ -32,14 +32,14 @@ for (const [path, mod] of Object.entries(assetModules)) {
   }
 }
 
-// ── SVG: modelName → raw SVG text ──────────────────────────────────────────
-const deviceSvgContentMap = new Map<string, string>();
-for (const [path, mod] of Object.entries(svgRawModules)) {
+// ── SVG: modelName → Promise resolving to raw SVG text ─────────────────────
+const deviceSvgPromiseMap = new Map<string, () => Promise<{ default: string }>>();
+for (const [path, importFn] of Object.entries(svgRawModules)) {
   const filename = path.split("/").pop() ?? "";
   const modelName = filename.replace(/\.svg$/i, "").replace(/^\[\d+U\]\s*/, "");
-  if (modelName && mod.default) {
-    deviceSvgContentMap.set(modelName, mod.default);
-    deviceSvgContentMap.set(modelName.toLowerCase(), mod.default);
+  if (modelName) {
+    deviceSvgPromiseMap.set(modelName, importFn);
+    deviceSvgPromiseMap.set(modelName.toLowerCase(), importFn);
   }
 }
 
@@ -56,21 +56,37 @@ export const resolveDeviceImage = (modelName?: string): string | undefined => {
 
 /**
  * Resolve a device SVG raw text content from modelName.
- * Returns the inline SVG string or undefined if no SVG asset exists.
+ * Returns a Promise that resolves to the inline SVG string, or undefined.
  */
-export const resolveDeviceSvgContent = (modelName?: string): string | undefined => {
+export const resolveDeviceSvgContent = async (modelName?: string): Promise<string | undefined> => {
   if (!modelName) return undefined;
-  return (
-    deviceSvgContentMap.get(modelName) ??
-    deviceSvgContentMap.get(modelName.toLowerCase())
-  );
+  const importFn = deviceSvgPromiseMap.get(modelName) ?? deviceSvgPromiseMap.get(modelName.toLowerCase());
+  
+  if (importFn) {
+    try {
+      const mod = await importFn();
+      return mod.default;
+    } catch (err) {
+      console.error("Failed to load SVG for model:", modelName, err);
+      return undefined;
+    }
+  }
+  return undefined;
+};
+
+/**
+ * Check if a device SVG asset exists for the given modelName synchronously.
+ */
+export const hasDeviceSvgAsset = (modelName?: string): boolean => {
+  if (!modelName) return false;
+  return deviceSvgPromiseMap.has(modelName) || deviceSvgPromiseMap.has(modelName.toLowerCase());
 };
 
 /** Get all available model image entries (for debugging) */
 export const getAvailableModelImages = (): string[] => {
-  const combined = new Set([
+  const combined = new Set<string>([
     ...Array.from(deviceImageMap.keys()),
-    ...Array.from(deviceSvgContentMap.keys()),
+    ...Array.from(deviceSvgPromiseMap.keys()),
   ]);
   return Array.from(combined).filter(
     (k) =>

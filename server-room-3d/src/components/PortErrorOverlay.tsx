@@ -1,4 +1,4 @@
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { PortState } from "../types";
@@ -99,8 +99,16 @@ export const PortErrorOverlay = ({
     [portStates],
   );
 
-  // SVG raw text (동기)
-  const svgContent = useMemo(() => resolveDeviceSvgContent(modelName) ?? null, [modelName]);
+  // SVG raw text (비동기)
+  const [svgContent, setSvgContent] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    resolveDeviceSvgContent(modelName).then((content) => {
+      if (isMounted) setSvgContent(content ?? null);
+    });
+    return () => { isMounted = false; };
+  }, [modelName]);
 
   // 포트 bbox 추출
   const portRects = useMemo(() => {
@@ -109,7 +117,6 @@ export const PortErrorOverlay = ({
       return [];
     }
     const rects = extractPortRects(svgContent, errorPortIds);
-    console.log(`[PortErrorOverlay] ${modelName}: rects=${rects.length}`, rects);
     return rects;
   }, [svgContent, errorPortIds, modelName]);
 

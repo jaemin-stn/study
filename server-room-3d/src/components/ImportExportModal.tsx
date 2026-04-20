@@ -320,10 +320,10 @@ export const ImportExportModal = () => {
 
   const handleGroupImportClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log("[IEM] Auto Import button clicked");
+
     setImportStatus(null);
     if (groupImportRef.current) {
-      console.log("[IEM] File input ref exists, triggering click");
+
       groupImportRef.current.value = "";
       groupImportRef.current.click();
     } else {
@@ -334,7 +334,7 @@ export const ImportExportModal = () => {
   const handleGroupImportFile = async (
     file: File,
   ) => {
-    console.log("[IEM] handleGroupImportFile called", file.name);
+
     setImportStatus(`⏳ "${file.name}" 분석 중...`);
 
     try {
@@ -342,7 +342,7 @@ export const ImportExportModal = () => {
       // Always analyze as "ALL" first to see what's in the file.
       const effectiveScope = "ALL";
       
-      console.log(`[IEM] Analyzing file "${file.name}"...`);
+
       const result = await importGroupPackage(file, nodes, effectiveScope);
       const nodeCount = result.nodes.length;
       const totalRacksInFile = Object.values(result.dataByNode).reduce(
@@ -518,9 +518,7 @@ export const ImportExportModal = () => {
       showToast(`✅ Import 완료! (${Object.keys(finalRemapped).length}개 노드: Racks ${totalRacks}개, Devices ${totalDevices}개)`, "success");
       setImportPreview(null);
 
-      // Verify
-      const vs = useStore.getState();
-      console.log(`[Import] Verify: active=${vs.activeNodeId}, racks=${vs.racks.length}`);
+
 
       Object.keys(finalRemapped).forEach(nid => {
         useStore.getState().toggleNodeExpansion(nid, true);

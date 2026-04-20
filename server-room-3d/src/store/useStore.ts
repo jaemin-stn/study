@@ -1647,7 +1647,7 @@ export const useStore = create<AppState>((set, get) => ({
     };
 
     set((state) => ({ nodes: [...state.nodes, newNode] }));
-    console.log(`[useStore] Node added: ${newNode.name} (${newId})`);
+
     return newId;
   },
 

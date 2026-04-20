@@ -1,9 +1,9 @@
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { useStore } from "../store/useStore";
 import type { Device, PortState } from "../types";
-import { resolveDeviceSvgContent } from "../utils/deviceAssets";
+import { resolveDeviceSvgContent, hasDeviceSvgAsset } from "../utils/deviceAssets";
 import { ERROR_COLORS } from "../utils/errorHelpers";
 
 // ─── Severity helpers ────────────────────────────────────────────────────────
@@ -62,10 +62,19 @@ const SvgPortView = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef   = useRef<HTMLDivElement>(null);
 
-  const svgContent = useMemo(
-    () => resolveDeviceSvgContent(modelName) ?? null,
-    [modelName],
-  );
+  const [svgContent, setSvgContent] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadSvg = async () => {
+      const content = await resolveDeviceSvgContent(modelName);
+      if (isMounted) {
+        setSvgContent(content ?? null);
+      }
+    };
+    loadSvg();
+    return () => { isMounted = false; };
+  }, [modelName]);
 
   const errorPortMap = useMemo(
     () =>
@@ -139,9 +148,6 @@ const SvgPortView = ({
       const onEnter = (e: Event) => {
         if (!tooltip) return;
         const me = e as MouseEvent;
-        const rect = container.getBoundingClientRect();
-        const x = me.clientX - rect.left;
-        const y = me.clientY - rect.top;
 
         // 내용 구성
         let html = `<span style="font-size:13px;font-weight:700;">Port ${portNum}</span>`;
@@ -368,7 +374,7 @@ export const DeviceModal = () => {
   if (!device) return null;
 
   // SVG 에셋이 있으면 SVG 뷰, 없으면 그리드 뷰
-  const hasSvg = !!device.modelName && !!resolveDeviceSvgContent(device.modelName);
+  const hasSvg = hasDeviceSvgAsset(device.modelName);
   const errorPorts = device.portStates.filter((p) => p.status === "error");
 
   return createPortal(

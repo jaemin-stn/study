@@ -2199,7 +2199,7 @@ export const DeviceRegistrationModal = () => {
   // Node Editing
   const handleAddSubNode = useCallback(
     (parentId: string) => {
-      console.log(`[DRM] Adding sub-node to parent: ${parentId}`);
+
 
       // Auto expand parent for visibility
       setNodeExpandedIds((prev) => {
@@ -2217,7 +2217,7 @@ export const DeviceRegistrationModal = () => {
       });
 
       setRenamingId(newId);
-      console.log(`[DRM] Node addition requested, newId: ${newId}`);
+
     },
     [nodes, addNode],
   ); // setNodeExpandedIds is stable from useState, so it doesn't strictly need to be in deps but good for clarity
@@ -2441,9 +2441,9 @@ export const DeviceRegistrationModal = () => {
 
   const handleImportExcel = (e: React.MouseEvent) => {
     e.stopPropagation();
-    console.log("[DRM] Batch Import button clicked");
+
     if (fileInputRef.current) {
-      console.log("[DRM] File input ref exists, triggering click");
+
       fileInputRef.current.value = "";
       fileInputRef.current.click();
     } else {
@@ -2453,7 +2453,7 @@ export const DeviceRegistrationModal = () => {
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    console.log("[DRM] File input onChange fired", file?.name);
+
     if (!file) return;
     setIsProcessing(true);
     try {

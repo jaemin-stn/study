@@ -10,8 +10,8 @@ import type { Rack as RackType, Device } from "../types";
 import { ErrorMarker } from "./ErrorMarker";
 import { U_HEIGHT, GRID_SPACING, DEVICE_DEPTH } from "./constants";
 import { getHighestError } from "../utils/errorHelpers";
-import { resolveDeviceImage, resolveDeviceSvgContent } from "../utils/deviceAssets";
-import { PortErrorOverlay } from "./PortErrorOverlay";
+import { resolveDeviceImage } from "../utils/deviceAssets";
+
 
 // Snapshot of selectedRackId captured inside handlePointerDown BEFORE selectRack()
 // mutates it. Since the Interaction Layer is geometrically closer to the camera,
@@ -539,20 +539,12 @@ const DeviceMesh = ({
     };
   }, [device.portStates]);
 
-  // SVG 포트 에러 오버레이 가능 여부 체크 (포커싱 시 사용)
-  const hasSvgContent = useMemo(
-    () => !!resolveDeviceSvgContent(device.modelName),
-    [device.modelName],
-  );
-  // 포커싱 상태이고 SVG 있으면 → 전체 반짝임 끄고 포트별 오버레이 사용
-  const usePortOverlay = isFocused && hasError && hasSvgContent;
+  // 에러 + 선택 모두 애니메이션 필요
+  const needsAnimation = isHighlighted || (hasError && !!errorColor);
 
   // Cache Color objects to avoid per-frame allocation
   const highlightColor = useMemo(() => new THREE.Color("#4dabf7"), []);
   const blackColor = useMemo(() => new THREE.Color("#000000"), []);
-
-  // 포커싱 + SVG 오버레이 모드면 body 전체 반짝임 억제
-  const needsAnimation = isHighlighted || (hasError && !!errorColor && !usePortOverlay);
 
   // Reset emissive once when animation stops (instead of every frame)
   useEffect(() => {
@@ -639,7 +631,7 @@ const DeviceMesh = ({
                   width={deviceWidth}
                   height={deviceH - 0.005}
                   ref={faceplateRef}
-                  hasError={hasError && !usePortOverlay}
+                  hasError={hasError}
                 />
               ) : (
                 <DeviceFaceplate
@@ -647,18 +639,8 @@ const DeviceMesh = ({
                   width={deviceWidth}
                   height={deviceH - 0.005}
                   ref={faceplateRef}
-                  hasError={hasError && !usePortOverlay}
+                  hasError={hasError}
                   errorColor={errorColor}
-                />
-              )}
-
-              {/* 포커싱 시 SVG 포트 에러 오버레이 (포트별 반짝임) */}
-              {usePortOverlay && (
-                <PortErrorOverlay
-                  modelName={device.modelName ?? ""}
-                  portStates={device.portStates}
-                  worldWidth={deviceWidth}
-                  worldHeight={deviceH - 0.005}
                 />
               )}
             </group>

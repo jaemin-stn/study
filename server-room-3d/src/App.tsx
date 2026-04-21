@@ -525,12 +525,10 @@ function App() {
       {/* Device Delete Confirm Modal - top-level, always above everything */}
       <DeviceDeleteConfirmModal />
 
-      {/* 3D Model Importer (Edit Mode only) */}
-      {isEditMode && (
-        <React.Suspense fallback={null}>
-          <ModelImporter />
-        </React.Suspense>
-      )}
+      {/* 3D Model Importer & Hierarchy Tree (Tree is always visible, importer is Edit Mode only) */}
+      <React.Suspense fallback={null}>
+        <ModelImporter />
+      </React.Suspense>
 
       {/* Rack Navigation Carousel (Normal Mode) */}
       <FocusCarousel />

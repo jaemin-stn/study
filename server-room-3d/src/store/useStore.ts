@@ -286,7 +286,7 @@ export const checkFrontClearanceViolation = (
       const withinClearance = Math.abs(deltaX) <= CLEARANCE;
       const aligned =
         Math.abs(deltaZ) <
-        (sourceDims.effectiveDepth + otherDims.effectiveWidth) / 2;
+        (sourceDims.effectiveDepth + otherDims.effectiveDepth) / 2 - 0.05;
       if (inFront && withinClearance && aligned) return true;
     }
     if (frontDir.z !== 0) {
@@ -294,7 +294,7 @@ export const checkFrontClearanceViolation = (
       const withinClearance = Math.abs(deltaZ) <= CLEARANCE;
       const aligned =
         Math.abs(deltaX) <
-        (sourceDims.effectiveWidth + otherDims.effectiveWidth) / 2;
+        (sourceDims.effectiveWidth + otherDims.effectiveWidth) / 2 - 0.05;
       if (inFront && withinClearance && aligned) return true;
     }
     return false;
@@ -305,8 +305,8 @@ export const checkFrontClearanceViolation = (
 
     const otherOrientation = otherRack.orientation ?? 180;
     const otherDims = getEffectiveDimensions(otherRack.width, otherOrientation);
-    const deltaToOtherX = otherRack.position[0] - newPos[0];
-    const deltaToOtherZ = otherRack.position[1] - newPos[1];
+    const deltaToOtherX = (otherRack.position[0] - newPos[0]) * GRID_SPACING;
+    const deltaToOtherZ = (otherRack.position[1] - newPos[1]) * GRID_SPACING;
 
     if (
       isInFront(
@@ -321,8 +321,8 @@ export const checkFrontClearanceViolation = (
     }
 
     const otherFrontDir = getFrontDirection(otherOrientation);
-    const deltaFromOtherX = newPos[0] - otherRack.position[0];
-    const deltaFromOtherZ = newPos[1] - otherRack.position[1];
+    const deltaFromOtherX = (newPos[0] - otherRack.position[0]) * GRID_SPACING;
+    const deltaFromOtherZ = (newPos[1] - otherRack.position[1]) * GRID_SPACING;
 
     if (
       isInFront(
@@ -1123,6 +1123,7 @@ export const useStore = create<AppState>((set, get) => ({
           const snappedWorldX =
             otherWorldX + (direction * (other.width + rack.width)) / 2;
           finalPosition[0] = snappedWorldX / GRID_SPACING;
+          finalPosition[1] = other.position[1]; // 완벽한 전후 정렬 (Align Z-axis)
           xSnapped = true;
           break;
         }
@@ -1153,6 +1154,7 @@ export const useStore = create<AppState>((set, get) => ({
           const snappedWorldZ =
             otherWorldZ + (direction * (RACK_D + RACK_D)) / 2;
           finalPosition[1] = snappedWorldZ / GRID_SPACING;
+          finalPosition[0] = other.position[0]; // 완벽한 좌우 정렬 (Align X-axis)
           break;
         }
       }

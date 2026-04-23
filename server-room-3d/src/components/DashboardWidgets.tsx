@@ -44,7 +44,8 @@ interface ErrorItem {
   rackName: string;
   deviceId: string;
   deviceName: string;
-  portNumber: string;
+  portId: string;
+  displayPort: string;
   severity: ErrorLevel;
 }
 
@@ -133,6 +134,22 @@ export const DashboardWidgets = () => {
       rack.devices.forEach((device) => {
         device.portStates.forEach((port) => {
           if (port.status === "error" && port.errorLevel) {
+            let displayPort = port.portId;
+            if (port.portName && port.portNumber) {
+              if (port.portName.toLowerCase() === "port") {
+                displayPort = String(port.portNumber);
+              } else {
+                displayPort = `${port.portNumber}\n${port.portName.toUpperCase()}`;
+              }
+            } else if (port.portName) {
+              displayPort = port.portName.toUpperCase();
+              if (displayPort === "PORT") displayPort = port.portId.replace("port-", "");
+            } else if (port.portNumber) {
+              displayPort = String(port.portNumber);
+            } else {
+              displayPort = port.portId.replace("port-", "");
+            }
+
             errors.push({
               nodeId: rack.mapId,
               nodeName: nodeName,
@@ -140,7 +157,8 @@ export const DashboardWidgets = () => {
               rackName: rack.rackTitle || `Rack ${rack.rackId.slice(0, 4)}`,
               deviceId: device.itemId,
               deviceName: device.title,
-              portNumber: port.portId,
+              portId: port.portId,
+              displayPort: displayPort,
               severity: port.errorLevel,
             });
           }
@@ -162,7 +180,7 @@ export const DashboardWidgets = () => {
     focusRack(error.rackId);
     // Then open the device modal with highlighted port (use setTimeout to ensure state updates)
     setTimeout(() => {
-      selectDevice(error.deviceId, error.portNumber);
+      selectDevice(error.deviceId, error.portId);
     }, 50);
   };
 
@@ -289,34 +307,57 @@ export const DashboardWidgets = () => {
               <div
                 className="grafana-table-header"
                 style={{ 
-                  gridTemplateColumns: "1fr 1.3fr 0.8fr",
+                  gridTemplateColumns: "0.8fr 1.4fr 0.8fr",
                   color: "var(--text-secondary)", // Slightly darker than the default table header text
-                  fontWeight: 700 
+                  fontWeight: 700,
+                  fontSize: "11px"
                 }}
               >
-                <div className="grafana-table-cell">Node</div>
-                <div className="grafana-table-cell">Equipment</div>
-                <div className="grafana-table-cell" style={{ textAlign: "center" }}>Port</div>
+                <div className="grafana-table-cell" style={{ display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", whiteSpace: "normal" }}>Node</div>
+                <div className="grafana-table-cell" style={{ display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", whiteSpace: "normal" }}>Equipment</div>
+                <div className="grafana-table-cell" style={{ display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center", whiteSpace: "normal" }}>Port</div>
               </div>
 
               {/* Scrollable Body */}
               <div style={{ height: "calc(100% - 32px)", overflowY: "auto" }}>
                 {filteredErrors.length > 0 ? (
-                  filteredErrors.map((err, idx) => (
-                    <div
-                      key={idx}
-                      className="grafana-table-row"
-                      style={{
-                        gridTemplateColumns: "1fr 1.3fr 0.8fr",
-                        fontSize: "var(--font-size-xs)",
-                      }}
-                      onClick={() => handleErrorRowClick(err)}
-                    >
-                      <div className="grafana-table-cell" title={err.nodeName}>{err.nodeName}</div>
-                      <div className="grafana-table-cell" title={err.deviceName}>{err.deviceName}</div>
-                      <div className="grafana-table-cell" style={{ textAlign: "center" }}>{err.portNumber}</div>
-                    </div>
-                  ))
+                  filteredErrors.map((err, idx) => {
+                    const cellStyle: React.CSSProperties = {
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    };
+                    const textStyle: React.CSSProperties = {
+                      textAlign: "center",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-all",
+                    };
+                    return (
+                      <div
+                        key={idx}
+                        className="grafana-table-row"
+                        style={{
+                          gridTemplateColumns: "0.8fr 1.4fr 0.8fr",
+                          fontSize: "11px",
+                        }}
+                        onClick={() => handleErrorRowClick(err)}
+                      >
+                        <div className="grafana-table-cell" style={cellStyle} title={err.nodeName}>
+                          <span style={textStyle}>{err.nodeName}</span>
+                        </div>
+                        <div className="grafana-table-cell" style={cellStyle} title={err.deviceName}>
+                          <span style={textStyle}>{err.deviceName}</span>
+                        </div>
+                        <div className="grafana-table-cell" style={cellStyle} title={err.displayPort}>
+                          <span style={textStyle}>{err.displayPort}</span>
+                        </div>
+                      </div>
+                    );
+                  })
                 ) : (
                   <div
                     style={{

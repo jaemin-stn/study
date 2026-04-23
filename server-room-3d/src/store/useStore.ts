@@ -213,6 +213,10 @@ export interface AppState {
       { racks: Rack[]; registeredDevices: RegisteredDevice[] }
     >,
   ) => void;
+  updateDevicePortStates: (
+    deviceId: string,
+    newPortStates: import("../types").PortState[]
+  ) => void;
 
   // Edit Session Actions
   pushUndoState: () => void;
@@ -1581,6 +1585,68 @@ export const useStore = create<AppState>((set, get) => ({
       };
     });
   },
+
+  updateDevicePortStates: (deviceId, newPortStates) =>
+    set((state) => {
+      let updated = false;
+      const newRacks = state.racks.map((rack) => {
+        const hasDevice = rack.devices.some((d) => d.itemId === deviceId);
+        if (!hasDevice) return rack;
+
+        updated = true;
+        return {
+          ...rack,
+          devices: rack.devices.map((d) =>
+            d.itemId === deviceId ? { ...d, portStates: newPortStates } : d,
+          ),
+        };
+      });
+
+      // Update layouts as well to ensure data consistency across nodes
+      const newLayouts = { ...state.layouts };
+      let anyLayoutUpdated = false;
+      Object.entries(newLayouts).forEach(([nid, layout]) => {
+        if (!layout.racks) return;
+        let layoutUpdated = false;
+        const layoutRacks = layout.racks.map((rack) => {
+          const hasDevice = rack.devices.some((d) => d.itemId === deviceId);
+          if (!hasDevice) return rack;
+          layoutUpdated = true;
+          updated = true;
+          return {
+            ...rack,
+            devices: rack.devices.map((d) =>
+              d.itemId === deviceId ? { ...d, portStates: newPortStates } : d,
+            ),
+          };
+        });
+        if (layoutUpdated) {
+          newLayouts[nid] = { ...layout, racks: layoutRacks };
+          anyLayoutUpdated = true;
+        }
+      });
+
+      if (!updated) return state;
+      
+      // Update baselineRacks to prevent these system enrichment updates 
+      // from flagging the workspace as 'dirty' (unsaved changes).
+      const newBaselineRacks = state.baselineRacks ? state.baselineRacks.map((rack) => {
+        const hasDevice = rack.devices.some((d) => d.itemId === deviceId);
+        if (!hasDevice) return rack;
+        return {
+          ...rack,
+          devices: rack.devices.map((d) =>
+            d.itemId === deviceId ? { ...d, portStates: newPortStates } : d,
+          ),
+        };
+      }) : state.baselineRacks;
+
+      return { 
+        racks: newRacks, 
+        layouts: anyLayoutUpdated ? newLayouts : state.layouts,
+        baselineRacks: newBaselineRacks
+      };
+    }),
 
   replaceMultipleNodesData: (data) => {
     set((state) => {

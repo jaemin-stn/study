@@ -115,16 +115,18 @@ const generateGroupRacks = (
           vendor: regDevice.vendor,
           deviceId: regDevice.deviceId,
           portStates: shouldAddError
-            ? [
-                {
-                  portId: `port-${Math.floor(Math.random() * 24) + 1}`,
+            ? (() => {
+                const portNum = Math.floor(Math.random() * 24) + 1;
+                return [{
+                  portId: `port-${portNum}`,
                   status: "error" as const,
                   errorLevel: (
                     ["warning", "minor", "major", "critical"] as const
                   )[Math.floor(Math.random() * 4)],
                   errorMessage: "Link down",
-                },
-              ]
+                  portNumber: String(portNum),
+                }];
+              })()
             : [],
         });
         
@@ -187,18 +189,18 @@ const IX1_PORT_ERROR_DEVICE: Device = {
   position: 1, // U1 위치에 탑재
   // port-5 (critical), port-13 (major), port-21 (warning) 에러
   portStates: [
-    { portId: "port-5",  status: "error", errorLevel: "critical", errorMessage: "Link down - Physical layer failure" },
-    { portId: "port-13", status: "error", errorLevel: "major",    errorMessage: "CRC error rate exceeded threshold" },
-    { portId: "port-21", status: "error", errorLevel: "warning",  errorMessage: "High latency detected" },
-    { portId: "port-1",  status: "normal" },
-    { portId: "port-3",  status: "normal" },
-    { portId: "port-7",  status: "normal" },
-    { portId: "port-9",  status: "normal" },
-    { portId: "port-11", status: "normal" },
-    { portId: "port-15", status: "normal" },
-    { portId: "port-17", status: "normal" },
-    { portId: "port-19", status: "normal" },
-    { portId: "port-23", status: "normal" },
+    { portId: "port-5",  status: "error", errorLevel: "critical", errorMessage: "Link down - Physical layer failure", portNumber: "5" },
+    { portId: "port-13", status: "error", errorLevel: "major",    errorMessage: "CRC error rate exceeded threshold", portNumber: "13" },
+    { portId: "port-21", status: "error", errorLevel: "warning",  errorMessage: "High latency detected", portNumber: "21" },
+    { portId: "port-1",  status: "normal", portNumber: "1" },
+    { portId: "port-3",  status: "normal", portNumber: "3" },
+    { portId: "port-7",  status: "normal", portNumber: "7" },
+    { portId: "port-9",  status: "normal", portNumber: "9" },
+    { portId: "port-11", status: "normal", portNumber: "11" },
+    { portId: "port-15", status: "normal", portNumber: "15" },
+    { portId: "port-17", status: "normal", portNumber: "17" },
+    { portId: "port-19", status: "normal", portNumber: "19" },
+    { portId: "port-23", status: "normal", portNumber: "23" },
   ],
 };
 

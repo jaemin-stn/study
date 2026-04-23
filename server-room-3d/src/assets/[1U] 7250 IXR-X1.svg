@@ -7,7 +7,7 @@
   <!-- Port Analysis Paths -->
   <g id="ports-layer">
     <path 
-      id="port-1" 
+      id="port-1"
       data-port-number="1"
       data-status="normal"
       d="M 52.970635607321135 22.007868532089724 H 95.28263560732114 V 42.97059737952477 H 52.970635607321135 Z" 
@@ -15,7 +15,7 @@
       stroke="none"
     />
     <path 
-      id="port-3" 
+      id="port-3"
       data-port-number="3"
       data-status="normal"
       d="M 101.18663560732114 21.84672795913836 H 143.75568718801998 V 43.13173795247613 H 101.18663560732114 Z" 
@@ -23,7 +23,7 @@
       stroke="none"
     />
     <path 
-      id="port-5" 
+      id="port-5"
       data-port-number="5"
       data-status="normal"
       d="M 148.584 21.84672795913836 H 191.15305158069884 V 43.13173795247613 H 148.584 Z" 
@@ -31,7 +31,7 @@
       stroke="none"
     />
     <path 
-      id="port-7" 
+      id="port-7"
       data-port-number="7"
       data-status="normal"
       d="M 197.61863560732112 21.84672795913836 H 240.18768718801996 V 43.13173795247613 H 197.61863560732112 Z" 
@@ -39,7 +39,7 @@
       stroke="none"
     />
     <path 
-      id="port-9" 
+      id="port-9"
       data-port-number="9"
       data-status="normal"
       d="M 245.016 21.84672795913836 H 287.5850515806988 V 43.13173795247613 H 245.016 Z" 
@@ -47,7 +47,7 @@
       stroke="none"
     />
     <path 
-      id="port-11" 
+      id="port-11"
       data-port-number="11"
       data-status="normal"
       d="M 294.05063560732117 21.84672795913836 H 336.61968718801995 V 43.13173795247613 H 294.05063560732117 Z" 
@@ -55,7 +55,7 @@
       stroke="none"
     />
     <path 
-      id="port-13" 
+      id="port-13"
       data-port-number="13"
       data-status="normal"
       d="M 343.08527121464226 21.84672795913836 H 385.65432279534105 V 43.13173795247613 H 343.08527121464226 Z" 
@@ -63,7 +63,7 @@
       stroke="none"
     />
     <path 
-      id="port-15" 
+      id="port-15"
       data-port-number="15"
       data-status="normal"
       d="M 390.48263560732113 21.84672795913836 H 433.05168718801997 V 43.13173795247613 H 390.48263560732113 Z" 
@@ -71,7 +71,7 @@
       stroke="none"
     />
     <path 
-      id="port-17" 
+      id="port-17"
       data-port-number="17"
       data-status="normal"
       d="M 439.5172712146422 21.846727959138356 H 482.08632279534106 V 43.13173795247613 H 439.5172712146422 Z" 
@@ -79,7 +79,7 @@
       stroke="none"
     />
     <path 
-      id="port-19" 
+      id="port-19"
       data-port-number="19"
       data-status="normal"
       d="M 486.91463560732115 21.84672795913836 H 529.48368718802 V 43.13173795247613 H 486.91463560732115 Z" 
@@ -87,7 +87,7 @@
       stroke="none"
     />
     <path 
-      id="port-21" 
+      id="port-21"
       data-port-number="21"
       data-status="normal"
       d="M 535.1306356073212 21.84672795913836 H 577.69968718802 V 43.13173795247613 H 535.1306356073212 Z" 
@@ -95,7 +95,7 @@
       stroke="none"
     />
     <path 
-      id="port-23" 
+      id="port-23"
       data-port-number="23"
       data-status="normal"
       d="M 584.1652712146423 21.846727959138356 H 626.7343227953411 V 43.13173795247613 H 584.1652712146423 Z" 
@@ -103,7 +103,7 @@
       stroke="none"
     />
     <path 
-      id="port-25" 
+      id="port-25"
       data-port-number="25"
       data-status="normal"
       d="M 631.5626356073211 21.84672795913836 H 674.1316871880199 V 43.13173795247613 H 631.5626356073211 Z" 
@@ -111,7 +111,7 @@
       stroke="none"
     />
     <path 
-      id="port-27" 
+      id="port-27"
       data-port-number="27"
       data-status="normal"
       d="M 680.5972712146423 21.84672795913836 H 723.1663227953411 V 43.13173795247613 H 680.5972712146423 Z" 
@@ -119,7 +119,7 @@
       stroke="none"
     />
     <path 
-      id="port-29" 
+      id="port-29"
       data-port-number="29"
       data-status="normal"
       d="M 728.8132712146422 21.84672795913836 H 771.382322795341 V 43.13173795247613 H 728.8132712146422 Z" 
@@ -127,7 +127,7 @@
       stroke="none"
     />
     <path 
-      id="port-31" 
+      id="port-31"
       data-port-number="31"
       data-status="normal"
       d="M 777.0292712146423 21.84672795913836 H 819.5983227953411 V 43.13173795247613 H 777.0292712146423 Z" 
@@ -135,7 +135,7 @@
       stroke="none"
     />
     <path 
-      id="port-33" 
+      id="port-33"
       data-port-number="33"
       data-status="normal"
       d="M 829.850915141431 21.84672795913836 H 872.4199667221297 V 43.13173795247613 H 829.850915141431 Z" 
@@ -143,7 +143,7 @@
       stroke="none"
     />
     <path 
-      id="port-35" 
+      id="port-35"
       data-port-number="35"
       data-status="normal"
       d="M 877.4218302828618 21.84672795913836 H 919.9908818635606 V 43.13173795247613 H 877.4218302828618 Z" 
@@ -151,7 +151,7 @@
       stroke="none"
     />
     <path 
-      id="port-2" 
+      id="port-2"
       data-port-number="2"
       data-status="normal"
       d="M 53.82201663893511 57.492691983122356 H 96.1340166389351 V 78.45542083055742 H 53.82201663893511 Z" 
@@ -159,7 +159,7 @@
       stroke="none"
     />
     <path 
-      id="port-4" 
+      id="port-4"
       data-port-number="4"
       data-status="normal"
       d="M 102.0380166389351 57.331551410170995 H 144.60706821963396 V 78.61656140350878 H 102.0380166389351 Z" 
@@ -167,7 +167,7 @@
       stroke="none"
     />
     <path 
-      id="port-6" 
+      id="port-6"
       data-port-number="6"
       data-status="normal"
       d="M 149.43538103161399 57.331551410170995 H 192.00443261231283 V 78.61656140350878 H 149.43538103161399 Z" 
@@ -175,7 +175,7 @@
       stroke="none"
     />
     <path 
-      id="port-8" 
+      id="port-8"
       data-port-number="8"
       data-status="normal"
       d="M 198.4700166389351 57.331551410170995 H 241.03906821963395 V 78.61656140350878 H 198.4700166389351 Z" 
@@ -183,7 +183,7 @@
       stroke="none"
     />
     <path 
-      id="port-10" 
+      id="port-10"
       data-port-number="10"
       data-status="normal"
       d="M 245.86738103161397 57.331551410170995 H 288.4364326123128 V 78.61656140350878 H 245.86738103161397 Z" 
@@ -191,7 +191,7 @@
       stroke="none"
     />
     <path 
-      id="port-12" 
+      id="port-12"
       data-port-number="12"
       data-status="normal"
       d="M 294.90201663893515 57.331551410170995 H 337.47106821963393 V 78.61656140350878 H 294.90201663893515 Z" 
@@ -199,7 +199,7 @@
       stroke="none"
     />
     <path 
-      id="port-14" 
+      id="port-14"
       data-port-number="14"
       data-status="normal"
       d="M 343.93665224625624 57.331551410170995 H 386.505703826955 V 78.61656140350878 H 343.93665224625624 Z" 
@@ -207,7 +207,7 @@
       stroke="none"
     />
     <path 
-      id="port-16" 
+      id="port-16"
       data-port-number="16"
       data-status="normal"
       d="M 391.3340166389351 57.331551410170995 H 433.90306821963395 V 78.61656140350878 H 391.3340166389351 Z" 
@@ -215,7 +215,7 @@
       stroke="none"
     />
     <path 
-      id="port-18" 
+      id="port-18"
       data-port-number="18"
       data-status="normal"
       d="M 440.3686522462562 57.331551410170995 H 482.93770382695504 V 78.61656140350878 H 440.3686522462562 Z" 
@@ -223,7 +223,7 @@
       stroke="none"
     />
     <path 
-      id="port-20" 
+      id="port-20"
       data-port-number="20"
       data-status="normal"
       d="M 487.7660166389351 57.331551410170995 H 530.3350682196339 V 78.61656140350878 H 487.7660166389351 Z" 
@@ -231,7 +231,7 @@
       stroke="none"
     />
     <path 
-      id="port-22" 
+      id="port-22"
       data-port-number="22"
       data-status="normal"
       d="M 535.9820166389351 57.331551410170995 H 578.5510682196339 V 78.61656140350878 H 535.9820166389351 Z" 
@@ -239,7 +239,7 @@
       stroke="none"
     />
     <path 
-      id="port-24" 
+      id="port-24"
       data-port-number="24"
       data-status="normal"
       d="M 585.0166522462563 57.331551410170995 H 627.5857038269551 V 78.61656140350878 H 585.0166522462563 Z" 
@@ -247,7 +247,7 @@
       stroke="none"
     />
     <path 
-      id="port-26" 
+      id="port-26"
       data-port-number="26"
       data-status="normal"
       d="M 632.4140166389351 57.331551410170995 H 674.9830682196339 V 78.61656140350878 H 632.4140166389351 Z" 
@@ -255,7 +255,7 @@
       stroke="none"
     />
     <path 
-      id="port-28" 
+      id="port-28"
       data-port-number="28"
       data-status="normal"
       d="M 681.4486522462562 57.331551410170995 H 724.017703826955 V 78.61656140350878 H 681.4486522462562 Z" 
@@ -263,7 +263,7 @@
       stroke="none"
     />
     <path 
-      id="port-30" 
+      id="port-30"
       data-port-number="30"
       data-status="normal"
       d="M 729.6646522462563 57.331551410170995 H 772.2337038269551 V 78.61656140350878 H 729.6646522462563 Z" 
@@ -271,7 +271,7 @@
       stroke="none"
     />
     <path 
-      id="port-32" 
+      id="port-32"
       data-port-number="32"
       data-status="normal"
       d="M 777.8806522462562 57.331551410170995 H 820.449703826955 V 78.61656140350878 H 777.8806522462562 Z" 
@@ -279,7 +279,7 @@
       stroke="none"
     />
     <path 
-      id="port-34" 
+      id="port-34"
       data-port-number="34"
       data-status="normal"
       d="M 830.7022961730448 57.331551410170995 H 873.2713477537436 V 78.61656140350878 H 830.7022961730448 Z" 
@@ -287,7 +287,7 @@
       stroke="none"
     />
     <path 
-      id="port-36" 
+      id="port-36"
       data-port-number="36"
       data-status="normal"
       d="M 878.2732113144757 57.331551410170995 H 920.8422628951745 V 78.61656140350878 H 878.2732113144757 Z" 

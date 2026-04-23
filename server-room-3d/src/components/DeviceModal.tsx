@@ -3,7 +3,10 @@ import { createPortal } from "react-dom";
 
 import { useStore } from "../store/useStore";
 import type { Device, PortState } from "../types";
-import { resolveDeviceSvgContent, hasDeviceSvgAsset } from "../utils/deviceAssets";
+import {
+  resolveDeviceSvgContent,
+  hasDeviceSvgAsset,
+} from "../utils/deviceAssets";
 import { ERROR_COLORS } from "../utils/errorHelpers";
 
 // ─── Severity helpers ────────────────────────────────────────────────────────
@@ -60,7 +63,7 @@ const SvgPortView = ({
   portStates: PortState[];
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const tooltipRef   = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
 
   const [svgContent, setSvgContent] = useState<string | null>(null);
 
@@ -73,7 +76,9 @@ const SvgPortView = ({
       }
     };
     loadSvg();
-    return () => { isMounted = false; };
+    return () => {
+      isMounted = false;
+    };
   }, [modelName]);
 
   const errorPortMap = useMemo(
@@ -97,7 +102,7 @@ const SvgPortView = ({
 
   useEffect(() => {
     const container = containerRef.current;
-    const tooltip   = tooltipRef.current;
+    const tooltip = tooltipRef.current;
     if (!container || !svgContent) return;
 
     const svgEl = container.querySelector("svg");
@@ -110,7 +115,9 @@ const SvgPortView = ({
     svgEl.removeAttribute("height");
 
     // SVG 기본 title tooltip 제거 (브라우저가 자동으로 보여주는 텍스트 숨김)
-    container.querySelectorAll("title").forEach((t) => { t.textContent = ""; });
+    container.querySelectorAll("title").forEach((t) => {
+      t.textContent = "";
+    });
 
     // 모든 포트 초기화 + hover 가능하게
     const allPortEls = container.querySelectorAll("[id^='port-']");
@@ -123,9 +130,31 @@ const SvgPortView = ({
 
     // 에러 포트 블링크 적용
     errorPortMap.forEach((color, portId) => {
-      const portEl = container.querySelector(`#${portId}`) as SVGElement | null;
+      // 1. 정확한 ID 매칭 시도 (querySelector에서 특수문자 이스케이프 필요)
+      let portEl: SVGElement | null = null;
+      try {
+        portEl = container.querySelector(
+          `[id='${portId}']`,
+        ) as SVGElement | null;
+      } catch (e) {
+        // ID Selector invalid
+      }
+
+      // 2. Exact match 실패 시, 모의 데이터의 'port-N' 형식을 SVG의 N번째 포트 요소에 Fallback 매핑
+      if (!portEl && portId.startsWith("port-")) {
+        const numMatch = portId.match(/^port-(\d+)$/);
+        if (numMatch) {
+          const idx = parseInt(numMatch[1], 10) - 1; // 0-indexed
+          if (idx >= 0 && idx < allPortEls.length) {
+            portEl = allPortEls[idx] as SVGElement;
+          }
+        }
+      }
+
       if (!portEl) return;
-      const animName = `port-blink-v2-${portId.replace(/[^a-z0-9]/gi, "-")}`;
+
+      const targetId = portEl.id;
+      const animName = `port-blink-v2-${targetId.replace(/[^a-z0-9]/gi, "-")}`;
       ensureKeyframe(animName, color);
       portEl.style.fill = `${color}55`;
       portEl.style.stroke = color;
@@ -136,21 +165,44 @@ const SvgPortView = ({
     // ── Tooltip 이벤트 ──────────────────────────────────────────────────────
     const cleanups: (() => void)[] = [];
 
-    allPortEls.forEach((el) => {
-      const portId     = el.id;                              // e.g. "port-5"
-      const portNum    = portId.replace("port-", "");        // e.g. "5"
-      const ps         = portStateMap.get(portId);
-      const isError    = ps?.status === "error";
+    allPortEls.forEach((el, index) => {
+      const elId = el.id; // e.g. "port-qsfp-1/1/1"
+
+      // 1. 정방향 매칭
+      let ps = portStateMap.get(elId);
+      let psPortId = elId;
+
+      // 2. 모의 데이터 Fallback (SVG의 실제 ID와 데이터의 port-N 형식이 다를 경우 매핑)
+      if (!ps) {
+        const fallbackId = `port-${index + 1}`;
+        const fallbackPs = portStateMap.get(fallbackId);
+        if (fallbackPs) {
+          ps = fallbackPs;
+          psPortId = fallbackId;
+        }
+      }
+
+      const isError = ps?.status === "error";
       const errorColor = isError
-        ? (errorPortMap.get(portId) ?? "#ef4444")
+        ? (errorPortMap.get(psPortId) ?? "#ef4444")
         : null;
+
+      const portNameAttr = el.getAttribute("data-port-name");
+      const portNumAttr = el.getAttribute("data-port-number");
+
+      let displayTitle = `Port ${elId.replace("port-", "")}`;
+      if (portNameAttr && portNumAttr) {
+        displayTitle = `${portNameAttr.toUpperCase()} ${portNumAttr}`;
+      } else if (portNameAttr) {
+        displayTitle = `${portNameAttr.toUpperCase()}`;
+      }
 
       const onEnter = (e: Event) => {
         if (!tooltip) return;
         const me = e as MouseEvent;
 
         // 내용 구성
-        let html = `<span style="font-size:13px;font-weight:700;">Port ${portNum}</span>`;
+        let html = `<span style="font-size:13px;font-weight:700;">${displayTitle}</span>`;
         if (isError && ps) {
           html += `<br/><span style="opacity:.85;">${ps.errorLevel?.toUpperCase() ?? "ERROR"}</span>`;
           if (ps.errorMessage) {
@@ -163,7 +215,7 @@ const SvgPortView = ({
         tooltip.style.borderColor = errorColor ?? "#22c55e";
         // position: fixed 기준으로 clientX, clientY 직접 사용
         tooltip.style.left = `${me.clientX}px`;
-        tooltip.style.top  = `${me.clientY - 4}px`;
+        tooltip.style.top = `${me.clientY - 4}px`;
         tooltip.style.transform = "translate(-50%, -100%)";
         tooltip.style.display = "block";
       };
@@ -172,7 +224,7 @@ const SvgPortView = ({
         if (!tooltip) return;
         const me = e as MouseEvent;
         tooltip.style.left = `${me.clientX}px`;
-        tooltip.style.top  = `${me.clientY - 4}px`;
+        tooltip.style.top = `${me.clientY - 4}px`;
       };
 
       const onLeave = () => {
@@ -180,11 +232,11 @@ const SvgPortView = ({
       };
 
       el.addEventListener("mouseenter", onEnter);
-      el.addEventListener("mousemove",  onMove);
+      el.addEventListener("mousemove", onMove);
       el.addEventListener("mouseleave", onLeave);
       cleanups.push(() => {
         el.removeEventListener("mouseenter", onEnter);
-        el.removeEventListener("mousemove",  onMove);
+        el.removeEventListener("mousemove", onMove);
         el.removeEventListener("mouseleave", onLeave);
       });
     });
@@ -255,7 +307,8 @@ const GenericPortGrid = ({
     const ledColor = isHighlighted
       ? "var(--severity-minor)"
       : isError
-        ? (SEVERITY_COLORS[portState?.errorLevel ?? ""] ?? "var(--severity-critical)")
+        ? (SEVERITY_COLORS[portState?.errorLevel ?? ""] ??
+          "var(--severity-critical)")
         : "var(--severity-success)";
 
     return (
@@ -492,30 +545,46 @@ export const DeviceModal = () => {
               <div
                 style={{ display: "flex", flexDirection: "column", gap: "8px" }}
               >
-                {errorPorts.map((err, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      color: "var(--text-primary)",
-                      fontSize: "var(--font-size-sm)",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <strong style={{ color: "var(--severity-critical-text)" }}>
-                      {err.portId}
-                    </strong>
-                    <span>{err.errorMessage}</span>
-                    {err.errorLevel && (
-                      <span
-                        className={`grafana-badge ${severityBadgeClass[err.errorLevel] ?? ""}`}
+                {errorPorts.map((err, idx) => {
+                  let displayPort = err.portId;
+                  if (err.portName && err.portNumber) {
+                    displayPort = `${err.portName.toUpperCase()} ${err.portNumber}`;
+                  } else if (err.portName) {
+                    displayPort = err.portName.toUpperCase();
+                  } else if (err.portNumber) {
+                    displayPort = `Port ${err.portNumber}`;
+                  } else {
+                    const rawId = err.portId.replace("port-", "");
+                    displayPort = `Port ${rawId}`;
+                  }
+
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        color: "var(--text-primary)",
+                        fontSize: "var(--font-size-sm)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                      }}
+                    >
+                      <strong
+                        style={{ color: "var(--severity-critical-text)" }}
                       >
-                        {err.errorLevel.toUpperCase()}
-                      </span>
-                    )}
-                  </div>
-                ))}
+                        {displayPort}
+                      </strong>
+                      <span>{err.errorMessage}</span>
+                      {err.errorLevel && (
+                        <span
+                          className={`grafana-badge ${severityBadgeClass[err.errorLevel] ?? ""}`}
+                        >
+                          {err.errorLevel.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

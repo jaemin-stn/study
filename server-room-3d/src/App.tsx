@@ -28,6 +28,7 @@ import {
   sampleNodes,
 } from "./utils/sampleData";
 import { createPortal } from "react-dom";
+import { PortErrorSynchronizer } from "./components/PortErrorSynchronizer";
 
 /* ---------- Device Delete Confirmation Modal (top-level, z=99999) ---------- */
 const DeviceDeleteConfirmModal = () => {
@@ -539,6 +540,7 @@ function App() {
       <FitToModelsButton />
 
       <Toast />
+      <PortErrorSynchronizer />
       <style>{APP_STYLES}</style>
     </div>
   );

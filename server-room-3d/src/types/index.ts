@@ -31,6 +31,8 @@ export interface PortState {
   status: "normal" | "error";
   errorLevel?: ErrorLevel;
   errorMessage?: string;
+  portName?: string;
+  portNumber?: string;
 }
 
 // 장비 타입

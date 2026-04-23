@@ -469,7 +469,6 @@ export const Rack = memo(({
             device={device}
             rackHeight={height}
             rackWidth={width}
-            isFocused={isFocused}
             onSelect={() => {
               const { focusRack, selectDevice, isEditMode } =
                 useStore.getState();
@@ -511,13 +510,11 @@ const DeviceMesh = ({
   device,
   rackHeight,
   rackWidth,
-  isFocused,
   onSelect,
 }: {
   device: Device;
   rackHeight: number;
   rackWidth: number;
-  isFocused: boolean;
   onSelect: () => void;
 }) => {
   const meshRef = useRef<THREE.Mesh>(null);

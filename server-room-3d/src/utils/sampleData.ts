@@ -103,8 +103,6 @@ const generateGroupRacks = (
       
       // Check if it fits in remaining space
       if (currentUPos + (regDevice.size || 1) - 1 <= rackSize) {
-        const shouldAddError = hasError && devices.length === 0;
-        
         devices.push({
           itemId: generateUUID(),
           title: regDevice.title,
@@ -114,20 +112,7 @@ const generateGroupRacks = (
           modelName: regDevice.modelName,
           vendor: regDevice.vendor,
           deviceId: regDevice.deviceId,
-          portStates: shouldAddError
-            ? (() => {
-                const portNum = Math.floor(Math.random() * 24) + 1;
-                return [{
-                  portId: `port-${portNum}`,
-                  status: "error" as const,
-                  errorLevel: (
-                    ["warning", "minor", "major", "critical"] as const
-                  )[Math.floor(Math.random() * 4)],
-                  errorMessage: "Link down",
-                  portNumber: String(portNum),
-                }];
-              })()
-            : [],
+          portStates: [],
         });
         
         currentUPos += (regDevice.size || 1) + 1; // 1U gap between devices
@@ -136,6 +121,20 @@ const generateGroupRacks = (
         // Doesn't fit, stop filling this rack
         break;
       }
+    }
+
+    if (hasError && devices.length > 0) {
+      const errorDeviceIdx = Math.floor(Math.random() * devices.length);
+      const portNum = Math.floor(Math.random() * 24) + 1;
+      devices[errorDeviceIdx].portStates = [{
+        portId: `port-${portNum}`,
+        status: "error" as const,
+        errorLevel: (
+          ["warning", "minor", "major", "critical"] as const
+        )[Math.floor(Math.random() * 4)],
+        errorMessage: "Link down",
+        portNumber: String(portNum),
+      }];
     }
 
     let worldX = 0;
@@ -233,15 +232,18 @@ export const sampleRacks: Rack[] = (() => {
   const gwacheonRackIdx = racks.findIndex((r) => r.mapId === GWACHEON_NODE_ID);
   if (gwacheonRackIdx !== -1) {
     const targetRack = racks[gwacheonRackIdx];
-    // 기존 디바이스들의 position을 2U부터 밀어서 U1에 IXR-X1 삽입
-    const shiftedDevices = targetRack.devices.map((d) => ({
-      ...d,
-      position: d.position + 2, // IXR-X1(1U) + 1U gap 확보
-    }));
-    racks[gwacheonRackIdx] = {
-      ...targetRack,
-      devices: [IX1_PORT_ERROR_DEVICE, ...shiftedDevices],
-    };
+    // 기존 디바이스를 밀지 않고 랙 중간 높이의 랜덤한 장비와 교체하여 다양한 위치에 배치
+    const randomIndex = Math.floor(targetRack.devices.length * 0.5 + Math.random() * (targetRack.devices.length * 0.3));
+    
+    if (targetRack.devices[randomIndex]) {
+      const targetPos = targetRack.devices[randomIndex].position;
+      targetRack.devices[randomIndex] = {
+        ...IX1_PORT_ERROR_DEVICE,
+        position: targetPos,
+      };
+    } else {
+      targetRack.devices.push(IX1_PORT_ERROR_DEVICE);
+    }
   }
 
   return racks;

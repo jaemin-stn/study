@@ -124,6 +124,21 @@ export const Rack = memo(({
   });
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
+    // Determine if the raycaster intersected a PivotControls gizmo (or the model it controls)
+    const hitGizmo = e.intersections.some((hit) => {
+      let obj: THREE.Object3D | null = hit.object;
+      while (obj) {
+        if (obj.userData && obj.userData.isGizmo) return true;
+        obj = obj.parent;
+      }
+      return false;
+    });
+
+    if (hitGizmo) {
+      // Do not stop propagation and do not select rack; let the gizmo handle it.
+      return;
+    }
+
     e.stopPropagation();
     const { selectRack, setDragging, updateDragPosition, isEditMode } =
       useStore.getState();

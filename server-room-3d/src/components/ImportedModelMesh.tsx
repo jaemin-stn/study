@@ -458,6 +458,7 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
       {shouldTransform ? (
         <PivotControls
           matrix={matrix}
+          userData={{ isGizmo: true }}
           anchor={[0, 0, 0]}
           depthTest={false}
           fixed

@@ -443,11 +443,9 @@ export const useStore = create<AppState>()(
     const { isEditMode, racks, importedModels, nodes, undoStack } = get();
     if (!isEditMode) return;
 
-    const newEntry = {
-      racks: structuredClone(racks),
-      importedModels: structuredClone(importedModels),
-      nodes: structuredClone(nodes),
-    };
+    // Phase 3-A: 단일 structuredClone 호출로 통합 (3회 → 1회)
+    const { racks: r, importedModels: m, nodes: n } = structuredClone({ racks, importedModels, nodes });
+    const newEntry = { racks: r, importedModels: m, nodes: n };
 
     set({
       undoStack: [...undoStack, newEntry].slice(-50), // Limit to 50 entries
@@ -489,16 +487,19 @@ export const useStore = create<AppState>()(
         }
       : layouts;
 
-    set((state) => ({
+    // Phase 3-A: 단일 structuredClone으로 baseline 스냅샷
+    const { nodes: currentNodes } = get();
+    const snapshot = structuredClone({ racks, importedModels, nodes: currentNodes });
+    set({
       layouts: updatedLayouts,
-      baselineRacks: structuredClone(racks),
-      baselineModels: structuredClone(importedModels),
-      baselineNodes: structuredClone(state.nodes),
+      baselineRacks: snapshot.racks,
+      baselineModels: snapshot.importedModels,
+      baselineNodes: snapshot.nodes,
       undoStack: [],
       showUnsavedDialog: false,
       pendingAction: null,
       _importDirty: false,
-    }));
+    });
 
     // 2. Execute pending action DIRECTLY (bypass dirty checks since we just saved)
     if (pendingAction) {
@@ -510,13 +511,19 @@ export const useStore = create<AppState>()(
           ? currentLayouts[targetNodeId] || { racks: [], importedModels: [] }
           : { racks: [], importedModels: [] };
 
+        // Phase 3-A: 단일 structuredClone으로 새 노드 baseline 스냅샷
+        const newSnap = structuredClone({
+          racks: newNodeLayout.racks,
+          importedModels: newNodeLayout.importedModels,
+          nodes: get().nodes,
+        });
         set({
           activeNodeId: targetNodeId,
           racks: newNodeLayout.racks,
           importedModels: newNodeLayout.importedModels,
-          baselineRacks: structuredClone(newNodeLayout.racks),
-          baselineModels: structuredClone(newNodeLayout.importedModels),
-          baselineNodes: structuredClone(get().nodes),
+          baselineRacks: newSnap.racks,
+          baselineModels: newSnap.importedModels,
+          baselineNodes: newSnap.nodes,
           undoStack: [],
           selectedRackId: null,
           focusedRackId: null,
@@ -548,10 +555,12 @@ export const useStore = create<AppState>()(
 
     if (baselineRacks && baselineModels && baselineNodes) {
       // Restore from baseline
+      // Phase 3-A: 단일 structuredClone으로 복원
+      const restored = structuredClone({ racks: baselineRacks, importedModels: baselineModels, nodes: baselineNodes });
       set({
-        racks: structuredClone(baselineRacks),
-        importedModels: structuredClone(baselineModels),
-        nodes: structuredClone(baselineNodes),
+        racks: restored.racks,
+        importedModels: restored.importedModels,
+        nodes: restored.nodes,
         undoStack: [],
         showUnsavedDialog: false,
         pendingAction: null,
@@ -560,12 +569,13 @@ export const useStore = create<AppState>()(
 
       // If we are discarding while in a node, ensure layouts map is also refreshed if it was used as runtime cache
       if (activeNodeId) {
+        // state.racks/importedModels는 이미 위 set()에서 restored 값으로 업데이트됨
         set((state) => ({
           layouts: {
             ...state.layouts,
             [activeNodeId]: {
-              racks: structuredClone(baselineRacks),
-              importedModels: structuredClone(baselineModels),
+              racks: state.racks,
+              importedModels: state.importedModels,
             },
           },
         }));
@@ -588,13 +598,19 @@ export const useStore = create<AppState>()(
           ? currentLayouts[targetNodeId] || { racks: [], importedModels: [] }
           : { racks: [], importedModels: [] };
 
+        // Phase 3-A: 단일 structuredClone으로 discard 후 새 노드 baseline 스냅샷
+        const discardSnap = structuredClone({
+          racks: newNodeLayout.racks,
+          importedModels: newNodeLayout.importedModels,
+          nodes: get().nodes,
+        });
         set({
           activeNodeId: targetNodeId,
           racks: newNodeLayout.racks,
           importedModels: newNodeLayout.importedModels,
-          baselineRacks: structuredClone(newNodeLayout.racks),
-          baselineModels: structuredClone(newNodeLayout.importedModels),
-          baselineNodes: structuredClone(get().nodes),
+          baselineRacks: discardSnap.racks,
+          baselineModels: discardSnap.importedModels,
+          baselineNodes: discardSnap.nodes,
           undoStack: [],
           selectedRackId: null,
           focusedRackId: null,
@@ -645,15 +661,26 @@ export const useStore = create<AppState>()(
       racks: newNodeLayout.racks,
       importedModels: newNodeLayout.importedModels,
       // If in edit mode, the new node's layout becomes the new baseline for dirty checks
-      baselineRacks: isEditMode
-        ? structuredClone(newNodeLayout.racks)
-        : get().baselineRacks,
-      baselineModels: isEditMode
-        ? structuredClone(newNodeLayout.importedModels)
-        : get().baselineModels,
-      baselineNodes: isEditMode
-        ? structuredClone(get().nodes)
-        : get().baselineNodes,
+      // Phase 3-A: isEditMode 시 단일 structuredClone으로 통합
+      ...(isEditMode
+        ? (() => {
+            const snap = structuredClone({
+              racks: newNodeLayout.racks,
+              importedModels: newNodeLayout.importedModels,
+              nodes: get().nodes,
+            });
+            return {
+              baselineRacks: snap.racks,
+              baselineModels: snap.importedModels,
+              baselineNodes: snap.nodes,
+            };
+          })()
+        : {
+            baselineRacks: get().baselineRacks,
+            baselineModels: get().baselineModels,
+            baselineNodes: get().baselineNodes,
+          }),
+
       undoStack: [], // Clear undo stack on node switch to prevent mixing node states
       selectedRackId: null,
       focusedRackId: null,
@@ -1277,10 +1304,12 @@ export const useStore = create<AppState>()(
 
     if (enabled) {
       // Entering Edit Mode: Snapshot current state as baseline
+      // Phase 3-A: 단일 structuredClone으로 통합
+      const editSnap = structuredClone({ racks, importedModels, nodes: get().nodes });
       set({
-        baselineRacks: structuredClone(racks),
-        baselineModels: structuredClone(importedModels),
-        baselineNodes: structuredClone(get().nodes),
+        baselineRacks: editSnap.racks,
+        baselineModels: editSnap.importedModels,
+        baselineNodes: editSnap.nodes,
         undoStack: [],
         isEditMode: true,
       });
@@ -1526,9 +1555,8 @@ export const useStore = create<AppState>()(
       focusedRackId: null,
       selectedModelId: null,
       // Set baselines to pre-load state so dirty detection works
-      baselineRacks: structuredClone(state.racks),
-      baselineModels: structuredClone(state.importedModels),
-      baselineNodes: structuredClone(state.nodes),
+      // Phase 3-A: 단일 structuredClone으로 통합
+      ...(() => { const s = structuredClone({ r: state.racks, m: state.importedModels, n: state.nodes }); return { baselineRacks: s.r, baselineModels: s.m, baselineNodes: s.n }; })(),
       _importDirty: true,
       triggerFitToScene: state.triggerFitToScene + 1,
     }));
@@ -1658,9 +1686,11 @@ export const useStore = create<AppState>()(
       let updatedLayouts = { ...state.layouts };
 
       // Capture pre-import state for baseline (so getIsDirty detects changes)
-      const preImportRacks = structuredClone(state.racks);
-      const preImportModels = structuredClone(state.importedModels);
-      const preImportNodes = structuredClone(state.nodes);
+      // Phase 3-A: 단일 structuredClone으로 통합
+      const preImport = structuredClone({ racks: state.racks, importedModels: state.importedModels, nodes: state.nodes });
+      const preImportRacks = preImport.racks;
+      const preImportModels = preImport.importedModels;
+      const preImportNodes = preImport.nodes;
 
       Object.entries(data).forEach(([nodeId, nodeData]) => {
         updatedRegDevices = updatedRegDevices.filter(

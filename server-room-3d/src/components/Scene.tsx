@@ -66,8 +66,11 @@ export const Scene = () => {
   const draggingModelId = useStore((state) => state.draggingModelId);
   const { theme } = useTheme();
 
-  // Check if any user-placed Light model exists in the scene
-  const hasUserLight = importedModels.some((m) => m.builtinType === "Light");
+  // Phase 2-C: useMemo로 감싸서 importedModels 변경 시에만 재계산
+  const hasUserLight = useMemo(
+    () => importedModels.some((m) => m.builtinType === "Light"),
+    [importedModels],
+  );
 
   // Strict one-node filtering: only racks placed exactly in this node
   const groupRacks = useMemo(

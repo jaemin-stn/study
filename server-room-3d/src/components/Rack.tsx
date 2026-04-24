@@ -12,6 +12,49 @@ import { U_HEIGHT, GRID_SPACING, DEVICE_DEPTH } from "./constants";
 import { getHighestError } from "../utils/errorHelpers";
 import { resolveDeviceImage } from "../utils/deviceAssets";
 
+// ─── Phase 1-A: 모듈 레벨 공유 Geometry (모든 Rack이 재사용) ───
+const SHARED_GEO = {
+  topBottom:   new THREE.BoxGeometry(1, 0.03, 1),
+  cornerPost:  new THREE.BoxGeometry(0.02, 1, 0.02),
+  hBrace:      new THREE.BoxGeometry(1, 0.02, 0.02),
+  frontRail:   new THREE.BoxGeometry(0.03, 1, 0.03),
+  backRail:    new THREE.BoxGeometry(0.02, 1, 0.02),
+  rearBezel:   new THREE.BoxGeometry(1, 1, 0.01),
+  doorHBar:    new THREE.BoxGeometry(1, 0.04, 0.02),
+  doorVBar:    new THREE.BoxGeometry(0.04, 1, 0.02),
+  interactBox: new THREE.BoxGeometry(1, 1, 1),
+};
+
+// ─── Phase 1-B: perforatedTexture 모듈 레벨 캐시 ───
+const _perforatedCache = new Map<number, THREE.CanvasTexture>();
+function getPerforatedTexture(rackSize: number): THREE.CanvasTexture {
+  if (_perforatedCache.has(rackSize)) return _perforatedCache.get(rackSize)!;
+  const size = 64;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  if (ctx) {
+    ctx.fillStyle = "white";
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = "black";
+    ctx.beginPath();
+    ctx.arc(size / 2, size / 2, size * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  const density = 40;
+  const panelW = 1.0 - 0.04;
+  const panelH = rackSize * U_HEIGHT + 0.1 - 0.06;
+  const railV = 0.08;
+  const railW = 0.08;
+  const innerW = panelW - railV * 2;
+  const innerH = panelH - railW * 2;
+  tex.repeat.set(innerW * density, innerH * density);
+  _perforatedCache.set(rackSize, tex);
+  return tex;
+}
 
 // Snapshot of selectedRackId captured inside handlePointerDown BEFORE selectRack()
 // mutates it. Since the Interaction Layer is geometrically closer to the camera,
@@ -54,36 +97,8 @@ export const Rack = memo(({
   );
   const tempPoint = useMemo(() => new THREE.Vector3(), []);
 
-  // Define perforated metal texture for side ventilation panels only
-  const perforatedTexture = useMemo(() => {
-    const size = 64;
-    const canvas = document.createElement("canvas");
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext("2d");
-    if (ctx) {
-      // Metal part (white in alphaMap means opaque)
-      ctx.fillStyle = "white";
-      ctx.fillRect(0, 0, size, size);
-      // Hole part (black in alphaMap means fully transparent / discarded)
-      ctx.fillStyle = "black";
-      ctx.beginPath();
-      ctx.arc(size / 2, size / 2, size * 0.35, 0, Math.PI * 2);
-      ctx.fill();
-    }
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-    // Tiling density matched to the perforated sheet inner opening
-    const density = 40;
-    const panelW = 1.0 - 0.04; // depth - 0.04
-    const panelH = rackSize * U_HEIGHT + 0.1 - 0.06; // height - 0.06
-    const railV = 0.08;
-    const railW = 0.08;
-    const innerW = panelW - railV * 2; // matches planeGeometry width
-    const innerH = panelH - railW * 2; // matches planeGeometry height
-    tex.repeat.set(innerW * density, innerH * density);
-    return tex;
-  }, [rackSize]);
+  // Phase 1-B: 캐시된 perforatedTexture 사용
+  const perforatedTexture = useMemo(() => getPerforatedTexture(rackSize), [rackSize]);
 
   const height = rackSize * U_HEIGHT + 0.1;
   const width = rackWidth;
@@ -189,8 +204,7 @@ export const Rack = memo(({
       <group>
         {/* Main Enclosure (Solid frame with better corner joins) */}
         {/* Top */}
-        <mesh position={[0, height / 2 - 0.015, 0]}>
-          <boxGeometry args={[width, 0.03, depth]} />
+        <mesh position={[0, height / 2 - 0.015, 0]} geometry={SHARED_GEO.topBottom} scale={[width, 1, depth]}>
           <meshStandardMaterial
             color={frameColor}
             roughness={0.6}
@@ -198,8 +212,7 @@ export const Rack = memo(({
           />
         </mesh>
         {/* Bottom */}
-        <mesh position={[0, -height / 2 + 0.015, 0]}>
-          <boxGeometry args={[width, 0.03, depth]} />
+        <mesh position={[0, -height / 2 + 0.015, 0]} geometry={SHARED_GEO.topBottom} scale={[width, 1, depth]}>
           <meshStandardMaterial
             color={frameColor}
             roughness={0.6}
@@ -207,16 +220,14 @@ export const Rack = memo(({
           />
         </mesh>
         {/* Left Side – corner posts only (no full-depth wall, so perforated holes reveal interior) */}
-        <mesh position={[-width / 2 + 0.01, 0, depth / 2 - 0.01]}>
-          <boxGeometry args={[0.02, height, 0.02]} />
+        <mesh position={[-width / 2 + 0.01, 0, depth / 2 - 0.01]} geometry={SHARED_GEO.cornerPost} scale={[1, height, 1]}>
           <meshStandardMaterial
             color={frameColor}
             roughness={0.6}
             metalness={0.9}
           />
         </mesh>
-        <mesh position={[-width / 2 + 0.01, 0, -depth / 2 + 0.01]}>
-          <boxGeometry args={[0.02, height, 0.02]} />
+        <mesh position={[-width / 2 + 0.01, 0, -depth / 2 + 0.01]} geometry={SHARED_GEO.cornerPost} scale={[1, height, 1]}>
           <meshStandardMaterial
             color={frameColor}
             roughness={0.6}
@@ -224,16 +235,14 @@ export const Rack = memo(({
           />
         </mesh>
         {/* Right Side – corner posts only */}
-        <mesh position={[width / 2 - 0.01, 0, depth / 2 - 0.01]}>
-          <boxGeometry args={[0.02, height, 0.02]} />
+        <mesh position={[width / 2 - 0.01, 0, depth / 2 - 0.01]} geometry={SHARED_GEO.cornerPost} scale={[1, height, 1]}>
           <meshStandardMaterial
             color={frameColor}
             roughness={0.6}
             metalness={0.9}
           />
         </mesh>
-        <mesh position={[width / 2 - 0.01, 0, -depth / 2 + 0.01]}>
-          <boxGeometry args={[0.02, height, 0.02]} />
+        <mesh position={[width / 2 - 0.01, 0, -depth / 2 + 0.01]} geometry={SHARED_GEO.cornerPost} scale={[1, height, 1]}>
           <meshStandardMaterial
             color={frameColor}
             roughness={0.6}
@@ -291,26 +300,22 @@ export const Rack = memo(({
 
         <group position={[0, 0, 0]}>
           {/* Internal Structural Bracing - Horizontal rails at the back */}
-          <mesh position={[0, height / 2 - 0.15, -depth / 2 + 0.1]}>
-            <boxGeometry args={[width - 0.04, 0.02, 0.02]} />
+          <mesh position={[0, height / 2 - 0.15, -depth / 2 + 0.1]} geometry={SHARED_GEO.hBrace} scale={[width - 0.04, 1, 1]}>
             <meshStandardMaterial color={frameColor} roughness={0.8} />
           </mesh>
-          <mesh position={[0, -height / 2 + 0.15, -depth / 2 + 0.1]}>
-            <boxGeometry args={[width - 0.04, 0.02, 0.02]} />
+          <mesh position={[0, -height / 2 + 0.15, -depth / 2 + 0.1]} geometry={SHARED_GEO.hBrace} scale={[width - 0.04, 1, 1]}>
             <meshStandardMaterial color={frameColor} roughness={0.8} />
           </mesh>
 
           {/* Vertical Mounting Rails (Front) */}
-          <mesh position={[-width / 2 + 0.06, 0, depth / 2 - 0.12]}>
-            <boxGeometry args={[0.03, height - 0.08, 0.03]} />
+          <mesh position={[-width / 2 + 0.06, 0, depth / 2 - 0.12]} geometry={SHARED_GEO.frontRail} scale={[1, height - 0.08, 1]}>
             <meshStandardMaterial
               color={railColor}
               metalness={1}
               roughness={0.2}
             />
           </mesh>
-          <mesh position={[width / 2 - 0.06, 0, depth / 2 - 0.12]}>
-            <boxGeometry args={[0.03, height - 0.08, 0.03]} />
+          <mesh position={[width / 2 - 0.06, 0, depth / 2 - 0.12]} geometry={SHARED_GEO.frontRail} scale={[1, height - 0.08, 1]}>
             <meshStandardMaterial
               color={railColor}
               metalness={1}
@@ -319,12 +324,10 @@ export const Rack = memo(({
           </mesh>
 
           {/* Vertical Support Rails (Back) */}
-          <mesh position={[-width / 2 + 0.06, 0, -depth / 2 + 0.12]}>
-            <boxGeometry args={[0.02, height - 0.08, 0.02]} />
+          <mesh position={[-width / 2 + 0.06, 0, -depth / 2 + 0.12]} geometry={SHARED_GEO.backRail} scale={[1, height - 0.08, 1]}>
             <meshStandardMaterial color={railColor} roughness={0.5} />
           </mesh>
-          <mesh position={[width / 2 - 0.06, 0, -depth / 2 + 0.12]}>
-            <boxGeometry args={[0.02, height - 0.08, 0.02]} />
+          <mesh position={[width / 2 - 0.06, 0, -depth / 2 + 0.12]} geometry={SHARED_GEO.backRail} scale={[1, height - 0.08, 1]}>
             <meshStandardMaterial color={railColor} roughness={0.5} />
           </mesh>
         </group>
@@ -333,8 +336,7 @@ export const Rack = memo(({
       {/* 2. REAR PANEL (Solid opaque plate – no perforation) */}
       <group position={[0, 0, -depth / 2 + 0.02]}>
         {/* Panel Bezel / Frame */}
-        <mesh position={[0, 0, -0.005]}>
-          <boxGeometry args={[width - 0.02, height - 0.04, 0.01]} />
+        <mesh position={[0, 0, -0.005]} geometry={SHARED_GEO.rearBezel} scale={[width - 0.02, height - 0.04, 1]}>
           <meshStandardMaterial color={frameColor} roughness={0.7} />
         </mesh>
         {/* Solid Rear Plate */}
@@ -355,8 +357,7 @@ export const Rack = memo(({
         rotation-y={doorRotation as unknown as number}
       >
         {/* Door Frame Border - Top */}
-        <mesh position={[width / 2, height / 2 - 0.02, 0.01]}>
-          <boxGeometry args={[width, 0.04, 0.02]} />
+        <mesh position={[width / 2, height / 2 - 0.02, 0.01]} geometry={SHARED_GEO.doorHBar} scale={[width, 1, 1]}>
           <meshStandardMaterial
             color={frameColor}
             roughness={0.7}
@@ -364,8 +365,7 @@ export const Rack = memo(({
           />
         </mesh>
         {/* Door Frame Border - Bottom */}
-        <mesh position={[width / 2, -height / 2 + 0.02, 0.01]}>
-          <boxGeometry args={[width, 0.04, 0.02]} />
+        <mesh position={[width / 2, -height / 2 + 0.02, 0.01]} geometry={SHARED_GEO.doorHBar} scale={[width, 1, 1]}>
           <meshStandardMaterial
             color={frameColor}
             roughness={0.7}
@@ -373,8 +373,7 @@ export const Rack = memo(({
           />
         </mesh>
         {/* Door Frame Border - Left */}
-        <mesh position={[0.02, 0, 0.01]}>
-          <boxGeometry args={[0.04, height - 0.08, 0.02]} />
+        <mesh position={[0.02, 0, 0.01]} geometry={SHARED_GEO.doorVBar} scale={[1, height - 0.08, 1]}>
           <meshStandardMaterial
             color={frameColor}
             roughness={0.7}
@@ -382,8 +381,7 @@ export const Rack = memo(({
           />
         </mesh>
         {/* Door Frame Border - Right */}
-        <mesh position={[width - 0.02, 0, 0.01]}>
-          <boxGeometry args={[0.04, height - 0.08, 0.02]} />
+        <mesh position={[width - 0.02, 0, 0.01]} geometry={SHARED_GEO.doorVBar} scale={[1, height - 0.08, 1]}>
           <meshStandardMaterial
             color={frameColor}
             roughness={0.7}
@@ -404,8 +402,9 @@ export const Rack = memo(({
         </mesh>
       </animated.group>
 
-      {/* Interaction Layer */}
       <mesh
+        geometry={SHARED_GEO.interactBox}
+        scale={[width + 0.1, height + 0.1, depth + 0.1]}
         onPointerDown={handlePointerDown}
         onPointerOver={(e) => {
           e.stopPropagation();
@@ -416,7 +415,6 @@ export const Rack = memo(({
           setHoveredRack(null);
         }}
       >
-        <boxGeometry args={[width + 0.1, height + 0.1, depth + 0.1]} />
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
@@ -576,8 +574,10 @@ const DeviceMesh = ({
     }
   }, [needsAnimation, blackColor]);
 
-  // Only register useFrame when animation is actually needed
-  useFrame(needsAnimation ? ({ clock }) => {
+  // Phase 1-C: early return 패턴으로 빈 함수 호출 오버헤드 제거
+  useFrame(({ clock }) => {
+    if (!needsAnimation) return;
+
     const bodyMat = meshRef.current?.material;
     const faceMat = faceplateRef.current?.material;
 
@@ -606,7 +606,7 @@ const DeviceMesh = ({
         faceMat.emissiveIntensity = intensity;
       }
     }
-  } : () => {});
+  });
 
   return (
     <group

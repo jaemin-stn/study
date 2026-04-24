@@ -331,25 +331,24 @@ const PANEL_STYLES = `
 const PanelStyles = React.memo(() => <style>{PANEL_STYLES}</style>);
 
 export const DevicePanel = () => {
-  const {
-    racks,
-    registeredDevices,
-    nodes,
-    selectedRackId,
-    selectRack,
-    addDevice,
-    removeDevice,
-    selectDevice,
-    deleteRack,
-    isEditMode,
-    updateRackOrientation,
-    updateRack,
-    highlightedDeviceId,
-    setHighlightedDevice,
-    focusRack,
-    showToast,
-    findExistingMount,
-  } = useStore();
+  // Phase 2-D: 개별 셀렉터로 불필요 리렌더 방지
+  const racks = useStore((s) => s.racks);
+  const registeredDevices = useStore((s) => s.registeredDevices);
+  const nodes = useStore((s) => s.nodes);
+  const selectedRackId = useStore((s) => s.selectedRackId);
+  const selectRack = useStore((s) => s.selectRack);
+  const addDevice = useStore((s) => s.addDevice);
+  const removeDevice = useStore((s) => s.removeDevice);
+  const selectDevice = useStore((s) => s.selectDevice);
+  const deleteRack = useStore((s) => s.deleteRack);
+  const isEditMode = useStore((s) => s.isEditMode);
+  const updateRackOrientation = useStore((s) => s.updateRackOrientation);
+  const updateRack = useStore((s) => s.updateRack);
+  const highlightedDeviceId = useStore((s) => s.highlightedDeviceId);
+  const setHighlightedDevice = useStore((s) => s.setHighlightedDevice);
+  const focusRack = useStore((s) => s.focusRack);
+  const showToast = useStore((s) => s.showToast);
+  const findExistingMount = useStore((s) => s.findExistingMount);
   const rack = racks.find((r) => r.rackId === selectedRackId);
 
   // Rack UI name edit state

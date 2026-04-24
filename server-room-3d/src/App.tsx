@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useRef, useMemo } from "react";
 import { Scene } from "./components/Scene";
 import { DevicePanel } from "./components/DevicePanel";
 import { DashboardWidgets } from "./components/DashboardWidgets";
@@ -245,24 +245,33 @@ const APP_STYLES = `
 `;
 
 function App() {
-  const {
-    addRack,
-    loadState,
-    selectedRackId,
-    isEditMode,
-    setEditMode,
-    setImportExportModalRackId,
-    setDeviceRegistrationModalOpen,
-    deviceRegistrationModalOpen,
-    importExportModalRackId,
-    selectedDeviceId,
-    setPendingImportFile,
-    undo,
-    saveChanges,
-    getIsDirty,
-  } = useStore();
+  // Phase 2-A: 개별 셀렉터로 불필요 리렌더 방지
+  const addRack = useStore((s) => s.addRack);
+  const loadState = useStore((s) => s.loadState);
+  const selectedRackId = useStore((s) => s.selectedRackId);
+  const isEditMode = useStore((s) => s.isEditMode);
+  const setEditMode = useStore((s) => s.setEditMode);
+  const setImportExportModalRackId = useStore((s) => s.setImportExportModalRackId);
+  const setDeviceRegistrationModalOpen = useStore((s) => s.setDeviceRegistrationModalOpen);
+  const deviceRegistrationModalOpen = useStore((s) => s.deviceRegistrationModalOpen);
+  const importExportModalRackId = useStore((s) => s.importExportModalRackId);
+  const selectedDeviceId = useStore((s) => s.selectedDeviceId);
+  const setPendingImportFile = useStore((s) => s.setPendingImportFile);
+  const undo = useStore((s) => s.undo);
+  const saveChanges = useStore((s) => s.saveChanges);
 
-  const isDirty = getIsDirty();
+  // Phase 2-B: getIsDirty()를 필요한 state에만 의존하도록 최적화
+  const racks = useStore((s) => s.racks);
+  const importedModels = useStore((s) => s.importedModels);
+  const nodes = useStore((s) => s.nodes);
+  const baselineRacks = useStore((s) => s.baselineRacks);
+  const baselineModels = useStore((s) => s.baselineModels);
+  const baselineNodes = useStore((s) => s.baselineNodes);
+  const _importDirty = useStore((s) => s._importDirty);
+
+  const isDirty = useMemo(() => {
+    return useStore.getState().getIsDirty();
+  }, [racks, importedModels, nodes, baselineRacks, baselineModels, baselineNodes, _importDirty]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

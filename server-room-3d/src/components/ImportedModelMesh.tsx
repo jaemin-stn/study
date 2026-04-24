@@ -1,7 +1,7 @@
 import { useEffect, useRef, useMemo, Suspense } from "react";
 import { type ThreeEvent } from "@react-three/fiber";
 import { useGLTF, Html, Billboard, PivotControls } from "@react-three/drei";
-import * as THREE from "three";
+import { Box3, Euler, Matrix4, Mesh, Quaternion, Vector3 } from 'three';
 import { useStore } from "../store/useStore";
 import type { ImportedModel, LightParams } from "../types";
 import {
@@ -258,15 +258,15 @@ const GltfMesh = ({ url }: { url: string }) => {
     const clone = gltfScene.clone(true);
 
     // Calculate bounding box for auto-centering
-    const box = new THREE.Box3().setFromObject(clone);
-    const center = new THREE.Vector3();
+    const box = new Box3().setFromObject(clone);
+    const center = new Vector3();
     box.getCenter(center);
 
     // Center X, Z and set bottom (min Y) to 0 so it sits on the floor
     clone.position.set(-center.x, -box.min.y, -center.z);
 
     clone.traverse((child) => {
-      if ((child as THREE.Mesh).isMesh) {
+      if ((child as Mesh).isMesh) {
         child.castShadow = true;
         child.receiveShadow = true;
       }
@@ -359,11 +359,11 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
 
   // matrix used by PivotControls — derived from live pose ref while dragging
   const matrix = useMemo(() => {
-    const m = new THREE.Matrix4();
+    const m = new Matrix4();
     m.compose(
-      new THREE.Vector3(...model.position),
-      new THREE.Quaternion().setFromEuler(new THREE.Euler(...model.rotation)),
-      new THREE.Vector3(...model.scale),
+      new Vector3(...model.position),
+      new Quaternion().setFromEuler(new Euler(...model.rotation)),
+      new Vector3(...model.scale),
     );
     return m;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -483,11 +483,11 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
           }}
           onDrag={(m) => {
             // Decompose the matrix and apply directly to group (NO store update here)
-            const p = new THREE.Vector3();
-            const r = new THREE.Quaternion();
-            const s = new THREE.Vector3();
+            const p = new Vector3();
+            const r = new Quaternion();
+            const s = new Vector3();
             m.decompose(p, r, s);
-            const euler = new THREE.Euler().setFromQuaternion(r);
+            const euler = new Euler().setFromQuaternion(r);
 
             livePose.current = {
               position: [p.x, p.y, p.z],

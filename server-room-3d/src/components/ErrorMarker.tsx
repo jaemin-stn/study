@@ -7,7 +7,7 @@ import {
   getHighestError,
 } from "../utils/errorHelpers";
 import type { ErrorLevel } from "../types";
-import * as THREE from "three";
+import type { Event as ThreeEvent } from 'three';
 import { Html, Billboard } from "@react-three/drei";
 import { U_HEIGHT, ERROR_MARKER_HEIGHT } from "./constants";
 
@@ -45,7 +45,7 @@ export const ErrorMarker = ({ rack }: ErrorMarkerProps) => {
 
   const color = ERROR_COLORS[highestError];
 
-  const handleClick = (e: React.MouseEvent | THREE.Event) => {
+  const handleClick = (e: React.MouseEvent | ThreeEvent) => {
     // Read drag state only on click (no subscription needed)
     const { isDragging, draggingModelId, selectRack, focusRack } =
       useStore.getState();

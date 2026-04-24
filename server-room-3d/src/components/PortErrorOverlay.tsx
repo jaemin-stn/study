@@ -1,6 +1,6 @@
 import { useRef, useMemo, useEffect, useState } from "react";
 import { useFrame } from "@react-three/fiber";
-import * as THREE from "three";
+import { CanvasTexture, FrontSide, MeshBasicMaterial } from 'three';
 import type { PortState } from "../types";
 import { ERROR_COLORS } from "../utils/errorHelpers";
 import { resolveDeviceSvgContent } from "../utils/deviceAssets";
@@ -86,7 +86,7 @@ export const PortErrorOverlay = ({
   worldWidth,
   worldHeight,
 }: PortErrorOverlayProps) => {
-  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  const matRef = useRef<MeshBasicMaterial>(null);
 
   // error 포트 → 색상
   const errorPortIds = useMemo(
@@ -128,7 +128,7 @@ export const PortErrorOverlay = ({
     const canvas = document.createElement("canvas");
     canvas.width = CANVAS_W;
     canvas.height = CANVAS_H;
-    const tex = new THREE.CanvasTexture(canvas);
+    const tex = new CanvasTexture(canvas);
     return { tex, canvas };
   }, [portRects, worldWidth, worldHeight]);
 
@@ -197,7 +197,7 @@ export const PortErrorOverlay = ({
         transparent
         opacity={1}
         depthWrite={false}
-        side={THREE.FrontSide}
+        side={FrontSide}
       />
     </mesh>
   );

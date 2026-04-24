@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
 import { useStore } from "../store/useStore";
-import * as THREE from "three";
+import { Box3, MathUtils, PerspectiveCamera, Vector3 } from 'three';
 import { OrbitControls } from "three-stdlib";
 import { U_HEIGHT, GRID_SPACING } from "./constants";
 
@@ -20,8 +20,8 @@ export const CameraController = () => {
   const lastWasFocused = useRef<boolean>(false);
   const isInteracting = useRef<boolean>(false);
 
-  const vTargetPos = useRef(new THREE.Vector3());
-  const vTargetLookAt = useRef(new THREE.Vector3());
+  const vTargetPos = useRef(new Vector3());
+  const vTargetLookAt = useRef(new Vector3());
   const vTargetZoom = useRef(1);
 
   // Use ref for animation flag to avoid React re-renders during interpolation
@@ -72,7 +72,7 @@ export const CameraController = () => {
     const rack = racks.find((r) => r.rackId === targetRackId);
     if (!rack || !controls) return;
 
-    const perspectiveCamera = camera as THREE.PerspectiveCamera;
+    const perspectiveCamera = camera as PerspectiveCamera;
 
     // Capture state ONLY if not already focused/selected
     if (!storedSnapshot && controls) {
@@ -203,7 +203,7 @@ export const CameraController = () => {
     const { racks, importedModels } = useStore.getState();
     if (racks.length === 0 && importedModels.length === 0) return;
 
-    const bbox = new THREE.Box3();
+    const bbox = new Box3();
 
     // Include Racks
     racks.forEach((rack) => {
@@ -213,8 +213,8 @@ export const CameraController = () => {
       const hw = (rack.width || 0.6) / 2;
       const hd = 0.3; // depth/2
 
-      bbox.expandByPoint(new THREE.Vector3(rackX - hw, 0, rackZ - hd));
-      bbox.expandByPoint(new THREE.Vector3(rackX + hw, rackHeight, rackZ + hd));
+      bbox.expandByPoint(new Vector3(rackX - hw, 0, rackZ - hd));
+      bbox.expandByPoint(new Vector3(rackX + hw, rackHeight, rackZ + hd));
     });
 
     // Include Imported Models (exclude Light — they are above the scene and would skew framing)
@@ -224,20 +224,20 @@ export const CameraController = () => {
         // Basic position inclusion.
         // Note: Ideally we would calculate actual mesh bounds, but position + some padding is a good start.
         // If the model is a builtin one like DigitalClock, we know its height is ~2m
-        const pos = new THREE.Vector3(...model.position);
+        const pos = new Vector3(...model.position);
         bbox.expandByPoint(pos);
-        bbox.expandByPoint(pos.clone().add(new THREE.Vector3(0, 2, 0))); // Add some height
+        bbox.expandByPoint(pos.clone().add(new Vector3(0, 2, 0))); // Add some height
       });
 
     if (bbox.isEmpty()) return;
 
-    const center = new THREE.Vector3();
+    const center = new Vector3();
     bbox.getCenter(center);
-    const size = new THREE.Vector3();
+    const size = new Vector3();
     bbox.getSize(size);
 
     const maxDim = Math.max(size.x, size.y, size.z);
-    const perspectiveCamera = camera as THREE.PerspectiveCamera;
+    const perspectiveCamera = camera as PerspectiveCamera;
     const fov = perspectiveCamera.fov;
 
     // Fit calculation
@@ -283,7 +283,7 @@ export const CameraController = () => {
     orbitControls.target.lerp(vTargetLookAt.current, alpha);
 
     if (Math.abs(state.camera.zoom - vTargetZoom.current) > 0.001) {
-      state.camera.zoom = THREE.MathUtils.lerp(
+      state.camera.zoom = MathUtils.lerp(
         state.camera.zoom,
         vTargetZoom.current,
         alpha,

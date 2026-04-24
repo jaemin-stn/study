@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState, forwardRef, useRef } from 'react';
-import * as THREE from 'three';
+import { CanvasTexture, Color, Mesh, SRGBColorSpace } from 'three';
 import { useFrame } from '@react-three/fiber';
 
 interface DigitalClockProps {
@@ -8,7 +8,7 @@ interface DigitalClockProps {
   emissiveIntensity?: number;
 }
 
-export const DigitalClock = forwardRef<THREE.Mesh, DigitalClockProps>(({
+export const DigitalClock = forwardRef<Mesh, DigitalClockProps>(({
   color = '#1a1a1a',
   dimensions = [1.2, 0.85, 0.05],
   emissiveIntensity = 0.15
@@ -28,14 +28,14 @@ export const DigitalClock = forwardRef<THREE.Mesh, DigitalClockProps>(({
   }, []);
 
   const baseTexture = useMemo(() => {
-    const tex = new THREE.CanvasTexture(baseCanvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
+    const tex = new CanvasTexture(baseCanvas);
+    tex.colorSpace = SRGBColorSpace;
     return tex;
   }, [baseCanvas]);
 
   const emissiveTexture = useMemo(() => {
-    const tex = new THREE.CanvasTexture(emissiveCanvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
+    const tex = new CanvasTexture(emissiveCanvas);
+    tex.colorSpace = SRGBColorSpace;
     return tex;
   }, [emissiveCanvas]);
 
@@ -161,7 +161,7 @@ export const DigitalClock = forwardRef<THREE.Mesh, DigitalClockProps>(({
         <meshStandardMaterial
           attach="material-4"
           map={baseTexture}
-          emissive={new THREE.Color(8, 8, 8)}
+          emissive={new Color(8, 8, 8)}
           emissiveIntensity={emissiveIntensity * 12}
           emissiveMap={emissiveTexture}
           toneMapped={false}

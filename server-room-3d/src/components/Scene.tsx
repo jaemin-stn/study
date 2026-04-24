@@ -13,7 +13,7 @@ import { ImportedModelMesh } from "./ImportedModelMesh";
 import { CameraController } from "./CameraController";
 import { GRID_SPACING } from "./constants";
 import { useTheme } from "../contexts/ThemeContext";
-import * as THREE from "three";
+import { Plane, Vector3 } from 'three';
 
 /** Syncs camera & controls refs into zustand store for viewport-center spawning */
 const CameraRefSync = () => {
@@ -34,10 +34,10 @@ const DragHandler = () => {
 
   const { raycaster, mouse, camera } = useThree();
   const floorPlane = useMemo(
-    () => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+    () => new Plane(new Vector3(0, 1, 0), 0),
     [],
   );
-  const tempPoint = useMemo(() => new THREE.Vector3(), []);
+  const tempPoint = useMemo(() => new Vector3(), []);
 
   useFrame(() => {
     if (isDragging && draggingRackId) {

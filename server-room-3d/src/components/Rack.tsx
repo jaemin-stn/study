@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, forwardRef, Suspense, memo } from "react";
 import { RoundedBox, useTexture, Billboard, Html } from "@react-three/drei";
 import { animated, useSpring } from "@react-spring/three";
 import { type ThreeEvent, useThree, useFrame } from "@react-three/fiber";
-import * as THREE from "three";
+import { BoxGeometry, CanvasTexture, Color, DoubleSide, Euler, Mesh, MeshStandardMaterial, Object3D, Plane, RepeatWrapping, Vector3 } from 'three';
 import { useStore } from "../store/useStore";
 import type { AppState } from "../store/useStore";
 import { useTheme } from "../contexts/ThemeContext";
@@ -14,20 +14,20 @@ import { resolveDeviceImage } from "../utils/deviceAssets";
 
 // ─── Phase 1-A: 모듈 레벨 공유 Geometry (모든 Rack이 재사용) ───
 const SHARED_GEO = {
-  topBottom:   new THREE.BoxGeometry(1, 0.03, 1),
-  cornerPost:  new THREE.BoxGeometry(0.02, 1, 0.02),
-  hBrace:      new THREE.BoxGeometry(1, 0.02, 0.02),
-  frontRail:   new THREE.BoxGeometry(0.03, 1, 0.03),
-  backRail:    new THREE.BoxGeometry(0.02, 1, 0.02),
-  rearBezel:   new THREE.BoxGeometry(1, 1, 0.01),
-  doorHBar:    new THREE.BoxGeometry(1, 0.04, 0.02),
-  doorVBar:    new THREE.BoxGeometry(0.04, 1, 0.02),
-  interactBox: new THREE.BoxGeometry(1, 1, 1),
+  topBottom:   new BoxGeometry(1, 0.03, 1),
+  cornerPost:  new BoxGeometry(0.02, 1, 0.02),
+  hBrace:      new BoxGeometry(1, 0.02, 0.02),
+  frontRail:   new BoxGeometry(0.03, 1, 0.03),
+  backRail:    new BoxGeometry(0.02, 1, 0.02),
+  rearBezel:   new BoxGeometry(1, 1, 0.01),
+  doorHBar:    new BoxGeometry(1, 0.04, 0.02),
+  doorVBar:    new BoxGeometry(0.04, 1, 0.02),
+  interactBox: new BoxGeometry(1, 1, 1),
 };
 
 // ─── Phase 1-B: perforatedTexture 모듈 레벨 캐시 ───
-const _perforatedCache = new Map<number, THREE.CanvasTexture>();
-function getPerforatedTexture(rackSize: number): THREE.CanvasTexture {
+const _perforatedCache = new Map<number, CanvasTexture>();
+function getPerforatedTexture(rackSize: number): CanvasTexture {
   if (_perforatedCache.has(rackSize)) return _perforatedCache.get(rackSize)!;
   const size = 64;
   const canvas = document.createElement("canvas");
@@ -42,8 +42,8 @@ function getPerforatedTexture(rackSize: number): THREE.CanvasTexture {
     ctx.arc(size / 2, size / 2, size * 0.35, 0, Math.PI * 2);
     ctx.fill();
   }
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  const tex = new CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = RepeatWrapping;
   const density = 40;
   const panelW = 1.0 - 0.04;
   const panelH = rackSize * U_HEIGHT + 0.1 - 0.06;
@@ -92,10 +92,10 @@ export const Rack = memo(({
 
   const { raycaster, mouse, camera } = useThree();
   const floorPlane = useMemo(
-    () => new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+    () => new Plane(new Vector3(0, 1, 0), 0),
     [],
   );
-  const tempPoint = useMemo(() => new THREE.Vector3(), []);
+  const tempPoint = useMemo(() => new Vector3(), []);
 
   // Phase 1-B: 캐시된 perforatedTexture 사용
   const perforatedTexture = useMemo(() => getPerforatedTexture(rackSize), [rackSize]);
@@ -141,7 +141,7 @@ export const Rack = memo(({
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
     // Determine if the raycaster intersected a PivotControls gizmo (or the model it controls)
     const hitGizmo = e.intersections.some((hit) => {
-      let obj: THREE.Object3D | null = hit.object;
+      let obj: Object3D | null = hit.object;
       while (obj) {
         if (obj.userData && obj.userData.isGizmo) return true;
         obj = obj.parent;
@@ -196,9 +196,9 @@ export const Rack = memo(({
 
   return (
     <animated.group
-      position={pos as unknown as THREE.Vector3}
-      rotation={rot as unknown as THREE.Euler}
-      scale={scale as unknown as THREE.Vector3}
+      position={pos as unknown as Vector3}
+      rotation={rot as unknown as Euler}
+      scale={scale as unknown as Vector3}
     >
       {/* 1. STRUCTURAL FRAME (Main Skeleton) */}
       <group>
@@ -266,7 +266,7 @@ export const Rack = memo(({
                   alphaMap={perforatedTexture}
                   transparent
                   alphaTest={0.5}
-                  side={THREE.DoubleSide}
+                  side={DoubleSide}
                   depthWrite={false}
                 />
               </mesh>
@@ -290,7 +290,7 @@ export const Rack = memo(({
                   alphaMap={perforatedTexture}
                   transparent
                   alphaTest={0.5}
-                  side={THREE.DoubleSide}
+                  side={DoubleSide}
                   depthWrite={false}
                 />
               </mesh>
@@ -346,7 +346,7 @@ export const Rack = memo(({
             color={rearPanelColor}
             roughness={0.9}
             metalness={0.6}
-            side={THREE.DoubleSide}
+            side={DoubleSide}
           />
         </mesh>
       </group>
@@ -530,8 +530,8 @@ const DeviceMesh = ({
   rackWidth: number;
   onSelect: () => void;
 }) => {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const faceplateRef = useRef<THREE.Mesh>(null);
+  const meshRef = useRef<Mesh>(null);
+  const faceplateRef = useRef<Mesh>(null);
   const highlightedDeviceId = useStore((s) => s.highlightedDeviceId);
   const isHighlighted = highlightedDeviceId === device.itemId || (device.deviceId && highlightedDeviceId === device.deviceId);
 
@@ -553,20 +553,20 @@ const DeviceMesh = ({
   const needsAnimation = isHighlighted || (hasError && !!errorColor);
 
   // Cache Color objects to avoid per-frame allocation
-  const highlightColor = useMemo(() => new THREE.Color("#4dabf7"), []);
-  const blackColor = useMemo(() => new THREE.Color("#000000"), []);
+  const highlightColor = useMemo(() => new Color("#4dabf7"), []);
+  const blackColor = useMemo(() => new Color("#000000"), []);
 
   // Reset emissive once when animation stops (instead of every frame)
   useEffect(() => {
     if (!needsAnimation) {
       const bodyMat = meshRef.current?.material;
       const faceMat = faceplateRef.current?.material;
-      if (bodyMat instanceof THREE.MeshStandardMaterial) {
+      if (bodyMat instanceof MeshStandardMaterial) {
         bodyMat.emissive.copy(blackColor);
         bodyMat.emissiveIntensity = 0;
         bodyMat.opacity = 1.0;
       }
-      if (faceMat instanceof THREE.MeshStandardMaterial) {
+      if (faceMat instanceof MeshStandardMaterial) {
         faceMat.emissive.copy(blackColor);
         faceMat.emissiveIntensity = 0;
         faceMat.opacity = 1.0;
@@ -585,11 +585,11 @@ const DeviceMesh = ({
       const pulse =
         0.5 + Math.sin(clock.getElapsedTime() * Math.PI * 1.6) * 0.5;
 
-      if (bodyMat instanceof THREE.MeshStandardMaterial) {
+      if (bodyMat instanceof MeshStandardMaterial) {
         bodyMat.emissive.copy(highlightColor);
         bodyMat.emissiveIntensity = pulse * 4;
       }
-      if (faceMat instanceof THREE.MeshStandardMaterial) {
+      if (faceMat instanceof MeshStandardMaterial) {
         faceMat.emissive.copy(highlightColor);
         faceMat.emissiveIntensity = pulse * 4;
       }
@@ -597,11 +597,11 @@ const DeviceMesh = ({
       const intensity =
         0.5 + Math.sin(clock.getElapsedTime() * Math.PI * 3) * 0.5;
 
-      if (bodyMat instanceof THREE.MeshStandardMaterial) {
+      if (bodyMat instanceof MeshStandardMaterial) {
         bodyMat.emissive.set(errorColor);
         bodyMat.emissiveIntensity = intensity;
       }
-      if (faceMat instanceof THREE.MeshStandardMaterial) {
+      if (faceMat instanceof MeshStandardMaterial) {
         faceMat.emissive.set(errorColor);
         faceMat.emissiveIntensity = intensity;
       }
@@ -669,7 +669,7 @@ const DeviceMesh = ({
 };
 
 const ImageFaceplate = forwardRef<
-  THREE.Mesh,
+  Mesh,
   {
     url: string;
     width: number;
@@ -687,7 +687,7 @@ const ImageFaceplate = forwardRef<
 });
 
 const DeviceFaceplate = forwardRef<
-  THREE.Mesh,
+  Mesh,
   {
     type: Device["type"];
     width: number;

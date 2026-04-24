@@ -14,7 +14,7 @@ import {
   getEffectiveDimensions,
 } from "../utils/rackGeometry";
 import { migrateGroupNameToNodeId, NONE_NODE_ID } from "../utils/nodeUtils";
-import * as THREE from "three";
+import { Camera, Plane, Raycaster, Vector2, Vector3 } from 'three';
 import { layoutsEqual } from "../utils/comparison";
 
 export interface CameraState {
@@ -57,7 +57,7 @@ export interface AppState {
   layouts: Record<string, { racks: Rack[]; importedModels: ImportedModel[] }>;
 
   // Camera reference for viewport-center spawning
-  _cameraRef: THREE.Camera | null;
+  _cameraRef: Camera | null;
   _controlsRef: any | null;
 
   // Imported 3D Models
@@ -100,7 +100,7 @@ export interface AppState {
 
   // Actions
   reparentNode: (nodeId: string, newParentId: string | null) => void;
-  setCameraRef: (camera: THREE.Camera, controls: any) => void;
+  setCameraRef: (camera: Camera, controls: any) => void;
   setHoveredRack: (id: string | null) => void;
   setActiveNode: (nodeId: string | null) => void;
   setImportExportModalRackId: (id: string | null) => void;
@@ -884,17 +884,17 @@ export const useStore = create<AppState>()(
     if (position) {
       spawnPos = position;
     } else if (_cameraRef) {
-      const raycaster = new THREE.Raycaster();
-      const center = new THREE.Vector2(0, 0);
+      const raycaster = new Raycaster();
+      const center = new Vector2(0, 0);
       raycaster.setFromCamera(center, _cameraRef);
-      const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-      const hitPoint = new THREE.Vector3();
+      const groundPlane = new Plane(new Vector3(0, 1, 0), 0);
+      const hitPoint = new Vector3();
       if (raycaster.ray.intersectPlane(groundPlane, hitPoint)) {
         const gridX = Math.round((hitPoint.x / GRID_SPACING) * 15) / 15;
         const gridZ = Math.round((hitPoint.z / GRID_SPACING) * 15) / 15;
         spawnPos = [gridX, gridZ];
       } else {
-        const dir = new THREE.Vector3();
+        const dir = new Vector3();
         _cameraRef.getWorldDirection(dir);
         const fallback = _cameraRef.position.clone().add(dir.multiplyScalar(5));
         const gridX = Math.round((fallback.x / GRID_SPACING) * 15) / 15;
@@ -1954,11 +1954,11 @@ export const useStore = create<AppState>()(
       spawnPos[2] === 0 &&
       _cameraRef
     ) {
-      const raycaster = new THREE.Raycaster();
-      const center = new THREE.Vector2(0, 0);
+      const raycaster = new Raycaster();
+      const center = new Vector2(0, 0);
       raycaster.setFromCamera(center, _cameraRef);
-      const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
-      const hitPoint = new THREE.Vector3();
+      const groundPlane = new Plane(new Vector3(0, 1, 0), 0);
+      const hitPoint = new Vector3();
 
       if (raycaster.ray.intersectPlane(groundPlane, hitPoint)) {
         const gridX =

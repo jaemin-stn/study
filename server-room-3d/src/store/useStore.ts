@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { idbStorage } from "../utils/indexedDBStorage";
 import type {
   Rack,
   Device,
@@ -2193,6 +2194,7 @@ export const useStore = create<AppState>()(
         } = state;
         return rest;
       },
+      storage: createJSONStorage(() => idbStorage),
     }
   )
 );

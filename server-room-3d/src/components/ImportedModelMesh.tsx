@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useRef, useMemo, Suspense } from "react";
 import { type ThreeEvent } from "@react-three/fiber";
 import { useGLTF, Html, Billboard, PivotControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -10,6 +10,7 @@ import {
   DEFAULT_LIGHT_PARAMS,
 } from "../utils/builtinModels";
 import { DigitalClock } from "./DigitalClock";
+import { GltfErrorBoundary } from "./GltfErrorBoundary";
 
 interface ImportedModelMeshProps {
   model: ImportedModel;
@@ -251,48 +252,30 @@ const LightMesh = ({ model }: { model: ImportedModel }) => {
 /* ------------------------------------------------------------------ */
 const GltfMesh = ({ url }: { url: string }) => {
   const { scene: gltfScene } = useGLTF(url);
-  const [clonedScene, setClonedScene] = useState<THREE.Group | null>(null);
 
-  useEffect(() => {
-    if (gltfScene) {
-      const clone = gltfScene.clone(true);
+  const cloned = useMemo(() => {
+    if (!gltfScene) return null;
+    const clone = gltfScene.clone(true);
 
-      // Calculate bounding box for auto-centering
-      const box = new THREE.Box3().setFromObject(clone);
-      const center = new THREE.Vector3();
-      box.getCenter(center);
+    // Calculate bounding box for auto-centering
+    const box = new THREE.Box3().setFromObject(clone);
+    const center = new THREE.Vector3();
+    box.getCenter(center);
 
-      // Center X, Z and set bottom (min Y) to 0 so it sits on the floor
-      clone.position.set(-center.x, -box.min.y, -center.z);
+    // Center X, Z and set bottom (min Y) to 0 so it sits on the floor
+    clone.position.set(-center.x, -box.min.y, -center.z);
 
-      clone.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-        }
-      });
-      setClonedScene(clone);
-    }
-    return () => {
-      if (clonedScene) {
-        clonedScene.traverse((child) => {
-          if ((child as THREE.Mesh).isMesh) {
-            const mesh = child as THREE.Mesh;
-            mesh.geometry?.dispose();
-            if (Array.isArray(mesh.material)) {
-              mesh.material.forEach((m) => m.dispose());
-            } else {
-              mesh.material?.dispose();
-            }
-          }
-        });
+    clone.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
       }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    });
+    return clone;
   }, [gltfScene]);
 
-  if (!clonedScene) return null;
-  return <primitive object={clonedScene} />;
+  if (!cloned) return null;
+  return <primitive object={cloned} />;
 };
 
 /* ------------------------------------------------------------------ */
@@ -311,6 +294,29 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
 
   const updateModel = useStore((s) => s.updateModel);
   const setModelDragging = useStore((s) => s.setModelDragging);
+
+
+  // Live pose ref — stores the current transform while dragging without triggering re-renders
+  const livePose = useRef<{
+    position: [number, number, number];
+    rotation: [number, number, number];
+    scale: [number, number, number];
+  }>({
+    position: [...model.position],
+    rotation: [...model.rotation],
+    scale: [...model.scale],
+  });
+
+  // Keep livePose in sync with store when NOT dragging
+  const isDragging = useRef(false);
+  useEffect(() => {
+    if (isDragging.current) return;
+    livePose.current = {
+      position: [...model.position],
+      rotation: [...model.rotation],
+      scale: [...model.scale],
+    };
+  }, [model.position, model.rotation, model.scale]);
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
     const { isEditMode: editMode, selectRack, selectModel } = useStore.getState();
@@ -351,6 +357,7 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
           ? [0, 0.03, 0]
           : [0, 0, 0];
 
+  // matrix used by PivotControls — derived from live pose ref while dragging
   const matrix = useMemo(() => {
     const m = new THREE.Matrix4();
     m.compose(
@@ -359,7 +366,10 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
       new THREE.Vector3(...model.scale),
     );
     return m;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model.position, model.rotation, model.scale]);
+
+  const shouldTransform = isSelected && isEditMode && isMoveEnabled;
 
   const innerContent = (
     <group
@@ -388,7 +398,11 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
       ) : isLight ? (
         <LightMesh model={model} />
       ) : (
-        <GltfMesh url={model.dataUrl} />
+        <GltfErrorBoundary key={model.id}>
+          <Suspense fallback={null}>
+            <GltfMesh url={model.dataUrl} />
+          </Suspense>
+        </GltfErrorBoundary>
       )}
 
       {/* Selection highlight box */}
@@ -451,8 +465,6 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
     </group>
   );
 
-  const shouldTransform = isSelected && isEditMode && isMoveEnabled;
-
   return (
     <>
       {shouldTransform ? (
@@ -465,21 +477,34 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
           scale={75}
           lineWidth={2.5}
           disableSliders={false}
-          onDragStart={() => setModelDragging(model.id)}
+          onDragStart={() => {
+            isDragging.current = true;
+            setModelDragging(model.id);
+          }}
           onDrag={(m) => {
+            // Decompose the matrix and apply directly to group (NO store update here)
             const p = new THREE.Vector3();
             const r = new THREE.Quaternion();
             const s = new THREE.Vector3();
             m.decompose(p, r, s);
             const euler = new THREE.Euler().setFromQuaternion(r);
-            updateModel(model.id, {
+
+            livePose.current = {
               position: [p.x, p.y, p.z],
               rotation: [euler.x, euler.y, euler.z],
               scale: [s.x, s.y, s.z],
-            });
+            };
+            // PivotControls handles its own rendering; no need to mutate groupRef here
           }}
           onDragEnd={() => {
+            isDragging.current = false;
             setModelDragging(null);
+            // Commit final pose to store ONCE on drag end
+            updateModel(model.id, {
+              position: livePose.current.position,
+              rotation: livePose.current.rotation,
+              scale: livePose.current.scale,
+            });
           }}
         >
           {innerContent}

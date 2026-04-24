@@ -504,6 +504,21 @@ function App() {
               >
                 <SparklesIcon /> Sample
               </button>
+              <button
+                className="grafana-btn grafana-btn-md grafana-btn-tertiary"
+                onClick={() => {
+                  if (confirm("정말 모든 데이터를 초기화하시겠습니까?")) {
+                    localStorage.removeItem("server-room-storage");
+                    try {
+                      indexedDB.deleteDatabase("server-room-db");
+                    } catch(e) {}
+                    window.location.reload();
+                  }
+                }}
+                style={{ color: "var(--severity-critical)" }}
+              >
+                초기화
+              </button>
             </div>
           </>
         )}

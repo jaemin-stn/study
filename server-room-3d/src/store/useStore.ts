@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import type {
   Rack,
   Device,
@@ -344,7 +345,9 @@ export const checkFrontClearanceViolation = (
   return false;
 };
 
-export const useStore = create<AppState>((set, get) => ({
+export const useStore = create<AppState>()(
+  persist(
+    (set, get) => ({
   racks: [],
   registeredDevices: [],
   selectedRackId: null,
@@ -2158,4 +2161,38 @@ export const useStore = create<AppState>((set, get) => ({
       return { nodes: updatedNodes };
     });
   },
-}));
+}),
+    {
+      name: "server-room-storage",
+      partialize: (state) => {
+        const {
+          _cameraRef,
+          _controlsRef,
+          pendingImportFile,
+          toast,
+          blinkTimeoutId,
+          isDragging,
+          draggingRackId,
+          dragPosition,
+          dragOffset,
+          draggingModelId,
+          modelDragPosition,
+          modelDragOffset,
+          importExportModalRackId,
+          deviceDeleteConfirm,
+          deviceRegistrationModalOpen,
+          undoStack,
+          baselineRacks,
+          baselineModels,
+          baselineNodes,
+          showUnsavedDialog,
+          pendingAction,
+          triggerFitToScene,
+          expandedNodeIds,
+          ...rest
+        } = state;
+        return rest;
+      },
+    }
+  )
+);

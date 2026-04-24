@@ -7,12 +7,25 @@ import { FocusCarousel } from "./components/FocusCarousel";
 import { Breadcrumb } from "./components/Breadcrumb";
 import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
 
-const DeviceModal = React.lazy(() => import("./components/DeviceModal").then((m) => ({ default: m.DeviceModal })));
-const ImportExportModal = React.lazy(() => import("./components/ImportExportModal").then((m) => ({ default: m.ImportExportModal })));
-const ModelImporter = React.lazy(() => import("./components/ModelImporter").then((m) => ({ default: m.ModelImporter })));
-const DeviceRegistrationModal = React.lazy(() => import("./components/DeviceRegistrationModal").then((m) => ({ default: m.DeviceRegistrationModal })));
+const DeviceModal = React.lazy(() =>
+  import("./components/DeviceModal").then((m) => ({ default: m.DeviceModal })),
+);
+const ImportExportModal = React.lazy(() =>
+  import("./components/ImportExportModal").then((m) => ({
+    default: m.ImportExportModal,
+  })),
+);
+const ModelImporter = React.lazy(() =>
+  import("./components/ModelImporter").then((m) => ({
+    default: m.ModelImporter,
+  })),
+);
+const DeviceRegistrationModal = React.lazy(() =>
+  import("./components/DeviceRegistrationModal").then((m) => ({
+    default: m.DeviceRegistrationModal,
+  })),
+);
 import {
-
   ArrowUpTrayIcon,
   ArrowDownTrayIcon,
   SparklesIcon,

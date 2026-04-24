@@ -164,6 +164,10 @@ const TREE_STYLES = `
   flex-shrink: 0;
   font-weight: 500;
 }
+.tree-node.selected .tree-node-count {
+  background: var(--theme-primary);
+  color: #ffffff;
+}
 .tree-inline-input {
   flex: 1;
   background: var(--bg-secondary);

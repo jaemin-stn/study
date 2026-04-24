@@ -595,7 +595,7 @@ const DeviceMesh = ({
       }
     } else if (hasError && errorColor) {
       const intensity =
-        0.3 + Math.sin(clock.getElapsedTime() * Math.PI * 2) * 0.3;
+        0.5 + Math.sin(clock.getElapsedTime() * Math.PI * 3) * 0.5;
 
       if (bodyMat instanceof THREE.MeshStandardMaterial) {
         bodyMat.emissive.set(errorColor);

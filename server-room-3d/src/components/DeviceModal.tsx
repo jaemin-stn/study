@@ -31,23 +31,22 @@ function ensureKeyframe(name: string, color: string) {
   injectedKeyframes.add(name);
   const style = document.createElement("style");
   style.dataset.portAnim = name;
-  // fill: 0%=55(33%), 50%=dd(87%) — 눈에 잘 보이도록 불투명도 높임
-  // filter: drop-shadow 글로우 효과
+  // 에러 포트가 더 뚜렷하게 보이도록 투명도 조정 및 글로우 효과 강화 (대비 증가)
   style.textContent = `
     @keyframes ${name} {
       0%,100% {
-        fill: ${color}55;
+        fill: ${color}33;
         stroke: ${color};
         stroke-width: 3;
-        filter: drop-shadow(0 0 3px ${color}aa);
+        filter: drop-shadow(0 0 2px ${color});
         opacity: 1;
       }
       50% {
-        fill: ${color}dd;
+        fill: ${color};
         stroke: ${color};
         stroke-width: 3;
-        filter: drop-shadow(0 0 7px ${color});
-        opacity: 0.55;
+        filter: drop-shadow(0 0 12px ${color});
+        opacity: 1;
       }
     }
   `;
@@ -156,10 +155,10 @@ const SvgPortView = ({
       const targetId = portEl.id;
       const animName = `port-blink-v2-${targetId.replace(/[^a-z0-9]/gi, "-")}`;
       ensureKeyframe(animName, color);
-      portEl.style.fill = `${color}55`;
+      portEl.style.fill = `${color}33`;
       portEl.style.stroke = color;
       portEl.style.strokeWidth = "3";
-      portEl.style.animation = `${animName} 0.9s ease-in-out infinite`;
+      portEl.style.animation = `${animName} 1.2s ease-in-out infinite`;
     });
 
     // ── Tooltip 이벤트 ──────────────────────────────────────────────────────
@@ -439,7 +438,8 @@ export const DeviceModal = () => {
       <div
         className="grafana-modal"
         style={{
-          width: "680px",
+          width: "880px",
+          maxWidth: "880px",
           maxHeight: "90vh",
           display: "flex",
           flexDirection: "column",
@@ -492,49 +492,20 @@ export const DeviceModal = () => {
             />
           )}
 
-          {/* Legend */}
-          <div
-            style={{
-              display: "flex",
-              gap: "24px",
-              marginTop: "16px",
-              fontSize: "var(--font-size-sm)",
-            }}
-          >
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div className="grafana-status-dot grafana-status-dot-active" />
-              <span style={{ color: "var(--text-secondary)" }}>
-                Operational
-              </span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div
-                style={{
-                  width: "10px",
-                  height: "10px",
-                  borderRadius: "50%",
-                  backgroundColor: "var(--severity-critical)",
-                  boxShadow: "0 0 6px var(--severity-critical)",
-                }}
-              />
-              <span style={{ color: "var(--text-secondary)" }}>Error</span>
-            </div>
-          </div>
-
           {/* Active Faults – status === 'error' 포트만 표시 */}
           {errorPorts.length > 0 && (
             <div
               style={{
                 marginTop: "16px",
                 padding: "16px",
-                backgroundColor: "var(--severity-critical-bg)",
-                borderLeft: "4px solid var(--severity-critical)",
+                backgroundColor: "var(--bg-tertiary)",
+                borderLeft: "4px solid var(--text-secondary)",
                 borderRadius: "var(--radius-md)",
               }}
             >
               <h4
                 style={{
-                  color: "var(--severity-critical-text)",
+                  color: "var(--text-primary)",
                   margin: "0 0 12px 0",
                   fontSize: "var(--font-size-md)",
                   fontWeight: "var(--font-weight-semibold)",
@@ -570,7 +541,7 @@ export const DeviceModal = () => {
                       }}
                     >
                       <strong
-                        style={{ color: "var(--severity-critical-text)" }}
+                        style={{ color: "var(--text-primary)" }}
                       >
                         {displayPort}
                       </strong>

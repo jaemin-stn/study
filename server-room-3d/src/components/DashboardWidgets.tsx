@@ -1,3 +1,4 @@
+import { useShallow } from "zustand/react/shallow";
 import { useState, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import type { ErrorLevel } from "../types";
@@ -103,9 +104,7 @@ const MOCK_SENSOR_DATA: Record<string, SensorData> = {
 };
 
 export const DashboardWidgets = () => {
-  const racks = useStore((state) => state.racks);
   const nodes = useStore((state) => state.nodes);
-  const layouts = useStore((state) => state.layouts);
   const activeNodeId = useStore((state) => state.activeNodeId);
   const setActiveNode = useStore((state) => state.setActiveNode);
   const selectRack = useStore((state) => state.selectRack);
@@ -116,15 +115,17 @@ export const DashboardWidgets = () => {
   );
 
   // Collect ALL racks from ALL nodes
-  const allRacks = useMemo(() => {
-    const result = [...racks]; // Current active node racks (including unsaved edits)
-    Object.entries(layouts).forEach(([nid, layout]) => {
-      if (nid !== activeNodeId) {
-        result.push(...(layout.racks || []));
-      }
-    });
-    return result;
-  }, [racks, layouts, activeNodeId]);
+  const allRacks = useStore(
+    useShallow((state) => {
+      const result = [...state.racks];
+      Object.entries(state.layouts).forEach(([nid, layout]) => {
+        if (nid !== state.activeNodeId) {
+          result.push(...(layout.racks || []));
+        }
+      });
+      return result;
+    })
+  );
 
   // Collect all errors from all racks
   const allErrors = useMemo<ErrorItem[]>(() => {

@@ -124,9 +124,19 @@ export const PortErrorSynchronizer = () => {
       }
     };
 
+    let debounceTimer: ReturnType<typeof setTimeout>;
+
     if (racks.length > 0) {
-      synchronizePorts();
+      debounceTimer = setTimeout(() => {
+        synchronizePorts();
+      }, 300);
     }
+
+    return () => {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+    };
   }, [racks, layouts, activeNodeId, updateDevicePortStates]);
 
   return null;

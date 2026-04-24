@@ -54,6 +54,7 @@ export const DigitalClock = forwardRef<Mesh, DigitalClockProps>(({
   }, []);
 
   const lastTimeRef = useRef(0);
+  const staticDrawnRef = useRef(false);
 
   useFrame((state) => {
     const now = Math.floor(state.clock.elapsedTime);
@@ -73,27 +74,17 @@ export const DigitalClock = forwardRef<Mesh, DigitalClockProps>(({
     const day = String(time.getDate()).padStart(2, '0');
     const dayName = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][time.getDay()] + '.';
 
-    // Clear both
-    ctx.fillStyle = '#000000';
-    ctx.fillRect(0, 0, 1100, 700);
-    emissiveCtx.fillStyle = '#000000';
-    emissiveCtx.fillRect(0, 0, 1100, 700);
+    // 1. Draw static background to Base Canvas (only once)
+    if (!staticDrawnRef.current && fontsLoaded) {
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, 1100, 700);
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 10;
+      ctx.strokeRect(0, 0, 1100, 700);
 
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 10;
-    ctx.strokeRect(0, 0, 1100, 700);
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
 
-    if (fontsLoaded) {
-      // Common settings
-      const drawSettings = (c: CanvasRenderingContext2D) => {
-        c.textAlign = 'left';
-        c.textBaseline = 'top';
-      };
-
-      drawSettings(ctx);
-      drawSettings(emissiveCtx);
-
-      // 1. Draw static background numbers to Base Canvas (non-glowing)
       ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
       ctx.font = 'italic 80px "D7MI"';
       ctx.fillText('8888-88-88', 90, 60);
@@ -107,7 +98,44 @@ export const DigitalClock = forwardRef<Mesh, DigitalClockProps>(({
       ctx.fillText('88.8', 193, 520);
       ctx.fillText('88', 780, 520);
 
-      // 2. Draw actual values to Emissive Canvas (Glowing)
+      const labelFont = '50px "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
+      const labelColor = 'white';
+      let curX = 75;
+
+      ctx.font = labelFont; ctx.fillStyle = labelColor; ctx.fillText('온도 ', curX, 520 + 60);
+      curX += ctx.measureText('온도 ').width;
+
+      emissiveCtx.font = 'italic 110px "D7MBI"';
+      curX += emissiveCtx.measureText('24.5').width;
+
+      ctx.font = labelFont; ctx.fillStyle = labelColor; ctx.fillText(' ℃    |   습도 ', curX, 520 + 60);
+      curX += ctx.measureText(' ℃    |   습도 ').width;
+
+      emissiveCtx.font = 'italic 110px "D7MBI"';
+      curX += emissiveCtx.measureText('42').width;
+
+      ctx.font = labelFont; ctx.fillStyle = labelColor; ctx.fillText(' %', curX, 520 + 60);
+
+      staticDrawnRef.current = true;
+      baseTexture.needsUpdate = true;
+    } else if (!fontsLoaded && !staticDrawnRef.current) {
+      // Temporary background before fonts load
+      ctx.fillStyle = '#000000';
+      ctx.fillRect(0, 0, 1100, 700);
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 10;
+      ctx.strokeRect(0, 0, 1100, 700);
+      baseTexture.needsUpdate = true;
+    }
+
+    // 2. Always redraw dynamic Emissive Canvas
+    emissiveCtx.fillStyle = '#000000';
+    emissiveCtx.fillRect(0, 0, 1100, 700);
+
+    if (fontsLoaded) {
+      emissiveCtx.textAlign = 'left';
+      emissiveCtx.textBaseline = 'top';
+
       emissiveCtx.fillStyle = 'rgba(81, 255, 0, 1)';
       emissiveCtx.font = 'italic 80px "D7MI"';
       emissiveCtx.fillText(`${year}-${month}-${day}`, 90, 60);
@@ -120,33 +148,26 @@ export const DigitalClock = forwardRef<Mesh, DigitalClockProps>(({
       emissiveCtx.font = 'italic bold 110px "D7MBI"';
       emissiveCtx.fillText(seconds, 860, 330);
 
-      // 3. Draw labels to Base Canvas (non-glowing)
       const labelFont = '50px "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
-      const labelColor = 'white';
       const valueColor = 'rgba(26, 240, 255, 1)';
       let curX = 75;
 
-      ctx.font = labelFont; ctx.fillStyle = labelColor; ctx.fillText('온도 ', curX, 520 + 60);
+      ctx.font = labelFont;
       curX += ctx.measureText('온도 ').width;
 
-      // Draw dynamic value to Emissive
       emissiveCtx.font = 'italic 110px "D7MBI"'; emissiveCtx.fillStyle = valueColor; emissiveCtx.fillText('24.5', curX, 520);
       curX += emissiveCtx.measureText('24.5').width;
 
-      ctx.font = labelFont; ctx.fillStyle = labelColor; ctx.fillText(' ℃    |   습도 ', curX, 520 + 60);
+      ctx.font = labelFont;
       curX += ctx.measureText(' ℃    |   습도 ').width;
 
-      // Draw dynamic value to Emissive
       emissiveCtx.font = 'italic 110px "D7MBI"'; emissiveCtx.fillStyle = valueColor; emissiveCtx.fillText('42', curX, 520);
-      curX += emissiveCtx.measureText('42').width;
-
-      ctx.font = labelFont; ctx.fillStyle = labelColor; ctx.fillText(' %', curX, 520 + 60);
     } else {
       emissiveCtx.fillStyle = 'white'; emissiveCtx.font = 'bold 100px sans-serif'; emissiveCtx.textAlign = 'center';
+      emissiveCtx.textBaseline = 'alphabetic';
       emissiveCtx.fillText(`${hours}:${minutes}:${seconds}`, 1100 / 2, 350);
     }
 
-    baseTexture.needsUpdate = true;
     emissiveTexture.needsUpdate = true;
   });
 

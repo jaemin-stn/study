@@ -958,8 +958,7 @@ body {
 }
 
 .weather-humidity-percent {
-  font-size: 11px;
-  color: var(--text-secondary);
+  font-weight: 600;
   text-align: right;
 }
 

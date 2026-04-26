@@ -35,17 +35,22 @@ export const CameraController = () => {
     const currentState = useStore.getState();
     const storedSnapshot = currentState.preFocusCameraState;
 
-
-
     // If focus is specifically cleared (from non-null to null), and we have a snapshot, trigger restoration
+    // BUT only if we're not about to focus a new rack (rack-to-rack transition)
     if (!isExplicitFocus && lastWasFocused.current && storedSnapshot) {
-      vTargetPos.current.set(...storedSnapshot.position);
-      vTargetLookAt.current.set(...storedSnapshot.target);
-      vTargetZoom.current = storedSnapshot.zoom;
-      isAnimating.current = true;
-      lastProcessedRackId.current = null;
+      // Check if a new focusedRackId is about to be set (rack-to-rack transition)
+      // In that case, skip restoration — the next setupFocus call will handle direct transition
+      if (!targetRackId) {
+        vTargetPos.current.set(...storedSnapshot.position);
+        vTargetLookAt.current.set(...storedSnapshot.target);
+        vTargetZoom.current = storedSnapshot.zoom;
+        isAnimating.current = true;
+        lastProcessedRackId.current = null;
+        lastWasFocused.current = false;
+        return;
+      }
+      // Rack-to-rack: don't restore, just update tracking and fall through to focus new rack
       lastWasFocused.current = false;
-      return;
     }
 
     // Only process if the target rack or focus state actually changes

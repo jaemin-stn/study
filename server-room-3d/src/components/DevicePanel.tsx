@@ -463,7 +463,7 @@ export const DevicePanel = () => {
     doMount(selectedRegDeviceId, start);
   };
 
-  const doMount = (regDeviceId: string, slot: number) => {
+  const doMount = (regDeviceId: string, slot: number, existingPortStates: PortState[] = []) => {
     const regDevice = findRegDevice(regDeviceId);
     if (!regDevice || !rack) return;
 
@@ -475,7 +475,7 @@ export const DevicePanel = () => {
       modelName: regDevice.modelName,
       vendor: regDevice.vendor,
       deviceId: regDevice.deviceId,
-      portStates: [] as PortState[],
+      portStates: existingPortStates,
     } as any; // Type assertion since itemId needs to be generated in useStore
 
     const success = addDevice(rack.rackId, device);
@@ -488,12 +488,18 @@ export const DevicePanel = () => {
 
   const handleRemountConfirm = () => {
     if (!remountPending || addModalSlot === null) return;
+    // Capture existing device's portStates before removal so error states survive the move
+    const srcRack = racks.find((r) => r.rackId === remountPending.existingRackId);
+    const srcDevice = srcRack?.devices.find(
+      (d) => d.deviceId === remountPending.existingDeviceId || d.itemId === remountPending.existingDeviceId,
+    );
+    const preservedPortStates = srcDevice?.portStates ?? [];
     // Remove from old rack first, then mount at new position
     removeDevice(
       remountPending.existingRackId,
       remountPending.existingDeviceId,
     );
-    doMount(remountPending.regDeviceId, addModalSlot);
+    doMount(remountPending.regDeviceId, addModalSlot, preservedPortStates);
     setRemountPending(null);
   };
 

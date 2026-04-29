@@ -61,10 +61,7 @@ function getPerforatedTexture(rackSize: number): CanvasTexture {
 // handlePointerDown fires FIRST, then DeviceMesh's onClick fires and reads this.
 let selectedRackIdBeforePointerDown: string | null = null;
 
-interface RackProps extends RackType {
-  draggingRackId: string | null;
-  dragPosition: [number, number] | null;
-}
+interface RackProps extends RackType {}
 
 export const Rack = memo(({
   rackId,
@@ -75,8 +72,6 @@ export const Rack = memo(({
   devices,
   mapId,
   orientation: orientationProp,
-  draggingRackId,
-  dragPosition,
 }: RackProps) => {
   // Boolean selectors: only re-render when THIS rack's selection state changes
   const isSelected = useStore((state: AppState) => state.selectedRackId === rackId);
@@ -85,7 +80,11 @@ export const Rack = memo(({
   const { theme } = useTheme();
 
   const isInternalFocused = isSelected || isFocused;
-  const isInternalDragging = draggingRackId === rackId;
+  
+  // Local subscription for drag state to prevent global re-renders
+  const isInternalDragging = useStore((state: AppState) => state.draggingRackId === rackId);
+  const dragPosition = useStore((state: AppState) => state.draggingRackId === rackId ? state.dragPosition : null);
+  
   const isDarkMode = theme === "dark";
   // Use orientation from props directly instead of searching store.racks
   const orientation = orientationProp ?? 180;
@@ -184,15 +183,16 @@ export const Rack = memo(({
   };
 
   const setHoveredRack = useStore((state: AppState) => state.setHoveredRack);
+  const isGlobalDragging = useStore((state: AppState) => state.isDragging);
   useEffect(() => {
     const { isEditMode } = useStore.getState();
-    if (isHovered && !draggingRackId && isEditMode) {
+    if (isHovered && !isGlobalDragging && isEditMode) {
       document.body.style.cursor = "grab";
-    } else if (!isHovered && !draggingRackId) {
+    } else if (!isHovered && !isGlobalDragging) {
       if (document.body.style.cursor === "grab")
         document.body.style.cursor = "auto";
     }
-  }, [isHovered, draggingRackId]);
+  }, [isHovered, isGlobalDragging]);
 
   return (
     <animated.group

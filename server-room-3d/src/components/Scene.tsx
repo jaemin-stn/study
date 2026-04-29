@@ -60,8 +60,6 @@ export const Scene = () => {
   const racks = useStore((state) => state.racks);
   const activeNodeId = useStore((state) => state.activeNodeId);
   const isDragging = useStore((state) => state.isDragging);
-  const draggingRackId = useStore((state) => state.draggingRackId);
-  const dragPosition = useStore((state) => state.dragPosition);
   const importedModels = useStore((state) => state.importedModels);
   const draggingModelId = useStore((state) => state.draggingModelId);
   const { theme } = useTheme();
@@ -188,8 +186,6 @@ export const Scene = () => {
           <Rack
             key={rack.rackId}
             {...rack}
-            draggingRackId={draggingRackId}
-            dragPosition={dragPosition}
           />
         ))}
 

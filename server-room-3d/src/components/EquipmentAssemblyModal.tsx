@@ -508,11 +508,14 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
             img.src = url;
           });
 
+          const SCALE = 4; // 썸네일 화질 개선을 위한 해상도 스케일업
           const canvas = document.createElement("canvas");
-          canvas.width = img.naturalWidth;
-          canvas.height = img.naturalHeight;
+          canvas.width = img.naturalWidth * SCALE;
+          canvas.height = img.naturalHeight * SCALE;
           const ctx = canvas.getContext("2d")!;
-          ctx.drawImage(img, 0, 0);
+          
+          // 크기를 키운 캔버스에 이미지를 그려 화질 보존
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           thumbnailDataUrl = canvas.toDataURL("image/png");
           URL.revokeObjectURL(url);
         }

@@ -618,7 +618,7 @@ const DeviceMesh = ({
     >
       {(() => {
         const resolvedUrl =
-          resolveDeviceImage(device.modelName);
+          device.dashboardThumbnailUrl || resolveDeviceImage(device.modelName);
 
         const content = (
           <>

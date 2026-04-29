@@ -15,12 +15,13 @@ import {
   ArrowDownTrayIcon,
   TrashIcon,
   PencilIcon,
-  SparklesIcon,
-  CloudArrowUpIcon,
   MagnifyingGlassIcon,
   ArchiveBoxIcon,
   ChevronDownIcon,
 } from "./Icons";
+import { EquipmentAssemblyModal } from "./EquipmentAssemblyModal";
+import { equipmentModels } from "../utils/cardAssets";
+import type { InsertedCard } from "../types/equipment";
 import { useStore } from "../store/useStore";
 import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
 import type { VendorName, HierarchyNode } from "../types";
@@ -33,7 +34,6 @@ import {
   getChildren,
   getAncestorPath,
   getSubtreeEquipmentCount,
-  getNodeEquipmentCount,
   getSubtreeNodeIds,
 } from "../utils/nodeUtils";
 import { getHighestError } from "../utils/errorHelpers";
@@ -1238,282 +1238,290 @@ const MODAL_STYLES = `
 }
 `;
 
+// Stable no-op function to avoid re-creating arrow functions on every render
+const NOOP: any = () => {};
+
 interface ToastState {
   message: string;
   type: "success" | "error";
   action?: "export" | "import" | "add" | "delete";
 }
 
-const TreeNodeItem = ({
-  node,
-  depth,
-  nodes,
-  selectedNodeId,
-  expandedIds,
-  nodeSearch,
-  registeredDevices,
-  onToggle,
-  onSelect,
-  isEditMode,
-  draggedNodeId,
-  dragOverNodeId,
-  onDragStart,
-  onDragOver,
-  onDragLeave,
-  onDrop,
-  onContextMenu,
-  onAddSubNode,
-  onDeleteNode,
-  onRenameNode,
-  renamingId,
-  setRenamingId,
-}: {
-  node: HierarchyNode;
-  depth: number;
-  nodes: HierarchyNode[];
-  selectedNodeId: string;
-  expandedIds: Set<string>;
-  nodeSearch: string;
-  registeredDevices: any[];
-  onToggle: (id: string) => void;
-  onSelect: (id: string) => void;
-  // Node management props
-  isEditMode: boolean;
-  draggedNodeId: string | null;
-  dragOverNodeId: string | null;
-  onDragStart: (id: string) => void;
-  onDragOver: (
-    e: React.DragEvent,
-    id: string,
-    position: "before" | "after" | "inside",
-  ) => void;
-  onDragLeave: () => void;
-  onDrop: (
-    e: React.DragEvent,
-    targetId: string,
-    position: "before" | "after" | "inside",
-  ) => void;
-  onContextMenu: (e: React.MouseEvent, nodeId: string) => void;
-  onAddSubNode: (parentId: string) => void;
-  onDeleteNode: (e: React.MouseEvent, node: HierarchyNode) => void;
-  onRenameNode: (node: HierarchyNode) => void;
-  renamingId: string | null;
-  setRenamingId: (id: string | null) => void;
-}) => {
-  const children = getChildren(nodes, node.nodeId);
-  const hasChildren = children.length > 0;
-  const isExpanded = expandedIds.has(node.nodeId);
-  const isSelected = selectedNodeId === node.nodeId;
-  const count = getNodeEquipmentCount(registeredDevices, node.nodeId);
+const TreeNodeItem = React.memo(
+  ({
+    node,
+    depth,
+    nodes,
+    selectedNodeId,
+    expandedIds,
+    nodeSearch,
+    equipCountMap,
+    onToggle,
+    onSelect,
+    isEditMode,
+    draggedNodeId,
+    dragOverNodeId,
+    onDragStart,
+    onDragOver,
+    onDragLeave,
+    onDrop,
+    onContextMenu,
+    onAddSubNode,
+    onDeleteNode,
+    onRenameNode,
+    renamingId,
+    setRenamingId,
+  }: {
+    node: HierarchyNode;
+    depth: number;
+    nodes: HierarchyNode[];
+    selectedNodeId: string;
+    expandedIds: Set<string>;
+    nodeSearch: string;
+    equipCountMap: Map<string, number>;
+    onToggle: (id: string) => void;
+    onSelect: (id: string) => void;
+    // Node management props
+    isEditMode: boolean;
+    draggedNodeId: string | null;
+    dragOverNodeId: string | null;
+    onDragStart: (id: string) => void;
+    onDragOver: (
+      e: React.DragEvent,
+      id: string,
+      position: "before" | "after" | "inside",
+    ) => void;
+    onDragLeave: () => void;
+    onDrop: (
+      e: React.DragEvent,
+      targetId: string,
+      position: "before" | "after" | "inside",
+    ) => void;
+    onContextMenu: (e: React.MouseEvent, nodeId: string) => void;
+    onAddSubNode: (parentId: string) => void;
+    onDeleteNode: (e: React.MouseEvent, node: HierarchyNode) => void;
+    onRenameNode: (node: HierarchyNode) => void;
+    renamingId: string | null;
+    setRenamingId: (id: string | null) => void;
+  }) => {
+    const children = getChildren(nodes, node.nodeId);
+    const hasChildren = children.length > 0;
+    const isExpanded = expandedIds.has(node.nodeId);
+    const isSelected = selectedNodeId === node.nodeId;
+    const count = equipCountMap.get(node.nodeId) || 0;
 
-  const isMatch =
-    nodeSearch && node.name.toLowerCase().includes(nodeSearch.toLowerCase());
+    const isMatch =
+      nodeSearch && node.name.toLowerCase().includes(nodeSearch.toLowerCase());
 
-  // Local edit states for renaming
-  const isRenaming = renamingId === node.nodeId;
-  const [renameValue, setRenameValue] = useState(node.name);
+    // Local edit states for renaming
+    const isRenaming = renamingId === node.nodeId;
+    const [renameValue, setRenameValue] = useState(node.name);
 
-  // Focus input when renaming starts
-  useEffect(() => {
-    if (isRenaming) {
-      setRenameValue(node.name);
-    }
-  }, [isRenaming, node.name]);
+    // Focus input when renaming starts
+    useEffect(() => {
+      if (isRenaming) {
+        setRenameValue(node.name);
+      }
+    }, [isRenaming, node.name]);
 
-  const handleRenameComplete = () => {
-    if (renameValue.trim() && renameValue !== node.name) {
-      onRenameNode({ ...node, name: renameValue.trim() });
-    }
-    setRenamingId(null);
-  };
-
-  const isDragged = draggedNodeId === node.nodeId;
-
-  const [dropPos, setDropPos] = useState<"before" | "after" | "inside" | null>(
-    null,
-  );
-
-  const handleDragOver = (e: React.DragEvent) => {
-    if (!isEditMode || isDragged) return;
-    e.preventDefault();
-    e.stopPropagation();
-
-    // Safety: Cannot drop on own children
-    const getDescendantIds = (id: string): string[] => {
-      const childrenNodes = nodes.filter((n) => n.parentId === id);
-      return [id, ...childrenNodes.flatMap((c) => getDescendantIds(c.nodeId))];
+    const handleRenameComplete = () => {
+      if (renameValue.trim() && renameValue !== node.name) {
+        onRenameNode({ ...node, name: renameValue.trim() });
+      }
+      setRenamingId(null);
     };
-    if (
-      draggedNodeId &&
-      getDescendantIds(draggedNodeId).includes(node.nodeId)
-    ) {
+
+    const isDragged = draggedNodeId === node.nodeId;
+
+    const [dropPos, setDropPos] = useState<
+      "before" | "after" | "inside" | null
+    >(null);
+
+    const handleDragOver = (e: React.DragEvent) => {
+      if (!isEditMode || isDragged) return;
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Safety: Cannot drop on own children
+      const getDescendantIds = (id: string): string[] => {
+        const childrenNodes = nodes.filter((n) => n.parentId === id);
+        return [
+          id,
+          ...childrenNodes.flatMap((c) => getDescendantIds(c.nodeId)),
+        ];
+      };
+      if (
+        draggedNodeId &&
+        getDescendantIds(draggedNodeId).includes(node.nodeId)
+      ) {
+        setDropPos(null);
+        return;
+      }
+
+      const rect = e.currentTarget.getBoundingClientRect();
+      const relativeY = e.clientY - rect.top;
+      const height = rect.height;
+
+      let position: "before" | "after" | "inside";
+      if (node.parentId === null) {
+        position = "inside";
+      } else if (relativeY < height * 0.25) {
+        position = "before";
+      } else if (relativeY > height * 0.75) {
+        position = "after";
+      } else {
+        position = "inside";
+      }
+
+      setDropPos(position);
+      onDragOver(e, node.nodeId, position);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+      if (!isEditMode || !dropPos) return;
+      e.preventDefault();
+      e.stopPropagation();
+      onDrop(e, node.nodeId, dropPos);
       setDropPos(null);
-      return;
-    }
+    };
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    const relativeY = e.clientY - rect.top;
-    const height = rect.height;
-
-    let position: "before" | "after" | "inside";
-    if (node.parentId === null) {
-      position = "inside";
-    } else if (relativeY < height * 0.25) {
-      position = "before";
-    } else if (relativeY > height * 0.75) {
-      position = "after";
-    } else {
-      position = "inside";
-    }
-
-    setDropPos(position);
-    onDragOver(e, node.nodeId, position);
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    if (!isEditMode || !dropPos) return;
-    e.preventDefault();
-    e.stopPropagation();
-    onDrop(e, node.nodeId, dropPos);
-    setDropPos(null);
-  };
-
-  return (
-    <>
-      <div
-        className={`drm-tree-node ${isSelected ? "selected" : ""} ${isMatch ? "match" : ""} ${isDragged ? "dragging" : ""} ${dropPos === "inside" ? "drop-target" : ""} ${dropPos === "before" ? "drop-before" : ""} ${dropPos === "after" ? "drop-after" : ""}`}
-        style={{ paddingLeft: `${12 + depth * 16}px` }}
-        onClick={() => onSelect(node.nodeId)}
-        onContextMenu={(e) => onContextMenu(e, node.nodeId)}
-        draggable={isEditMode && node.parentId !== null}
-        onDragStart={(e) => {
-          if (!isEditMode || node.parentId === null) {
-            e.preventDefault();
-            return;
-          }
-          e.stopPropagation();
-          onDragStart(node.nodeId);
-        }}
-        onDragOver={handleDragOver}
-        onDragLeave={() => {
-          setDropPos(null);
-          onDragLeave();
-        }}
-        onDrop={handleDrop}
-      >
-        <span
-          className={`drm-tree-node-toggle ${isExpanded ? "expanded" : ""}`}
-          onClick={(e) => {
+    return (
+      <>
+        <div
+          className={`drm-tree-node ${isSelected ? "selected" : ""} ${isMatch ? "match" : ""} ${isDragged ? "dragging" : ""} ${dropPos === "inside" ? "drop-target" : ""} ${dropPos === "before" ? "drop-before" : ""} ${dropPos === "after" ? "drop-after" : ""}`}
+          style={{ paddingLeft: `${12 + depth * 16}px` }}
+          onClick={() => onSelect(node.nodeId)}
+          onContextMenu={(e) => onContextMenu(e, node.nodeId)}
+          draggable={isEditMode && node.parentId !== null}
+          onDragStart={(e) => {
+            if (!isEditMode || node.parentId === null) {
+              e.preventDefault();
+              return;
+            }
             e.stopPropagation();
-            if (hasChildren) onToggle(node.nodeId);
+            onDragStart(node.nodeId);
           }}
-          style={{ visibility: hasChildren ? "visible" : "hidden" }}
+          onDragOver={handleDragOver}
+          onDragLeave={() => {
+            setDropPos(null);
+            onDragLeave();
+          }}
+          onDrop={handleDrop}
         >
-          ▶
-        </span>
-        <span className="drm-tree-node-icon">
-          {node.parentId === null ? (
-            <BuildingOfficeIcon
+          <span
+            className={`drm-tree-node-toggle ${isExpanded ? "expanded" : ""}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (hasChildren) onToggle(node.nodeId);
+            }}
+            style={{ visibility: hasChildren ? "visible" : "hidden" }}
+          >
+            ▶
+          </span>
+          <span className="drm-tree-node-icon">
+            {node.parentId === null ? (
+              <BuildingOfficeIcon
+                style={{
+                  width: 14,
+                  height: 14,
+                  color: isSelected
+                    ? "var(--theme-primary)"
+                    : "var(--text-tertiary)",
+                }}
+              />
+            ) : (
+              <FolderIcon
+                style={{
+                  width: 14,
+                  height: 14,
+                  color: isSelected
+                    ? "var(--theme-primary)"
+                    : "var(--text-tertiary)",
+                }}
+              />
+            )}
+          </span>
+
+          {isRenaming ? (
+            <input
+              type="text"
+              className="tree-rename-input"
+              value={renameValue}
+              autoFocus
+              onChange={(e) => setRenameValue(e.target.value)}
+              onBlur={handleRenameComplete}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRenameComplete();
+                if (e.key === "Escape") setRenamingId(null);
+              }}
+              onClick={(e) => e.stopPropagation()}
+              onDragStart={(e) => e.preventDefault()}
               style={{
-                width: 14,
-                height: 14,
-                color: isSelected
-                  ? "var(--theme-primary)"
-                  : "var(--text-tertiary)",
+                flex: 1,
+                background: "var(--bg-tertiary)",
+                color: "var(--text-primary)",
+                border: "1px solid var(--theme-primary)",
+                borderRadius: "4px",
+                padding: "2px 6px",
+                fontSize: "12px",
+                outline: "none",
               }}
             />
           ) : (
-            <FolderIcon
-              style={{
-                width: 14,
-                height: 14,
-                color: isSelected
-                  ? "var(--theme-primary)"
-                  : "var(--text-tertiary)",
+            <span
+              className="drm-tree-node-name"
+              onDoubleClick={(e) => {
+                if (isEditMode) {
+                  e.stopPropagation();
+                  setRenamingId(node.nodeId);
+                }
               }}
-            />
+            >
+              {node.name}
+            </span>
           )}
-        </span>
 
-        {isRenaming ? (
-          <input
-            type="text"
-            className="tree-rename-input"
-            value={renameValue}
-            autoFocus
-            onChange={(e) => setRenameValue(e.target.value)}
-            onBlur={handleRenameComplete}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleRenameComplete();
-              if (e.key === "Escape") setRenamingId(null);
-            }}
-            onClick={(e) => e.stopPropagation()}
-            onDragStart={(e) => e.preventDefault()}
-            style={{
-              flex: 1,
-              background: "var(--bg-tertiary)",
-              color: "var(--text-primary)",
-              border: "1px solid var(--theme-primary)",
-              borderRadius: "4px",
-              padding: "2px 6px",
-              fontSize: "12px",
-              outline: "none",
-            }}
-          />
-        ) : (
-          <span
-            className="drm-tree-node-name"
-            onDoubleClick={(e) => {
-              if (isEditMode) {
-                e.stopPropagation();
-                setRenamingId(node.nodeId);
-              }
-            }}
-          >
-            {node.name}
-          </span>
-        )}
-
-        {count > 0 && !isRenaming && (
-          <span
-            className="drm-tree-node-count"
-            style={{ marginLeft: isEditMode ? "4px" : "auto" }}
-          >
-            {count}
-          </span>
-        )}
-      </div>
-      {isExpanded &&
-        children.map((child) => (
-          <TreeNodeItem
-            key={child.nodeId}
-            node={child}
-            depth={depth + 1}
-            nodes={nodes}
-            selectedNodeId={selectedNodeId}
-            expandedIds={expandedIds}
-            nodeSearch={nodeSearch}
-            registeredDevices={registeredDevices}
-            onToggle={onToggle}
-            onSelect={onSelect}
-            isEditMode={isEditMode}
-            draggedNodeId={draggedNodeId}
-            dragOverNodeId={dragOverNodeId}
-            onDragStart={onDragStart}
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
-            onContextMenu={onContextMenu}
-            onAddSubNode={onAddSubNode}
-            onDeleteNode={onDeleteNode}
-            onRenameNode={onRenameNode}
-            renamingId={renamingId}
-            setRenamingId={setRenamingId}
-          />
-        ))}
-    </>
-  );
-};
+          {count > 0 && !isRenaming && (
+            <span
+              className="drm-tree-node-count"
+              style={{ marginLeft: isEditMode ? "4px" : "auto" }}
+            >
+              {count}
+            </span>
+          )}
+        </div>
+        {isExpanded &&
+          children.map((child) => (
+            <TreeNodeItem
+              key={child.nodeId}
+              node={child}
+              depth={depth + 1}
+              nodes={nodes}
+              selectedNodeId={selectedNodeId}
+              expandedIds={expandedIds}
+              nodeSearch={nodeSearch}
+              equipCountMap={equipCountMap}
+              onToggle={onToggle}
+              onSelect={onSelect}
+              isEditMode={isEditMode}
+              draggedNodeId={draggedNodeId}
+              dragOverNodeId={dragOverNodeId}
+              onDragStart={onDragStart}
+              onDragOver={onDragOver}
+              onDragLeave={onDragLeave}
+              onDrop={onDrop}
+              onContextMenu={onContextMenu}
+              onAddSubNode={onAddSubNode}
+              onDeleteNode={onDeleteNode}
+              onRenameNode={onRenameNode}
+              renamingId={renamingId}
+              setRenamingId={setRenamingId}
+            />
+          ))}
+      </>
+    );
+  },
+);
 
 // --- Custom Hierarchical Node Picker Component ---
 const NodePicker = ({
@@ -1531,6 +1539,16 @@ const NodePicker = ({
   const [search, setSearch] = useState("");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Pre-compute equipment count map for tree nodes in picker
+  const pickerEquipCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const d of registeredDevices) {
+      const gid = d.deviceGroupId || "";
+      map.set(gid, (map.get(gid) || 0) + 1);
+    }
+    return map;
+  }, [registeredDevices]);
 
   const selectedNodeName = useMemo(() => {
     if (!selectedNodeId) return "선택하세요";
@@ -1633,7 +1651,7 @@ const NodePicker = ({
                   selectedNodeId={selectedNodeId}
                   expandedIds={expandedIds}
                   nodeSearch={search}
-                  registeredDevices={registeredDevices}
+                  equipCountMap={pickerEquipCountMap}
                   onToggle={(id) =>
                     setExpandedIds((prev) => {
                       const next = new Set(prev);
@@ -1649,16 +1667,16 @@ const NodePicker = ({
                   isEditMode={false}
                   draggedNodeId={null}
                   dragOverNodeId={null}
-                  onDragStart={() => {}}
-                  onDragOver={() => {}}
-                  onDragLeave={() => {}}
-                  onDrop={() => {}}
-                  onContextMenu={() => {}}
-                  onAddSubNode={() => {}}
-                  onDeleteNode={() => {}}
-                  onRenameNode={() => {}}
+                  onDragStart={NOOP}
+                  onDragOver={NOOP}
+                  onDragLeave={NOOP}
+                  onDrop={NOOP}
+                  onContextMenu={NOOP}
+                  onAddSubNode={NOOP}
+                  onDeleteNode={NOOP}
+                  onRenameNode={NOOP}
                   renamingId={null}
-                  setRenamingId={() => {}}
+                  setRenamingId={NOOP}
                 />
               ))}
           </div>
@@ -1765,22 +1783,33 @@ const RegistrationFormModal = ({
   const [vendor, setVendor] = useState<VendorName>("Nokia");
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Equipment Assembly State
+  const [insertedCards, setInsertedCards] = useState<InsertedCard[]>([]);
+  const [generatedPorts, setGeneratedPorts] = useState<any[]>([]);
+  const [dashboardThumbnailUrl, setDashboardThumbnailUrl] =
+    useState<string>("");
+  const [isAssemblyOpen, setIsAssemblyOpen] = useState(false);
+
   const selectedTemplate = DEVICE_TEMPLATES[selectedModelIdx];
 
   useEffect(() => {
     if (isOpen) {
       if (editingDeviceId) {
-        const device = registeredDevices.find((d) => d.deviceId === editingDeviceId);
+        const device = registeredDevices.find(
+          (d) => d.deviceId === editingDeviceId,
+        );
         if (device) {
-          setNodeId(device.deviceGroupId || '');
+          setNodeId(device.deviceGroupId || "");
           const idx = DEVICE_TEMPLATES.findIndex(
             (t) => t.modelName === device.modelName,
           );
           if (idx >= 0) setSelectedModelIdx(idx);
-          setDeviceName(device.title || '');
-          setIp(device.IPAddr || '');
-          setMac(device.macAddr || '');
+          setDeviceName(device.title || "");
+          setIp(device.IPAddr || "");
+          setMac(device.macAddr || "");
           if (device.vendor) setVendor(device.vendor);
+          setInsertedCards(device.insertedCards || []);
+          setDashboardThumbnailUrl(device.dashboardThumbnailUrl || "");
         }
       } else {
         setNodeId(activeNodeId || "");
@@ -1788,6 +1817,9 @@ const RegistrationFormModal = ({
         setIp("");
         setMac("");
         setErrors({});
+        setInsertedCards([]);
+        setGeneratedPorts([]);
+        setDashboardThumbnailUrl("");
       }
     }
   }, [isOpen, editingDeviceId, activeNodeId, registeredDevices]);
@@ -1798,7 +1830,8 @@ const RegistrationFormModal = ({
     if (!IPAddr.trim()) newErrors.IPAddr = "필수 입력";
     else if (!isValidIP(IPAddr.trim())) newErrors.IPAddr = "형식: X.X.X.X";
     if (!macAddr.trim()) newErrors.macAddr = "필수 입력";
-    else if (!isValidMAC(macAddr.trim())) newErrors.macAddr = "형식: XX:XX:XX:XX:XX:XX";
+    else if (!isValidMAC(macAddr.trim()))
+      newErrors.macAddr = "형식: XX:XX:XX:XX:XX:XX";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -1829,6 +1862,16 @@ const RegistrationFormModal = ({
     }
     if (vendor) payload.vendor = vendor;
 
+    if (insertedCards.length > 0) {
+      payload.insertedCards = insertedCards;
+      payload.dashboardThumbnailUrl = dashboardThumbnailUrl;
+      payload.generatedPorts = generatedPorts;
+    } else {
+      payload.insertedCards = [];
+      payload.dashboardThumbnailUrl = "";
+      payload.generatedPorts = [];
+    }
+
     if (editingDeviceId) {
       updateRegisteredDevice(editingDeviceId, payload);
       onSuccess(title.trim(), true);
@@ -1845,15 +1888,12 @@ const RegistrationFormModal = ({
     <div className="drm-reg-modal-overlay" onClick={onClose}>
       <div className="drm-reg-modal" onClick={(e) => e.stopPropagation()}>
         <div className="drm-form-title">
-          <span className="icon">{editingDeviceId ? "✏️" : "➕"}</span>{" "}
           {editingDeviceId ? "장비 정보 수정" : "새 장비 등록"}
         </div>
 
         <div className="drm-form-grid">
           <div className="drm-field">
-            <label>
-              위치
-            </label>
+            <label>위치</label>
             <NodePicker
               nodes={nodes}
               selectedNodeId={nodeId}
@@ -1866,18 +1906,46 @@ const RegistrationFormModal = ({
           </div>
 
           <div className="drm-field">
-            <label>
-              모델
-            </label>
-            <FormSelect
-              options={DEVICE_TEMPLATES.map((t, i) => ({
-                label: `[${t.uSize}U] ${t.modelName}`,
-                value: i,
-              }))}
-              value={selectedModelIdx}
-              onChange={(val) => setSelectedModelIdx(val)}
-              placeholder="장비 모델 선택"
-            />
+            <label>모델</label>
+            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+              <div style={{ flex: 1 }}>
+                <FormSelect
+                  options={DEVICE_TEMPLATES.map((t, i) => ({
+                    label: `[${t.uSize}U] ${t.modelName}`,
+                    value: i,
+                  }))}
+                  value={selectedModelIdx}
+                  onChange={(val) => {
+                    setSelectedModelIdx(val);
+                    setInsertedCards([]);
+                    setDashboardThumbnailUrl("");
+                  }}
+                  placeholder="장비 모델 선택"
+                />
+              </div>
+              {Array.isArray(equipmentModels) &&
+                equipmentModels.some(
+                  (m) => m.modelName === selectedTemplate?.modelName,
+                ) && (
+                  <button
+                    style={{
+                      background: "linear-gradient(135deg, #6e9fff, #4872d8)",
+                      color: "#fff",
+                      border: "none",
+                      padding: "0 16px",
+                      height: "44px",
+                      borderRadius: "12px",
+                      fontSize: "13px",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                    onClick={() => setIsAssemblyOpen(true)}
+                  >
+                    장비 구성
+                  </button>
+                )}
+            </div>
           </div>
 
           <div className="drm-field drm-field-full">
@@ -1905,13 +1973,13 @@ const RegistrationFormModal = ({
               onChange={(e) => setIp(e.target.value)}
               placeholder="10.0.0.1"
             />
-            {errors.IPAddr && <span className="drm-error-hint">{errors.IPAddr}</span>}
+            {errors.IPAddr && (
+              <span className="drm-error-hint">{errors.IPAddr}</span>
+            )}
           </div>
 
           <div className="drm-field">
-            <label>
-              벤더
-            </label>
+            <label>벤더</label>
             <FormSelect
               options={VENDORS.map((v) => ({ label: v, value: v }))}
               value={vendor}
@@ -1929,7 +1997,9 @@ const RegistrationFormModal = ({
               onChange={(e) => setMac(e.target.value)}
               placeholder="AA:BB:CC:DD:EE:FF"
             />
-            {errors.macAddr && <span className="drm-error-hint">{errors.macAddr}</span>}
+            {errors.macAddr && (
+              <span className="drm-error-hint">{errors.macAddr}</span>
+            )}
           </div>
         </div>
 
@@ -1944,11 +2014,25 @@ const RegistrationFormModal = ({
             className="grafana-btn grafana-btn-lg grafana-btn-primary"
             onClick={handleSubmit}
           >
-            {editingDeviceId ? <CloudArrowUpIcon /> : <SparklesIcon />}
             {editingDeviceId ? "저장하기" : "등록하기"}
           </button>
         </div>
       </div>
+      {isAssemblyOpen && (
+        <EquipmentAssemblyModal
+          open={isAssemblyOpen}
+          onClose={() => setIsAssemblyOpen(false)}
+          initialModelName={selectedTemplate?.modelName}
+          initialCards={insertedCards}
+          onSave={(result) => {
+            setInsertedCards(result.cards);
+            setDashboardThumbnailUrl(result.thumbnailDataUrl);
+            if (result.generatedPorts) {
+              setGeneratedPorts(result.generatedPorts);
+            }
+          }}
+        />
+      )}
     </div>,
     document.body,
   );
@@ -2145,10 +2229,7 @@ export const DeviceRegistrationModal = () => {
   }, []);
 
   const handleDragOver = useCallback(
-    (
-      e: React.DragEvent,
-      nodeId: string,
-    ) => {
+    (e: React.DragEvent, nodeId: string) => {
       e.preventDefault();
       if (draggedNodeId === nodeId) return;
       setDragOverNodeId(nodeId);
@@ -2199,8 +2280,6 @@ export const DeviceRegistrationModal = () => {
   // Node Editing
   const handleAddSubNode = useCallback(
     (parentId: string) => {
-
-
       // Auto expand parent for visibility
       setNodeExpandedIds((prev) => {
         const next = new Set(prev);
@@ -2217,7 +2296,6 @@ export const DeviceRegistrationModal = () => {
       });
 
       setRenamingId(newId);
-
     },
     [nodes, addNode],
   ); // setNodeExpandedIds is stable from useState, so it doesn't strictly need to be in deps but good for clarity
@@ -2380,11 +2458,13 @@ export const DeviceRegistrationModal = () => {
         list = list.filter((d) => (d.deviceGroupId || "") === nodeFilter);
       } else if (selectedChildNodeIds.size > 0) {
         // Mode 2: Show only equipment directly assigned to the selected nodes
-        list = list.filter((d) => selectedChildNodeIds.has((d.deviceGroupId || "")));
+        list = list.filter((d) =>
+          selectedChildNodeIds.has(d.deviceGroupId || ""),
+        );
       } else {
         // Mode 3: Show full subtree (default when no specific filter is picked)
         const descendantIds = getSubtreeNodeIds(nodes, nodeFilter);
-        list = list.filter((d) => descendantIds.has((d.deviceGroupId || "")));
+        list = list.filter((d) => descendantIds.has(d.deviceGroupId || ""));
       }
     }
 
@@ -2410,6 +2490,76 @@ export const DeviceRegistrationModal = () => {
   ]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Performance: Pre-compute lookup maps once per data change ---
+
+  // Equipment count per node (for sidebar tree)
+  const equipCountMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const d of registeredDevices) {
+      const gid = d.deviceGroupId || "";
+      map.set(gid, (map.get(gid) || 0) + 1);
+    }
+    return map;
+  }, [registeredDevices]);
+
+  // Device status lookup: deviceId → { instance, highestError }
+  const deviceStatusMap = useMemo(() => {
+    const map = new Map<
+      string,
+      { placed: boolean; highestError: ReturnType<typeof getHighestError> }
+    >();
+    // Build a flat index: deviceId → rack device instance
+    const deviceToInstance = new Map<string, any>();
+    for (const r of racks) {
+      for (const d of r.devices) {
+        if (d.deviceId) {
+          deviceToInstance.set(d.deviceId, d);
+        }
+      }
+    }
+    for (const rd of registeredDevices) {
+      const instance = deviceToInstance.get(rd.deviceId);
+      if (instance) {
+        map.set(rd.deviceId, {
+          placed: true,
+          highestError: getHighestError(instance.portStates),
+        });
+      } else {
+        map.set(rd.deviceId, { placed: false, highestError: null });
+      }
+    }
+    return map;
+  }, [racks, registeredDevices]);
+
+  // Node name lookup: nodeId → name string
+  const nodeNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const n of nodes) {
+      map.set(n.nodeId, n.name);
+    }
+    return map;
+  }, [nodes]);
+
+  const getNodeNameFast = useCallback(
+    (nodeId: string | null) => {
+      if (!nodeId) return "없음";
+      return nodeNameMap.get(nodeId) || getNodeName(nodes, nodeId);
+    },
+    [nodeNameMap, nodes],
+  );
+
+  // Memoized header badge values
+  const headerBadgeText = useMemo(() => {
+    const name = getNodeNameFast(nodeFilter);
+    const directCount = equipCountMap.get(nodeFilter) || 0;
+    const subtreeCount = getSubtreeEquipmentCount(
+      nodes,
+      registeredDevices,
+      nodeFilter,
+    );
+    return `${name} (직속: ${directCount}건 / 전체: ${subtreeCount}건)`;
+  }, [nodeFilter, equipCountMap, nodes, registeredDevices, getNodeNameFast]);
 
   if (!isOpen && !nodeDeleteConfirm) return null;
 
@@ -2443,7 +2593,6 @@ export const DeviceRegistrationModal = () => {
     e.stopPropagation();
 
     if (fileInputRef.current) {
-
       fileInputRef.current.value = "";
       fileInputRef.current.click();
     } else {
@@ -2470,10 +2619,12 @@ export const DeviceRegistrationModal = () => {
 
       // If there are new nodes in the path, upsert them first and apply mapping
       if (newNodes.length > 0) {
-        const { mapping: idMap } = useStore.getState().upsertNodes(newNodes, false);
+        const { mapping: idMap } = useStore
+          .getState()
+          .upsertNodes(newNodes, false);
         parsed.forEach((d) => {
-          if (idMap[(d.deviceGroupId || "")]) {
-            (d as any).deviceGroupId = idMap[(d.deviceGroupId || "")];
+          if (idMap[d.deviceGroupId || ""]) {
+            (d as any).deviceGroupId = idMap[d.deviceGroupId || ""];
           }
         });
       }
@@ -2523,7 +2674,7 @@ export const DeviceRegistrationModal = () => {
     const existing = findExistingMount(device.deviceId);
     setDeviceDeleteConfirm({
       id: device.deviceId,
-      title: device.title || device.modelName || '',
+      title: device.title || device.modelName || "",
       rackName: existing?.rackName,
     });
   };
@@ -2678,7 +2829,7 @@ export const DeviceRegistrationModal = () => {
                           selectedNodeId={nodeFilter}
                           expandedIds={nodeExpandedIds}
                           nodeSearch={nodeSearch}
-                          registeredDevices={registeredDevices}
+                          equipCountMap={equipCountMap}
                           onToggle={(id) =>
                             setNodeExpandedIds((prev) => {
                               const next = new Set(prev);
@@ -2811,8 +2962,11 @@ export const DeviceRegistrationModal = () => {
                             </span>{" "}
                             등록 장비 목록
                           </div>
-                          <div className="drm-badge highlight" style={{ fontWeight: 700 }}>
-                            {getNodeName(nodes, nodeFilter)} (직속: {getNodeEquipmentCount(registeredDevices, nodeFilter)}건 / 전체: {getSubtreeEquipmentCount(nodes, registeredDevices, nodeFilter)}건)
+                          <div
+                            className="drm-badge highlight"
+                            style={{ fontWeight: 700 }}
+                          >
+                            {headerBadgeText}
                           </div>
                           {selectedIds.size > 0 && (
                             <div className="drm-badge highlight">
@@ -2988,7 +3142,9 @@ export const DeviceRegistrationModal = () => {
                                 </td>
                                 <td>
                                   <span className="drm-group-tag group-gwacheon">
-                                    {getNodeName(nodes, device.deviceGroupId || '')}
+                                    {getNodeNameFast(
+                                      device.deviceGroupId || "",
+                                    )}
                                   </span>
                                 </td>
                                 <td>
@@ -3020,46 +3176,56 @@ export const DeviceRegistrationModal = () => {
                                 </td>
                                 <td>
                                   {(() => {
-                                    // Find if this registered device is placed in any rack
-                                    let instance: any = null;
-                                    for (const r of racks) {
-                                      const found = r.devices.find((d) => d.deviceId === device.deviceId);
-                                      if (found) {
-                                        instance = found;
-                                        break;
-                                      }
-                                    }
-
-                                    if (!instance) {
+                                    const status = deviceStatusMap.get(
+                                      device.deviceId,
+                                    );
+                                    if (!status || !status.placed) {
                                       return (
-                                        <span className="drm-badge" style={{ opacity: 0.5, fontSize: '10px' }}>
+                                        <span
+                                          className="drm-badge"
+                                          style={{
+                                            opacity: 0.5,
+                                            fontSize: "10px",
+                                          }}
+                                        >
                                           미배치
                                         </span>
                                       );
                                     }
-
-                                    const highestError = getHighestError(instance.portStates);
-                                    if (!highestError) {
+                                    if (!status.highestError) {
                                       return (
-                                        <span className="drm-badge" style={{ color: '#4ade80', borderColor: 'rgba(74, 222, 128, 0.3)', background: 'rgba(74, 222, 128, 0.1)' }}>
+                                        <span
+                                          className="drm-badge"
+                                          style={{
+                                            color: "#4ade80",
+                                            borderColor:
+                                              "rgba(74, 222, 128, 0.3)",
+                                            background:
+                                              "rgba(74, 222, 128, 0.1)",
+                                          }}
+                                        >
                                           정상
                                         </span>
                                       );
                                     }
-
+                                    const he = status.highestError;
                                     return (
-                                      <span 
-                                        className="drm-badge" 
-                                        style={{ 
-                                          color: highestError.color, 
-                                          borderColor: `${highestError.color}44`, 
-                                          background: `${highestError.color}11` 
+                                      <span
+                                        className="drm-badge"
+                                        style={{
+                                          color: he.color,
+                                          borderColor: `${he.color}44`,
+                                          background: `${he.color}11`,
                                         }}
-                                        title={highestError.level}
+                                        title={he.level}
                                       >
-                                        {highestError.level === 'critical' ? '심각' : 
-                                         highestError.level === 'major' ? '경고' : 
-                                         highestError.level === 'minor' ? '주의' : '알림'}
+                                        {he.level === "critical"
+                                          ? "심각"
+                                          : he.level === "major"
+                                            ? "경고"
+                                            : he.level === "minor"
+                                              ? "주의"
+                                              : "알림"}
                                       </span>
                                     );
                                   })()}

@@ -12,6 +12,10 @@ const DeviceTileImage = ({ src, alt }: { src: string; alt: string }) => {
     "loading",
   );
 
+  useEffect(() => {
+    setStatus("loading");
+  }, [src]);
+
   return (
     <div className="device-tile-img-wrap">
       {status === "loading" && (
@@ -476,6 +480,8 @@ export const DevicePanel = () => {
       vendor: regDevice.vendor,
       deviceId: regDevice.deviceId,
       portStates: existingPortStates,
+      insertedCards: regDevice.insertedCards,
+      dashboardThumbnailUrl: regDevice.dashboardThumbnailUrl,
     } as any; // Type assertion since itemId needs to be generated in useStore
 
     const success = addDevice(rack.rackId, device);
@@ -531,13 +537,12 @@ export const DevicePanel = () => {
 
       if (device) {
         const heightPx = device.size * TOTAL_SLOT_HEIGHT - SLOT_MARGIN;
-        // Resolve from registered device if available, else fallback
         const regDev = findRegDevice(device.deviceId);
         const displayName =
           (regDev
             ? regDev.title || regDev.modelName
             : (device.modelName ?? device.title)) || "Device";
-        const imageSrc = resolveDeviceImage(
+        const imageSrc = regDev?.dashboardThumbnailUrl || device.dashboardThumbnailUrl || resolveDeviceImage(
           regDev?.modelName ?? device.modelName,
         );
         const hasImage = !!imageSrc;
@@ -844,7 +849,7 @@ export const DevicePanel = () => {
               ) : (
                 <div className="reg-device-list">
                   {groupRegDevices.map((rd) => {
-                    const thumb = resolveDeviceImage(rd.modelName);
+                    const thumb = rd.dashboardThumbnailUrl || resolveDeviceImage(rd.modelName);
                     const isSelected = selectedRegDeviceId === rd.deviceId;
                     const placeable = canPlace(rd.size || 1);
                     const existingMount = findExistingMount(rd.deviceId);

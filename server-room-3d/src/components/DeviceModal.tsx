@@ -1,504 +1,526 @@
-import { useEffect, useRef, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
-
-import { useStore } from "../store/useStore";
-import type { Device, PortState } from "../types";
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { useStore } from '../store/useStore';
+import { equipmentModels, loadCardSvgRaw } from '../utils/cardAssets';
+import { resolveDeviceSvgContent } from '../utils/deviceAssets';
 import {
-  resolveDeviceSvgContent,
-  hasDeviceSvgAsset,
-} from "../utils/deviceAssets";
-import { ERROR_COLORS } from "../utils/errorHelpers";
+  generatePortMap,
+  buildPortStatusMapFromPortStates,
+  applyPortStatuses,
+  type GeneratedPort,
+} from '../utils/portUtils';
 
-// ─── Severity helpers ────────────────────────────────────────────────────────
-const severityBadgeClass: Record<string, string> = {
-  critical: "grafana-badge-critical",
-  major: "grafana-badge-major",
-  minor: "grafana-badge-minor",
-  warning: "grafana-badge-warning",
+// 외부 타입 임포트 에러 우회를 위해 내부 정의 사용
+export interface PortState {
+  portId: string;
+  status: "normal" | "error";
+  errorLevel?: "critical" | "major" | "minor" | "warning";
+  errorMessage?: string;
+  portName?: string;
+  portNumber?: string;
+}
+
+export interface Device {
+  itemId: string;
+  rackId?: string;
+  deviceId?: string;
+  title: string;
+  position: number;
+  imageName?: string;
+  size: number;
+  type: string;
+  modelName?: string;
+  portStates: PortState[];
+  insertedCards?: any[];
+  dashboardThumbnailUrl?: string;
+}
+
+const CARD_ROW_HEIGHT = 46;
+
+/** 에러 레벨별 색상 */
+const ERROR_COLORS: Record<string, string> = {
+  critical: "#ff0000",
+  major: "#ff8000",
+  minor: "#ffff00",
+  warning: "#ffa500",
 };
 
-const SEVERITY_COLORS: Record<string, string> = {
-  critical: "var(--severity-critical)",
-  major: "var(--severity-major, #e05c17)",
-  minor: "var(--severity-minor)",
-  warning: "var(--severity-warning, #f2cc0c)",
+/** 포트 상태별 색상 (GeneratedPort.status 기준) */
+const PORT_STATUS_COLORS: Record<string, string> = {
+  normal: "transparent",
+  critical: "#ff0000",
+  warning: "#ffa500",
+  disabled: "#666666",
 };
 
-// ─── CSS keyframe injection ───────────────────────────────────────────────────
-const injectedKeyframes = new Set<string>();
-function ensureKeyframe(name: string, color: string) {
-  if (injectedKeyframes.has(name)) return;
-  injectedKeyframes.add(name);
+const ensureKeyframe = (name: string, color: string) => {
+  const styleId = `style-${name}`;
+  if (document.getElementById(styleId)) return;
   const style = document.createElement("style");
-  style.dataset.portAnim = name;
-  // 에러 포트가 더 뚜렷하게 보이도록 투명도 조정 및 글로우 효과 강화 (대비 증가)
-  style.textContent = `
+  style.id = styleId;
+  style.innerHTML = `
     @keyframes ${name} {
-      0%,100% {
-        fill: ${color}33;
-        stroke: ${color};
-        stroke-width: 3;
-        filter: drop-shadow(0 0 2px ${color});
-        opacity: 1;
-      }
-      50% {
-        fill: ${color};
-        stroke: ${color};
-        stroke-width: 3;
-        filter: drop-shadow(0 0 12px ${color});
-        opacity: 1;
-      }
+      0% { fill: ${color}22; stroke: ${color}; stroke-width: 1px; }
+      50% { fill: ${color}aa; stroke: ${color}; stroke-width: 3px; }
+      100% { fill: ${color}22; stroke: ${color}; stroke-width: 1px; }
     }
   `;
   document.head.appendChild(style);
-}
+};
 
-// ─── SvgPortView: SVG 장비 이미지 + 에러 포트 블링크 + hover tooltip ────────
-const SvgPortView = ({
-  modelName,
-  portStates,
-}: {
-  modelName: string;
-  portStates: PortState[];
-}) => {
+const SvgPortView = ({ device, portStates }: { device: Device; portStates: PortState[] }) => {
+  const [composedHtml, setComposedHtml] = useState<string>("");
   const containerRef = useRef<HTMLDivElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
+  const { modelName, insertedCards = [] } = device;
 
-  const [svgContent, setSvgContent] = useState<string | null>(null);
-
-  useEffect(() => {
-    let isMounted = true;
-    const loadSvg = async () => {
-      const content = await resolveDeviceSvgContent(modelName);
-      if (isMounted) {
-        setSvgContent(content ?? null);
-      }
-    };
-    loadSvg();
-    return () => {
-      isMounted = false;
-    };
+  const equipModel = useMemo(() => {
+    return equipmentModels.find(m => m.modelName === modelName);
   }, [modelName]);
 
-  const errorPortMap = useMemo(
-    () =>
-      new Map(
-        portStates
-          .filter((p) => p.status === "error")
-          .map((p) => [
-            p.portId,
-            p.errorLevel ? ERROR_COLORS[p.errorLevel] : "#ef4444",
-          ]),
-      ),
-    [portStates],
+  // 모듈러 카드 장비인지 판별
+  const isModularDevice = !!equipModel && insertedCards.length > 0;
+
+  // 카드 SVG raw text 캐시 (모듈러 장비 전용)
+  const [cardSvgMap, setCardSvgMap] = useState<Map<string, string>>(new Map());
+
+  // 카드 SVG raw text 로드
+  const cardsKey = JSON.stringify(insertedCards);
+  useEffect(() => {
+    if (!isModularDevice) return;
+    let isMounted = true;
+    const loadCards = async () => {
+      const map = new Map<string, string>();
+      const uniqueFileNames = [...new Set(insertedCards.map(c => c.cardFileName))];
+      await Promise.all(
+        uniqueFileNames.map(async (fn) => {
+          const raw = await loadCardSvgRaw(fn);
+          if (raw) map.set(fn, raw);
+        })
+      );
+      if (isMounted) setCardSvgMap(map);
+    };
+    loadCards();
+    return () => { isMounted = false; };
+  }, [isModularDevice, cardsKey]);
+
+  // generatePortMap 기반 포트 목록 생성
+  const generatedPorts = useMemo<GeneratedPort[]>(() => {
+    if (!isModularDevice || cardSvgMap.size === 0) return [];
+    const ports = generatePortMap(insertedCards, cardSvgMap);
+    // 기존 portStates에서 에러 상태 가져와 적용
+    const statusMap = buildPortStatusMapFromPortStates(portStates);
+    return applyPortStatuses(ports, statusMap);
+  }, [isModularDevice, insertedCards, cardSvgMap, portStates]);
+
+  // realPortNumber 기반 포트 맵 (모듈러)
+  const generatedPortMap = useMemo(() =>
+    new Map(generatedPorts.map(p => [p.realPortNumber, p])),
+    [generatedPorts]
   );
 
-  // portId → PortState 빠른 조회
-  const portStateMap = useMemo(
-    () => new Map(portStates.map((p) => [p.portId, p])),
-    [portStates],
-  );
+  // 1단계: SVG 합성 (isRedrawNeeded 판별을 위해 상태 유지)
+  useEffect(() => {
+    let isMounted = true;
+    const compose = async () => {
+      try {
+        const baseSvg = await resolveDeviceSvgContent(modelName);
+        if (!isMounted || !baseSvg) return;
 
+        if (!equipModel || !insertedCards || insertedCards.length === 0) {
+          setComposedHtml(baseSvg);
+          return;
+        }
+
+        const parser = new DOMParser();
+        const baseDoc = parser.parseFromString(baseSvg, "image/svg+xml");
+        const baseSvgEl = baseDoc.querySelector("svg");
+        if (!baseSvgEl) { setComposedHtml(baseSvg); return; }
+
+        const cardPromises = insertedCards.map((card) =>
+          loadCardSvgRaw(card.cardFileName).then((raw) => ({ card, raw }))
+        );
+        const cardResults = await Promise.all(cardPromises);
+
+        for (const { card, raw } of cardResults) {
+          if (!raw) continue;
+          const cardDoc = parser.parseFromString(raw, "image/svg+xml");
+          const cardSvgEl = cardDoc.querySelector("svg");
+          if (!cardSvgEl) continue;
+
+          let x: number, y: number, cardW: number, cardH: number;
+
+          // slots 모델: slotId로 좌표 결정
+          if (equipModel.slots && card.slotId) {
+            const slotDef = equipModel.slots.find(s => s.slotId === card.slotId);
+            if (!slotDef) continue;
+            x = equipModel.cardArea.x + slotDef.x;
+            y = equipModel.cardArea.y + slotDef.y;
+            cardW = slotDef.width;
+            cardH = slotDef.height;
+          } else {
+            // uniform grid 모델
+            const row = Math.floor(card.positionIndex / equipModel.cardArea.columns);
+            const col = card.positionIndex % equipModel.cardArea.columns;
+            x = equipModel.cardArea.x + col * equipModel.cardArea.columnWidth;
+            y = equipModel.cardArea.y + row * CARD_ROW_HEIGHT;
+            cardW = card.widthType === "full" ? equipModel.cardArea.columnWidth * 2 : equipModel.cardArea.columnWidth;
+            cardH = CARD_ROW_HEIGHT;
+          }
+
+          const vb = cardSvgEl.getAttribute("viewBox");
+          const parts = vb ? vb.split(/\s+/).map(Number) : [0, 0, 100, 20];
+          const origW = parts[2] || 100;
+          const origH = parts[3] || 20;
+
+          // SVG id 충돌 방지: 카드 내부 id를 instanceId 기반으로 프리픽싱
+          const instancePrefix = card.instanceId || `card-${card.positionIndex}`;
+          prefixSvgIds(cardSvgEl, instancePrefix);
+
+          // port-hitbox 요소에 data-port-number (realPortNumber) 주입
+          const hitboxes = cardSvgEl.querySelectorAll(".port-hitbox");
+          hitboxes.forEach((hb) => {
+            const localPort = hb.getAttribute("data-local-port");
+            if (localPort) {
+              const realPortNumber = `${card.shelfNo}/${card.slotNo}/${localPort}`;
+              hb.setAttribute("data-port-number", realPortNumber);
+              hb.setAttribute("data-card-instance", instancePrefix);
+            }
+          });
+
+          const g = baseDoc.createElementNS("http://www.w3.org/2000/svg", "g");
+          const scaleX = cardW / origW;
+          const scaleY = cardH / origH;
+          g.setAttribute("transform", `translate(${x}, ${y}) scale(${scaleX}, ${scaleY})`);
+          g.setAttribute("data-card-instance", instancePrefix);
+
+          while (cardSvgEl.firstChild) {
+            g.appendChild(cardSvgEl.firstChild);
+          }
+          baseSvgEl.appendChild(g);
+        }
+
+        const finalHtml = new XMLSerializer().serializeToString(baseDoc);
+        if (isMounted) setComposedHtml(finalHtml);
+      } catch (e) {
+        console.error("Compose Error:", e);
+      }
+    };
+    compose();
+    return () => { isMounted = false; };
+  }, [modelName, cardsKey, equipModel]);
+
+  // 기존 포트 에러 맵 (비-모듈러 장비용)
+  const errorPortMap = useMemo(() => 
+    new Map(portStates.filter(p => p.status === "error").map(p => [p.portId, p.errorLevel ? ERROR_COLORS[p.errorLevel] : "#ef4444"])),
+    [portStates]
+  );
+  const portStateMap = useMemo(() => new Map(portStates.map(p => [p.portId, p])), [portStates]);
+
+  // 2단계: DOM 주입 및 상호작용 (프리징 방지 핵심)
   useEffect(() => {
     const container = containerRef.current;
-    const tooltip = tooltipRef.current;
-    if (!container || !svgContent) return;
+    if (!container || !composedHtml) return;
 
-    const svgEl = container.querySelector("svg");
-    if (!svgEl) return;
-
-    // SVG 크기 맞춤
-    svgEl.style.width = "100%";
-    svgEl.style.height = "auto";
-    svgEl.removeAttribute("width");
-    svgEl.removeAttribute("height");
-
-    // SVG 기본 title tooltip 제거 (브라우저가 자동으로 보여주는 텍스트 숨김)
-    container.querySelectorAll("title").forEach((t) => {
-      t.textContent = "";
-    });
-
-    // 모든 포트 초기화 + hover 가능하게
-    const allPortEls = container.querySelectorAll("[id^='port-']");
-    allPortEls.forEach((el) => {
-      const svgEl = el as SVGElement;
-      svgEl.style.cssText = "fill:none;stroke:none;animation:none;";
-      svgEl.style.pointerEvents = "all";
-      svgEl.style.cursor = "pointer";
-    });
-
-    // 에러 포트 블링크 적용
-    errorPortMap.forEach((color, portId) => {
-      // 1. 정확한 ID 매칭 시도 (querySelector에서 특수문자 이스케이프 필요)
-      let portEl: SVGElement | null = null;
-      try {
-        portEl = container.querySelector(
-          `[id='${portId}']`,
-        ) as SVGElement | null;
-      } catch (e) {
-        // ID Selector invalid
-      }
-
-      // 2. Exact match 실패 시, 모의 데이터의 'port-N' 형식을 SVG의 N번째 포트 요소에 Fallback 매핑
-      if (!portEl && portId.startsWith("port-")) {
-        const numMatch = portId.match(/^port-(\d+)$/);
-        if (numMatch) {
-          const idx = parseInt(numMatch[1], 10) - 1; // 0-indexed
-          if (idx >= 0 && idx < allPortEls.length) {
-            portEl = allPortEls[idx] as SVGElement;
+    // 이미 주입된 것과 같으면 리렌더링 패스
+    const currentHash = composedHtml.length.toString();
+    if (container.dataset.renderedHash !== currentHash) {
+      container.innerHTML = composedHtml;
+      container.dataset.renderedHash = currentHash;
+      
+      const svgEl = container.querySelector("svg");
+      if (svgEl) {
+        const containerWidth = 880;
+        const svgWidth = svgEl.viewBox?.baseVal?.width || 984;
+        const svgHeight = svgEl.viewBox?.baseVal?.height || 200;
+        if (svgWidth > containerWidth) {
+          const scale = containerWidth / svgWidth;
+          container.style.transform = `scale(${scale})`;
+          container.style.transformOrigin = "top center";
+          if (container.parentElement) {
+            container.parentElement.style.height = `${svgHeight * scale}px`;
+            container.parentElement.style.overflow = "hidden";
           }
         }
+        svgEl.style.width = "auto";
+        svgEl.style.height = "auto";
+        svgEl.style.display = "block";
       }
+      container.querySelectorAll("title").forEach(t => t.textContent = "");
+    }
 
-      if (!portEl) return;
+    // 포트 요소 수집 (모듈러 + 기존 방식 모두)
+    const allPortEls = Array.from(container.querySelectorAll("[id^='port-'], [id^='p'], .port-hitbox")).filter(el => {
+      const id = el.id;
+      if (el.classList.contains("port-hitbox")) return true;
+      if (!id || id === "ports-layer" || id === "port-layer") return false;
+      return id.startsWith("port-") || /^p\d+$/.test(id);
+    }) as SVGElement[];
 
-      const targetId = portEl.id;
-      const animName = `port-blink-v2-${targetId.replace(/[^a-z0-9]/gi, "-")}`;
-      ensureKeyframe(animName, color);
-      portEl.style.fill = `${color}33`;
-      portEl.style.stroke = color;
-      portEl.style.strokeWidth = "3";
-      portEl.style.animation = `${animName} 1.2s ease-in-out infinite`;
-    });
-
-    // ── Tooltip 이벤트 ──────────────────────────────────────────────────────
-    const cleanups: (() => void)[] = [];
-
-    allPortEls.forEach((el, index) => {
-      const elId = el.id; // e.g. "port-qsfp-1/1/1"
-
-      // 1. 정방향 매칭
-      let ps = portStateMap.get(elId);
-      let psPortId = elId;
-
-      // 2. 모의 데이터 Fallback (SVG의 실제 ID와 데이터의 port-N 형식이 다를 경우 매핑)
-      if (!ps) {
-        const fallbackId = `port-${index + 1}`;
-        const fallbackPs = portStateMap.get(fallbackId);
-        if (fallbackPs) {
-          ps = fallbackPs;
-          psPortId = fallbackId;
-        }
-      }
-
-      const isError = ps?.status === "error";
-      const errorColor = isError
-        ? (errorPortMap.get(psPortId) ?? "#ef4444")
-        : null;
-
-      const portNameAttr = el.getAttribute("data-port-name");
-      const portNumAttr = el.getAttribute("data-port-number");
-
-      let displayTitle = `Port ${elId.replace("port-", "")}`;
-      if (portNameAttr && portNumAttr) {
-        displayTitle = `${portNameAttr.toUpperCase()} ${portNumAttr}`;
-      } else if (portNameAttr) {
-        displayTitle = `${portNameAttr.toUpperCase()}`;
-      }
-
-      const onEnter = (e: Event) => {
-        if (!tooltip) return;
-        const me = e as MouseEvent;
-
-        // 내용 구성
-        let html = `<span style="font-size:13px;font-weight:700;">${displayTitle}</span>`;
-        if (isError && ps) {
-          html += `<br/><span style="opacity:.85;">${ps.errorLevel?.toUpperCase() ?? "ERROR"}</span>`;
-          if (ps.errorMessage) {
-            html += `<br/><span style="opacity:.7;font-size:11px;">${ps.errorMessage}</span>`;
+    allPortEls.forEach((el: SVGElement) => {
+      // 포트 상태 시각화 (모듈러 장비)
+      if (el.classList.contains("port-hitbox")) {
+        const realPortNumber = el.getAttribute("data-port-number");
+        if (realPortNumber && isModularDevice) {
+          const gp = generatedPortMap.get(realPortNumber);
+          if (gp && gp.status !== "normal") {
+            // 에러 상태 포트: 배경색 적용
+            const color = PORT_STATUS_COLORS[gp.status] || "transparent";
+            el.style.fill = `${color}33`;
+            el.style.stroke = color;
+            el.style.strokeWidth = "1.5px";
+          } else {
+            el.style.fill = "transparent";
+            el.style.stroke = "none";
           }
         } else {
-          html += `<br/><span style="opacity:.7;">Operational</span>`;
+          el.style.fill = "transparent";
+          el.style.stroke = "none";
         }
-        tooltip.innerHTML = html;
-        tooltip.style.borderColor = errorColor ?? "#22c55e";
-        // position: fixed 기준으로 clientX, clientY 직접 사용
-        tooltip.style.left = `${me.clientX}px`;
-        tooltip.style.top = `${me.clientY - 4}px`;
-        tooltip.style.transform = "translate(-50%, -100%)";
-        tooltip.style.display = "block";
-      };
-
-      const onMove = (e: Event) => {
-        if (!tooltip) return;
-        const me = e as MouseEvent;
-        tooltip.style.left = `${me.clientX}px`;
-        tooltip.style.top = `${me.clientY - 4}px`;
-      };
-
-      const onLeave = () => {
-        if (tooltip) tooltip.style.display = "none";
-      };
-
-      el.addEventListener("mouseenter", onEnter);
-      el.addEventListener("mousemove", onMove);
-      el.addEventListener("mouseleave", onLeave);
-      cleanups.push(() => {
-        el.removeEventListener("mouseenter", onEnter);
-        el.removeEventListener("mousemove", onMove);
-        el.removeEventListener("mouseleave", onLeave);
-      });
+      }
+      el.style.pointerEvents = "all";
+      el.style.cursor = "pointer";
+      el.querySelectorAll("path, rect, circle, polyline, polygon").forEach((p) => ((p as unknown) as SVGElement).style.pointerEvents = "none");
     });
 
-    return () => cleanups.forEach((fn) => fn());
-  }); // 매 렌더 동기 적용 (의존성 없음)
+    // 이벤트 위임
+    const tooltip = document.querySelector(".port-tooltip") as HTMLElement;
+    const handleMouseOver = (e: MouseEvent) => {
+      let target = e.target as unknown as SVGElement;
+      const isPort = (id: string) => (id.startsWith("port-") && id !== "ports-layer") || /^p\d+$/.test(id);
+      let portEl: SVGElement | null = null;
+      if (target.id && isPort(target.id)) portEl = target;
+      else if (target.classList.contains("port-hitbox")) portEl = target;
+      else if (target.parentElement?.id && isPort(target.parentElement.id)) portEl = target.parentElement as unknown as SVGElement;
 
-  if (!svgContent) return null;
+      if (!portEl || !tooltip) return;
 
-  return (
-    <div
-      style={{
-        backgroundColor: "var(--bg-secondary)",
-        padding: "16px",
-        borderRadius: "var(--radius-md)",
-        border: "1px solid var(--border-weak)",
-        position: "relative", // tooltip 기준점
-      }}
-    >
-      <div
-        ref={containerRef}
-        dangerouslySetInnerHTML={{ __html: svgContent }}
-      />
-      {/* Hover tooltip – DOM 직접 조작, React state 없음 */}
-      <div
-        ref={tooltipRef}
-        style={{
-          display: "none",
-          position: "fixed",
-          pointerEvents: "none",
-          zIndex: 9999,
-          background: "rgba(10,12,24,0.95)",
-          color: "#f0f4ff",
-          padding: "6px 10px",
-          borderRadius: "6px",
-          fontSize: "12px",
-          lineHeight: "1.5",
-          whiteSpace: "nowrap",
-          border: "1px solid #4dabf7",
-          boxShadow: "0 4px 16px rgba(0,0,0,0.5)",
-          transform: "translate(-50%, -100%)",
-        }}
-      />
-    </div>
-  );
-};
+      // 모듈러 장비: realPortNumber 기반 상세 정보
+      const realPortNumber = portEl.getAttribute("data-port-number");
+      if (realPortNumber && isModularDevice) {
+        const gp = generatedPortMap.get(realPortNumber);
+        const statusColor = gp?.status === "normal" ? "#22c55e"
+          : gp?.status === "critical" ? "#ff4d4d"
+          : gp?.status === "warning" ? "#ffa500"
+          : "#888";
+        const statusLabel = gp?.status?.toUpperCase() || "NORMAL";
+        const portType = gp?.portType?.toUpperCase() || portEl.getAttribute("data-port-type")?.toUpperCase() || "";
 
-// ─── Generic port grid (SVG 없는 장비용) ─────────────────────────────────────
-const GenericPortGrid = ({
-  device,
-  highlightedPortId,
-}: {
-  device: Device;
-  highlightedPortId: string | null;
-}) => {
-  const renderPort = (portIndex: number) => {
-    const portIdNew = `port-${portIndex + 1}`;
-    const portIdLegacy = `p${portIndex + 1}`;
-    const portState = device.portStates.find(
-      (p) => p.portId === portIdNew || p.portId === portIdLegacy,
-    );
-    const portId = portState?.portId ?? portIdNew;
-    const isError = portState?.status === "error";
-    const isHighlighted =
-      highlightedPortId === portId ||
-      highlightedPortId === portIdNew ||
-      highlightedPortId === portIdLegacy;
-    const ledColor = isHighlighted
-      ? "var(--severity-minor)"
-      : isError
-        ? (SEVERITY_COLORS[portState?.errorLevel ?? ""] ??
-          "var(--severity-critical)")
-        : "var(--severity-success)";
+        tooltip.innerHTML = `
+          <div style="font-weight:700; font-size:13px; margin-bottom:6px;">${portType || 'PORT'} ${realPortNumber}</div>
+          <div style="font-weight:600; color:${statusColor}; font-size:12px;">${statusLabel}</div>
+        `;
+      } else {
+        // 비-모듈러 장비: 기존 portState 기반
+        const lookupId = portEl.getAttribute("data-port-number") || portEl.id;
+        const ps = portStateMap.get(lookupId);
+        const isError = ps?.status === "error";
+        tooltip.innerHTML = `<div style="font-weight:700;">Port ${lookupId}</div><div style="color:${isError ? '#ff4d4d' : '#22c55e'}">${ps?.status?.toUpperCase() || 'NORMAL'}</div>`;
+      }
+      tooltip.style.display = "block";
+    };
+    const handleMouseMove = (e: MouseEvent) => {
+      if (tooltip) {
+        tooltip.style.left = `${e.clientX}px`;
+        tooltip.style.top = `${e.clientY - 10}px`;
+        tooltip.style.transform = "translate(-50%, -100%)";
+      }
+    };
+    const handleMouseOut = () => { if (tooltip) tooltip.style.display = "none"; };
 
-    return (
-      <div
-        key={portId}
-        style={{
-          width: "32px",
-          height: "32px",
-          backgroundColor: "var(--bg-tertiary)",
-          border: isHighlighted
-            ? `2px solid ${ledColor}`
-            : isError
-              ? `1px solid ${ledColor}`
-              : "1px solid var(--border-medium)",
-          borderRadius: "var(--radius-sm)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          position: "relative",
-          cursor: "pointer",
-          boxShadow: isHighlighted
-            ? `0 0 15px rgba(242, 204, 12, 0.5)`
-            : isError
-              ? `0 0 8px ${ledColor}66`
-              : "none",
-          transform: isHighlighted ? "scale(1.15)" : "scale(1)",
-          transition: "all 0.2s",
-          zIndex: isHighlighted ? 10 : 1,
-        }}
-        title={
-          isError
-            ? `${portId}: ${portState?.errorMessage ?? "Error"} (${portState?.errorLevel ?? ""})`
-            : `${portId}: Operational`
+    // 포트 클릭 이벤트
+    const handleClick = (e: MouseEvent) => {
+      let target = e.target as unknown as SVGElement;
+      let portEl: SVGElement | null = null;
+      if (target.classList.contains("port-hitbox")) portEl = target;
+      else if (target.parentElement?.classList.contains("port-hitbox")) portEl = target.parentElement as unknown as SVGElement;
+      if (!portEl) return;
+
+      const realPortNumber = portEl.getAttribute("data-port-number");
+      const localPort = portEl.getAttribute("data-local-port");
+      const portType = portEl.getAttribute("data-port-type");
+      const cardInstance = portEl.getAttribute("data-card-instance");
+
+      if (realPortNumber && isModularDevice) {
+        const gp = generatedPortMap.get(realPortNumber);
+        console.info("[DeviceModal] Port clicked:", {
+          realPortNumber,
+          localPort: gp?.localPort || localPort,
+          cardInstanceId: gp?.cardInstanceId || cardInstance,
+          portType: gp?.portType || portType,
+          status: gp?.status || "normal",
+        });
+      }
+    };
+
+    container.addEventListener("mouseover", handleMouseOver);
+    container.addEventListener("mousemove", handleMouseMove);
+    container.addEventListener("mouseout", handleMouseOut);
+    container.addEventListener("click", handleClick);
+
+    // 에러 블링킹 (모듈러 장비)
+    if (isModularDevice) {
+      generatedPorts.forEach((gp) => {
+        if (gp.status === "normal") return;
+        const color = PORT_STATUS_COLORS[gp.status] || "#ef4444";
+        const el = container.querySelector(`[data-port-number='${gp.realPortNumber}']`) as SVGElement | null;
+        if (el) {
+          const animName = `blink-${gp.realPortNumber.replace(/[^a-z0-9]/gi, "-")}`;
+          ensureKeyframe(animName, color);
+          el.style.animation = `${animName} 1.5s infinite`;
         }
-      >
-        <div
-          style={{
-            width: "12px",
-            height: "10px",
-            backgroundColor: "var(--bg-primary)",
-            borderRadius: "2px",
-            border: "1px solid var(--border-medium)",
-          }}
-        />
-        {/* Status LED */}
-        <div
-          style={{
-            position: "absolute",
-            top: "4px",
-            right: "4px",
-            width: "4px",
-            height: "4px",
-            borderRadius: "50%",
-            backgroundColor: ledColor,
-            boxShadow: `0 0 4px ${ledColor}`,
-          }}
-        />
-        {isHighlighted && (
-          <div
-            style={{
-              position: "absolute",
-              bottom: "-16px",
-              left: "50%",
-              transform: "translateX(-50%)",
-              fontSize: "var(--font-size-xs)",
-              color: "var(--severity-minor)",
-              fontWeight: 700,
-              whiteSpace: "nowrap",
-            }}
-          >
-            {portId}
-          </div>
-        )}
-      </div>
-    );
-  };
+      });
+    } else {
+      // 비-모듈러 장비: 기존 에러 블링킹
+      errorPortMap.forEach((color, portId) => {
+        const el = container.querySelector(`[id='${portId}']`) as SVGElement | null;
+        if (el) {
+          const animName = `blink-${portId.replace(/[^a-z0-9]/gi, "-")}`;
+          ensureKeyframe(animName, color);
+          el.style.animation = `${animName} 1.5s infinite`;
+        }
+      });
+    }
 
-  return (
-    <div
-      style={{
-        backgroundColor: "var(--bg-secondary)",
-        padding: "20px",
-        borderRadius: "var(--radius-md)",
-        border: "1px solid var(--border-weak)",
-        display: "grid",
-        gridTemplateColumns: "repeat(12, 1fr)",
-        gap: "8px",
-        justifyItems: "center",
-      }}
-    >
-      {Array.from({ length: 24 }).map((_, i) => renderPort(i))}
-    </div>
-  );
+    return () => {
+      container.removeEventListener("mouseover", handleMouseOver);
+      container.removeEventListener("mousemove", handleMouseMove);
+      container.removeEventListener("mouseout", handleMouseOut);
+      container.removeEventListener("click", handleClick);
+    };
+  }, [composedHtml, portStateMap, errorPortMap, isModularDevice, generatedPortMap, generatedPorts]);
+
+  return <div ref={containerRef} style={{ position: "relative" }} />;
 };
 
-// ─── DeviceModal ─────────────────────────────────────────────────────────────
-export const DeviceModal = () => {
-  const { racks, selectedDeviceId, highlightedPortId, selectDevice } =
-    useStore();
+/**
+ * SVG 내부 id 속성들을 instancePrefix로 프리픽싱하여 충돌 방지.
+ * id="foo" → id="instancePrefix-foo"
+ * url(#foo) → url(#instancePrefix-foo)
+ * href="#foo" → href="#instancePrefix-foo"
+ */
+function prefixSvgIds(svgEl: Element, prefix: string) {
+  const idMap = new Map<string, string>();
 
-  if (!selectedDeviceId) return null;
+  // 1차: 모든 id 수집 및 치환
+  svgEl.querySelectorAll("[id]").forEach((el) => {
+    const oldId = el.getAttribute("id")!;
+    // ports-layer 같은 구조적 id는 제외
+    if (oldId === "ports-layer" || oldId === "port-layer") return;
+    const newId = `${prefix}-${oldId}`;
+    idMap.set(oldId, newId);
+    el.setAttribute("id", newId);
+  });
 
-  let device: Device | undefined;
-  let rack: import("../types").Rack | undefined;
-  let rackId: string | undefined;
+  if (idMap.size === 0) return;
 
-  for (const r of racks) {
-    device = r.devices.find((d) => d.itemId === selectedDeviceId);
-    if (device) {
-      rackId = r.rackId;
-      rack = r;
-      break;
+  // 2차: url(#id) 및 href="#id" 참조 갱신
+  const allElements = svgEl.querySelectorAll("*");
+  allElements.forEach((el) => {
+    // fill, stroke, clip-path 등의 url(#id) 참조
+    for (const attr of ["fill", "stroke", "clip-path", "mask", "filter"]) {
+      const val = el.getAttribute(attr);
+      if (val && val.includes("url(#")) {
+        let updated = val;
+        idMap.forEach((newId, oldId) => {
+          updated = updated.replace(`url(#${oldId})`, `url(#${newId})`);
+        });
+        if (updated !== val) el.setAttribute(attr, updated);
+      }
     }
-  }
+    // xlink:href 및 href 참조
+    for (const attr of ["href", "xlink:href"]) {
+      const val = el.getAttribute(attr);
+      if (val && val.startsWith("#")) {
+        const refId = val.slice(1);
+        const newId = idMap.get(refId);
+        if (newId) el.setAttribute(attr, `#${newId}`);
+      }
+    }
+    // style 속성 내 url(#id)
+    const styleVal = el.getAttribute("style");
+    if (styleVal && styleVal.includes("url(#")) {
+      let updated = styleVal;
+      idMap.forEach((newId, oldId) => {
+        updated = updated.replace(new RegExp(`url\\(#${oldId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\)`, 'g'), `url(#${newId})`);
+      });
+      if (updated !== styleVal) el.setAttribute("style", updated);
+    }
+  });
+}
+
+export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: () => void }) => {
+  const racks = useStore((s) => s.racks);
+  const { device, rackName } = useMemo(() => {
+    if (!deviceId) return { device: null, rackName: "" };
+    for (const r of racks) {
+      // itemId 또는 deviceId 둘 중 하나라도 매칭되면 반환
+      const d = r.devices.find(d => d.itemId === deviceId || d.deviceId === deviceId);
+      if (d) return { device: d as unknown as Device, rackName: r.rackTitle || `Rack ${r.rackId.slice(0, 4).toUpperCase()}` };
+    }
+    console.warn("DeviceModal: Device not found for ID:", deviceId);
+    return { device: null, rackName: "" };
+  }, [racks, deviceId]);
+
+  const devicePortStates = useMemo(() => device?.portStates || [], [device]);
 
   if (!device) return null;
 
-  // SVG 에셋이 있으면 SVG 뷰, 없으면 그리드 뷰
-  const hasSvg = hasDeviceSvgAsset(device.modelName);
-  const errorPorts = device.portStates.filter((p) => p.status === "error");
-
   return createPortal(
-    <div
-      className="grafana-modal-overlay"
-      style={{ zIndex: 2000 }}
-      onClick={() => selectDevice(null)}
-    >
-      <div
-        className="grafana-modal"
-        style={{
-          width: "880px",
-          maxWidth: "880px",
-          maxHeight: "90vh",
-          display: "flex",
-          flexDirection: "column",
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="grafana-modal-header">
-          <div>
-            <h2 className="grafana-modal-title">{device.title}</h2>
-            <span
-              style={{
-                fontSize: "var(--font-size-sm)",
-                color: "var(--text-secondary)",
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                marginTop: "4px",
-              }}
-            >
-              <span
-                className="grafana-badge grafana-badge-success"
-                style={{ textTransform: "capitalize" }}
-              >
-                {device.type}
-              </span>
-              Rack: {rack?.rackTitle || rackId?.substring(0, 4)}
-            </span>
+    <div className="modal-overlay" onClick={onClose} style={{
+      position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
+      backgroundColor: "var(--modal-backdrop)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(5px)"
+    }}>
+      <div className="modal-content" onClick={e => e.stopPropagation()} style={{
+        backgroundColor: "var(--modal-bg)", padding: "24px", borderRadius: "var(--radius-lg)", width: "940px", border: "1px solid var(--modal-border)", boxShadow: "var(--elevation-3)"
+      }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+            <h2 style={{ color: "var(--text-primary)", margin: 0, fontSize: "20px", fontWeight: "600" }}>{device.title}</h2>
+            <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: "24px", cursor: "pointer", lineHeight: "1" }}>×</button>
           </div>
-          <button
-            className="grafana-modal-close"
-            onClick={() => selectDevice(null)}
-          >
-            &times;
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ 
+              backgroundColor: "var(--severity-success-bg)", 
+              color: "var(--severity-success-text)", 
+              padding: "2px 8px", 
+              borderRadius: "12px", 
+              fontSize: "12px", 
+              fontWeight: "600",
+              textTransform: "capitalize" 
+            }}>
+              {device.type || "Router"}
+            </span>
+            <span style={{ color: "var(--text-secondary)", fontSize: "14px" }}>Rack: {rackName || device.rackId || "Unknown"}</span>
+          </div>
         </div>
+        
+        <div style={{ margin: "0 -24px 20px -24px", borderBottom: "1px solid var(--border-medium)" }} />
 
-        {/* Content */}
-        <div className="grafana-modal-content">
-          {/* Port View: SVG 있으면 실제 이미지, 없으면 그리드 */}
-          {hasSvg ? (
-            <SvgPortView
-              modelName={device.modelName!}
-              portStates={device.portStates}
-            />
-          ) : (
-            <GenericPortGrid
-              device={device}
-              highlightedPortId={highlightedPortId}
-            />
-          )}
-
-          {/* Active Faults – status === 'error' 포트만 표시 */}
-          {errorPorts.length > 0 && (
+        <div style={{ 
+          backgroundColor: "var(--bg-secondary)", 
+          borderRadius: "var(--radius-md)", 
+          border: "1px solid var(--border-medium)",
+          padding: "16px",
+          overflow: "hidden", 
+          minHeight: "200px", 
+          display: "flex", 
+          alignItems: "center", 
+          justifyContent: "center" 
+        }}>
+          <SvgPortView device={device} portStates={devicePortStates} />
+        </div>
+        
+        {/* Active Faults */}
+        {(() => {
+          const errorPorts = devicePortStates.filter((p) => p.status === "error");
+          if (errorPorts.length === 0) return null;
+          
+          return (
             <div
               style={{
-                marginTop: "16px",
+                marginTop: "20px",
                 padding: "16px",
-                backgroundColor: "var(--bg-tertiary)",
+                backgroundColor: "var(--bg-secondary)",
                 borderLeft: "4px solid var(--text-secondary)",
                 borderRadius: "var(--radius-md)",
               }}
@@ -507,8 +529,8 @@ export const DeviceModal = () => {
                 style={{
                   color: "var(--text-primary)",
                   margin: "0 0 12px 0",
-                  fontSize: "var(--font-size-md)",
-                  fontWeight: "var(--font-weight-semibold)",
+                  fontSize: "15px",
+                  fontWeight: "600",
                 }}
               >
                 Active Faults
@@ -517,40 +539,31 @@ export const DeviceModal = () => {
                 style={{ display: "flex", flexDirection: "column", gap: "8px" }}
               >
                 {errorPorts.map((err, idx) => {
-                  let displayPort = err.portId;
-                  if (err.portName && err.portNumber) {
-                    displayPort = `${err.portName.toUpperCase()} ${err.portNumber}`;
-                  } else if (err.portName) {
-                    displayPort = err.portName.toUpperCase();
-                  } else if (err.portNumber) {
-                    displayPort = `Port ${err.portNumber}`;
-                  } else {
-                    const rawId = err.portId.replace("port-", "");
-                    displayPort = `Port ${rawId}`;
-                  }
-
+                  const level = err.errorLevel || err.status || "error";
+                  const badgeClass = 
+                    level === "critical" ? "grafana-badge-critical" : 
+                    level === "major" ? "grafana-badge-major" : 
+                    level === "minor" ? "grafana-badge-minor" : 
+                    level === "warning" ? "grafana-badge-warning" : "grafana-badge-critical";
+                  
                   return (
                     <div
                       key={idx}
                       style={{
-                        color: "var(--text-primary)",
-                        fontSize: "var(--font-size-sm)",
+                        color: "var(--text-secondary)",
+                        fontSize: "14px",
                         display: "flex",
                         alignItems: "center",
-                        gap: "8px",
+                        gap: "12px",
                       }}
                     >
-                      <strong
-                        style={{ color: "var(--text-primary)" }}
-                      >
-                        {displayPort}
+                      <strong style={{ color: "var(--text-primary)" }}>
+                        {err.portId}
                       </strong>
-                      <span>{err.errorMessage}</span>
-                      {err.errorLevel && (
-                        <span
-                          className={`grafana-badge ${severityBadgeClass[err.errorLevel] ?? ""}`}
-                        >
-                          {err.errorLevel.toUpperCase()}
+                      <span>{err.errorMessage || "Unknown Error"}</span>
+                      {level && (
+                        <span className={`grafana-badge ${badgeClass}`}>
+                          {level}
                         </span>
                       )}
                     </div>
@@ -558,10 +571,15 @@ export const DeviceModal = () => {
                 })}
               </div>
             </div>
-          )}
-        </div>
+          );
+        })()}
+
+        <div className="port-tooltip" style={{
+          position: "fixed", pointerEvents: "none", display: "none", backgroundColor: "var(--panel-bg)",
+          color: "var(--text-primary)", padding: "8px 12px", borderRadius: "var(--radius-sm)", fontSize: "12px", zIndex: 10001, border: "1px solid var(--border-medium)", boxShadow: "var(--elevation-2)"
+        }} />
       </div>
     </div>,
-    document.body,
+    document.body
   );
 };

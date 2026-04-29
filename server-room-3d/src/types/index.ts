@@ -25,7 +25,36 @@ export type VendorName =
   | "Nokia"
   | "유비쿼스";
 
-// 포트 상태
+// 장비 타입
+export type DeviceType = "Switch" | "Router" | "Server";
+
+/** 
+ * [VITE_CACHE_BREAKER_9999] 
+ * 이 주석은 Vite 개발 서버의 모듈 캐시를 완전히 파괴하기 위해 추가되었습니다.
+ * 장비 (t_rack_device - 랙에 배치된 장비)
+ */
+export interface Device {
+  itemId: string;
+  rackId?: string;
+  deviceId?: string;
+  title: string;
+  position: number;
+  imageName?: string;
+  size: number;
+  del_yn?: string;
+  modiDate?: string;
+  regDate?: string;
+  type: DeviceType;
+  modelName?: string;
+  vendor?: VendorName;
+  IPAddr?: string;
+  macAddr?: string;
+  portStates: PortState[];
+  insertedCards?: import("./equipment").InsertedCard[];
+  dashboardThumbnailUrl?: string;
+}
+
+/** [VITE_CACHE_BREAKER_PORT] */
 export interface PortState {
   portId: string;
   status: "normal" | "error";
@@ -33,31 +62,8 @@ export interface PortState {
   errorMessage?: string;
   portName?: string;
   portNumber?: string;
-}
-
-// 장비 타입
-export type DeviceType = "Switch" | "Router" | "Server";
-
-// 장비 (t_rack_device - 랙에 배치된 장비)
-export interface Device {
-  itemId: string;           // (ex: id)
-  rackId?: string;
-  deviceId?: string;        // (ex: registeredDeviceId)
-  title: string;            // (ex: name)
-  position: number;         // (ex: uPosition)
-  imageName?: string;       // (ex: imageUrl)
-  size: number;             // (ex: uSize)
-  del_yn?: string;
-  modiDate?: string;
-  regDate?: string;
-
-  // UI/3D 확장 (시각화 및 조인 전 임시 속성)
-  type: DeviceType;
-  modelName?: string;
-  vendor?: VendorName;
-  IPAddr?: string;
-  macAddr?: string;
-  portStates: PortState[];
+  /** 모듈러 카드 소속 인스턴스 ID (카드 기반 장비 전용) */
+  cardInstanceId?: string;
 }
 
 // 등록 장비 (t_device 마스터 장비 인벤토리)
@@ -164,6 +170,10 @@ export interface RegisteredDevice {
   type?: DeviceType;
   size?: number; // (ex: uSize)
   vendor?: VendorName;
+
+  // 장비 조립(SVG 구성) 추가
+  insertedCards?: import("./equipment").InsertedCard[];
+  dashboardThumbnailUrl?: string;
 }
 
 // 렉 방향

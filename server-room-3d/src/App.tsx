@@ -256,6 +256,7 @@ function App() {
   const deviceRegistrationModalOpen = useStore((s) => s.deviceRegistrationModalOpen);
   const importExportModalRackId = useStore((s) => s.importExportModalRackId);
   const selectedDeviceId = useStore((s) => s.selectedDeviceId);
+  const selectDevice = useStore((s) => s.selectDevice);
   const setPendingImportFile = useStore((s) => s.setPendingImportFile);
   const undo = useStore((s) => s.undo);
   const saveChanges = useStore((s) => s.saveChanges);
@@ -542,7 +543,10 @@ function App() {
       {/* Global Device Modal */}
       {selectedDeviceId && (
         <React.Suspense fallback={null}>
-          <DeviceModal />
+          <DeviceModal
+            deviceId={selectedDeviceId}
+            onClose={() => selectDevice(null)}
+          />
         </React.Suspense>
       )}
 

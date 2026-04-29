@@ -7,7 +7,9 @@ import type {
   ImportedModel,
   HierarchyNode,
   RegisteredDevice,
+  PortState,
 } from "../types";
+import { type GeneratedPort } from "../utils/portUtils";
 import { GRID_SPACING, RACK_WIDTH_STANDARD } from "../components/constants";
 import {
   getFrontDirection,
@@ -149,7 +151,7 @@ export interface AppState {
   removeRegisteredDevice: (id: string) => void;
   updateRegisteredDevice: (
     id: string,
-    updates: Partial<RegisteredDevice>,
+    updates: Partial<RegisteredDevice> & { generatedPorts?: GeneratedPort[] },
   ) => void;
   upsertRegisteredDevices: (devices: Omit<RegisteredDevice, "deviceId">[]) => {
     added: number;
@@ -777,7 +779,7 @@ export const useStore = create<AppState>()(
     }));
   },
 
-  updateRegisteredDevice: (id: string, updates: Partial<RegisteredDevice>) => {
+  updateRegisteredDevice: (id: string, updates: Partial<RegisteredDevice> & { generatedPorts?: GeneratedPort[] }) => {
     set((state) => {
       const updatedRegDevices = state.registeredDevices.map((d) =>
         d.deviceId === id ? { ...d, ...updates } : d,
@@ -796,6 +798,15 @@ export const useStore = create<AppState>()(
               vendor: updates.vendor ?? device.vendor,
               modelName: updates.modelName ?? device.modelName,
               size: updates.size ?? device.size,
+              insertedCards: updates.insertedCards !== undefined ? updates.insertedCards : device.insertedCards,
+              dashboardThumbnailUrl: updates.dashboardThumbnailUrl !== undefined ? updates.dashboardThumbnailUrl : device.dashboardThumbnailUrl,
+              portStates: updates.generatedPorts 
+                ? updates.generatedPorts.map(gp => {
+                    const ex = device.portStates.find(p => p.portId === gp.realPortNumber);
+                    if (ex) return ex;
+                    return { portId: gp.realPortNumber, status: "normal" } as PortState;
+                  })
+                : device.portStates,
             };
           }
           return device;
@@ -1378,6 +1389,8 @@ export const useStore = create<AppState>()(
       ...deviceData,
       itemId: crypto.randomUUID(),
       portStates: deviceData.portStates || [],
+      insertedCards: deviceData.insertedCards,
+      dashboardThumbnailUrl: deviceData.dashboardThumbnailUrl,
     };
 
     const updatedRacks = racks.map((r) =>

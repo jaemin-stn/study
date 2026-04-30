@@ -173,6 +173,7 @@ export interface RegisteredDevice {
 
   // 장비 조립(SVG 구성) 추가
   insertedCards?: import("./equipment").InsertedCard[];
+  generatedPorts?: import("./equipment").GeneratedPort[];
   dashboardThumbnailUrl?: string;
 }
 

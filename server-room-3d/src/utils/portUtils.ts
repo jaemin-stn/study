@@ -6,7 +6,7 @@
  * insertedCards + shelfNo/slotNo 기반으로 realPortNumber를 생성한다.
  */
 
-import type { InsertedCard, EquipmentPort } from "../types/equipment";
+import type { InsertedCard, EquipmentPort, GeneratedPort } from "../types/equipment";
 import type { PortState } from "../types/index";
 
 // ── 내부 타입 ─────────────────────────────────────────────────────────
@@ -21,23 +21,6 @@ export interface LocalPortInfo {
   pathD?: string;
 }
 
-/** generatePortMap()이 생성하는 포트 정보 */
-export interface GeneratedPort {
-  /** 실제 포트 번호 (e.g. "1/1/9") - shelfNo/slotNo/localPort */
-  realPortNumber: string;
-  /** SVG 내 로컬 포트 번호 (e.g. "9") */
-  localPort: string;
-  /** 소속 카드 인스턴스 ID */
-  cardInstanceId: string;
-  /** 카드 파일명 (SVG 매핑용) */
-  cardFileName: string;
-  /** 포트 유형 (e.g. "qsfp", "sfp", "port") */
-  portType: string;
-  /** 포트 상태 (기본: "normal") */
-  status: "normal" | "critical" | "warning" | "disabled";
-  /** SVG path의 d 속성 (포트 위치/크기 추출용) */
-  pathD?: string;
-}
 
 // ── 1. SVG raw text에서 port-hitbox 정보 추출 ────────────────────────
 

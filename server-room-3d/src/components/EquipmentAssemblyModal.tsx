@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import type { CardDefinition, InsertedCard, EquipmentModel, SlotDefinition } from "../types/equipment";
+import type { CardDefinition, InsertedCard, EquipmentModel, SlotDefinition, EquipmentRow, EquipmentSubSlot } from "../types/equipment";
 import {
   cardDefinitions,
   equipmentModels,
@@ -8,13 +8,14 @@ import {
   loadBaseEquipmentSvgRaw,
   loadCardSvgRaw,
 } from "../utils/cardAssets";
-import { generatePortMap, type GeneratedPort } from "../utils/portUtils";
+import { generatePortMap } from "../utils/portUtils";
+import type { GeneratedPort } from "../types/equipment";
 
 /* ────── 스타일 ────── */
 const STYLES = `
 .eam-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:2500;animation:eam-fi .25s ease-out}
 @keyframes eam-fi{from{opacity:0}to{opacity:1}}
-.eam-modal{background:var(--modal-bg);border:1px solid var(--border-medium);border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.6);width:1200px;max-width:95vw;height:88vh;display:flex;flex-direction:column;overflow:hidden;animation:eam-zi .3s cubic-bezier(.16,1,.3,1)}
+.eam-modal{background:var(--modal-bg);border:1px solid var(--border-medium);border-radius:20px;box-shadow:0 24px 80px rgba(0,0,0,.6);width:1400px;max-width:98vw;height:90vh;display:flex;flex-direction:column;overflow:hidden;animation:eam-zi .3s cubic-bezier(.16,1,.3,1)}
 @keyframes eam-zi{from{transform:scale(.96) translateY(16px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
 .eam-header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;background:var(--bg-tertiary);border-bottom:1px solid var(--border-weak)}
 .eam-header h2{font-size:18px;font-weight:700;color:var(--text-primary);margin:0;display:flex;align-items:center;gap:12px}
@@ -41,8 +42,8 @@ const STYLES = `
 .eam-toolbar .btn.primary:hover{filter:brightness(1.1);transform:translateY(-1px)}
 .eam-toolbar .btn.danger{color:var(--severity-critical);border-color:rgba(239,68,68,.3)}
 .eam-toolbar .btn.danger:hover{background:var(--severity-critical);color:#fff}
-.eam-canvas-area{flex:1;overflow:auto;display:flex;align-items:center;justify-content:center;padding:60px;background:#1a1c22;position:relative}
-.eam-equip-wrap{position:relative;display:inline-block;box-shadow:0 0 60px rgba(0,0,0,.7);border-radius:4px;background:#000;flex-shrink:0}
+.eam-canvas-area{flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:60px;background:#1a1c22;position:relative}
+.eam-equip-wrap{position:relative;margin:auto;display:inline-block;box-shadow:0 0 60px rgba(0,0,0,.7);border-radius:4px;background:#000;flex-shrink:0}
 .eam-equip-wrap svg{display:block;width:auto;height:auto;max-width:none}
 .base-svg-container{display:block}
 .base-svg-container svg{display:block;width:auto;height:auto;max-width:none}
@@ -69,6 +70,9 @@ const STYLES = `
 .eam-card-item .tag.standard{background:rgba(59,130,246,.12);color:#3b82f6;border:1px solid rgba(59,130,246,.25)}
 .eam-sidebar-section{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);font-weight:700;padding:8px 8px 4px;margin-top:8px;border-top:1px solid var(--border-weak)}
 .eam-sidebar-section:first-of-type{margin-top:0;border-top:none}
+.eam-sidebar-section:first-of-type{margin-top:0;border-top:none}
+.eam-row-container{position:absolute;border:1px dashed rgba(168,85,247,.3);pointer-events:none;display:flex;align-items:center;justify-content:center}
+.eam-row-container .row-label{position:absolute;left:-40px;font-size:10px;color:rgba(168,85,247,.7);font-weight:700}
 `;
 
 /* ────── 슬롯 그리드 계산 ────── */
@@ -85,6 +89,7 @@ interface SlotPosition {
 
 function buildSlotGrid(model: EquipmentModel): SlotPosition[] {
   const { cardArea } = model;
+  if (!cardArea) return [];
   const maxRows = Math.floor(cardArea.height / CARD_ROW_HEIGHT);
   const slots: SlotPosition[] = [];
   for (let row = 0; row < maxRows; row++) {
@@ -223,7 +228,7 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
       if (initialCards && initialCards.length > 0) {
         setInsertedCards(initialCards.map(c => ({
           ...c,
-          slotNo: c.positionIndex + 1
+          slotNo: c.slotNo ?? (c.positionIndex + 1)
         })));
         // slotNextId도 최대값 + 1로 설정하여 ID 충돌 방지
         const maxId = initialCards.reduce((max, c) => {
@@ -262,6 +267,8 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
 
   // mixed layout 여부
   const isMixedLayout = !!selectedModel?.slots;
+  // row layout 여부
+  const isRowLayout = !!selectedModel?.rows;
 
   // 모델에 맞는 카드 목록 (R6 전용 필터 등)
   const filteredCards = useMemo(() => {
@@ -280,23 +287,41 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
 
   // === 같은 행에서 full/half 슬롯 상호 배제 (geometry overlap) ===
   const blockedSlotIds = useMemo(() => {
-    if (!selectedModel?.slots) return new Set<string>();
     const blocked = new Set<string>();
 
-    for (const card of insertedCards) {
-      if (!card.slotId) continue;
-      const occupied = selectedModel.slots.find(s => s.slotId === card.slotId);
-      if (!occupied) continue;
+    if (selectedModel?.slots) {
+      for (const card of insertedCards) {
+        if (!card.slotId) continue;
+        const occupied = selectedModel.slots.find(s => s.slotId === card.slotId);
+        if (!occupied) continue;
 
-      for (const slot of selectedModel.slots) {
-        if (slot.slotId === card.slotId) continue;
-        if (slot.row !== occupied.row) continue;
+        for (const slot of selectedModel.slots) {
+          if (slot.slotId === card.slotId) continue;
+          if (slot.row !== occupied.row) continue;
 
-        // X축 겹침 검사
-        const oRight = occupied.x + occupied.width;
-        const sRight = slot.x + slot.width;
-        if (occupied.x < sRight && oRight > slot.x) {
-          blocked.add(slot.slotId);
+          const oRight = occupied.x + occupied.width;
+          const sRight = slot.x + slot.width;
+          if (occupied.x < sRight && oRight > slot.x) {
+            blocked.add(slot.slotId);
+          }
+        }
+      }
+    } else if (selectedModel?.rows) {
+      for (const card of insertedCards) {
+        if (!card.slotId || !card.rowId) continue;
+        const row = selectedModel.rows.find(r => r.rowId === card.rowId);
+        if (!row) continue;
+        const occupied = row.subSlots.find(s => s.slotId === card.slotId);
+        if (!occupied) continue;
+
+        for (const slot of row.subSlots) {
+          if (slot.slotId === card.slotId) continue;
+
+          const oRight = occupied.x + occupied.width;
+          const sRight = slot.x + slot.width;
+          if (occupied.x < sRight && oRight > slot.x) {
+            blocked.add(slot.slotId);
+          }
         }
       }
     }
@@ -305,24 +330,35 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
 
   // === 선택된 카드에 대한 유효 슬롯 ID 계산 (하이라이팅용) ===
   const availableSlotIds = useMemo(() => {
-    if (!selectedCard || !selectedModel?.slots) return new Set<string>();
-    return new Set(
-      selectedModel.slots
-        .filter(slot => {
-          const sizeKey = selectedCard.cardSizeType || selectedCard.widthType;
-          const sizeOk = slot.accepts.includes(sizeKey);
-          const groupOk = !slot.allowedCardGroups?.length ||
-            slot.allowedCardGroups.includes(selectedCard.cardGroup || "standard");
-          const emptyOk = !slotOccupiedMap.has(slot.slotId);
-          const notBlocked = !blockedSlotIds.has(slot.slotId);
-          return sizeOk && groupOk && emptyOk && notBlocked;
-        })
-        .map(s => s.slotId)
-    );
+    if (!selectedCard) return new Set<string>();
+    const ids = new Set<string>();
+
+    if (selectedModel?.slots) {
+      selectedModel.slots.forEach(slot => {
+        const sizeKey = selectedCard.cardSizeType || selectedCard.widthType;
+        const sizeOk = slot.accepts.includes(sizeKey);
+        const groupOk = !slot.allowedCardGroups?.length ||
+          slot.allowedCardGroups.includes(selectedCard.cardGroup || "standard");
+        const emptyOk = !slotOccupiedMap.has(slot.slotId);
+        const notBlocked = !blockedSlotIds.has(slot.slotId);
+        if (sizeOk && groupOk && emptyOk && notBlocked) ids.add(slot.slotId);
+      });
+    } else if (selectedModel?.rows) {
+      selectedModel.rows.forEach(row => {
+        row.subSlots.forEach(subSlot => {
+          // 카드의 svg 너비가 서브슬롯 너비를 초과하지 않는지 확인
+          const sizeOk = selectedCard.svgWidth <= subSlot.width;
+          const emptyOk = !slotOccupiedMap.has(subSlot.slotId);
+          const notBlocked = !blockedSlotIds.has(subSlot.slotId);
+          if (sizeOk && emptyOk && notBlocked) ids.add(subSlot.slotId);
+        });
+      });
+    }
+    return ids;
   }, [selectedCard, selectedModel, slotOccupiedMap, blockedSlotIds]);
 
   // 카드가 선택되었을 때 하이라이팅 활성 여부
-  const isHighlightActive = !!selectedCard && !!selectedModel?.slots && selectedModel.slots.length > 0;
+  const isHighlightActive = !!selectedCard && (isMixedLayout || isRowLayout);
 
   // === slots 모델: 슬롯 클릭 → 카드 삽입 ===
   const handleSlotClickMixed = useCallback(
@@ -361,6 +397,7 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
       }
 
       const colValue = slot.col ?? 1;
+      const globalSlotNo = selectedModel.slots!.findIndex(s => s.slotId === slot.slotId) + 1;
       const newCard: InsertedCard = {
         instanceId: `card-instance-${String(slotNextId).padStart(3, "0")}`,
         cardFileName: selectedCard.cardFileName,
@@ -368,7 +405,7 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
         svgUrl: selectedCard.svgUrl,
         widthType: selectedCard.widthType,
         shelfNo: 1,
-        slotNo: slot.row,
+        slotNo: globalSlotNo,
         positionIndex: slot.row * 2 + (colValue - 1), // 호환용
         svgHeight: selectedCard.svgHeight,
         slotId: slot.slotId,
@@ -380,10 +417,52 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
     [selectedCard, selectedModel, slotOccupiedMap, blockedSlotIds, slotNextId],
   );
 
+  // === row 모델: 슬롯 클릭 → 카드 삽입 ===
+  const handleSlotClickRow = useCallback(
+    (row: EquipmentRow, subSlot: EquipmentSubSlot) => {
+      if (!selectedCard || !selectedModel) return;
+
+      if (slotOccupiedMap.has(subSlot.slotId)) {
+        setWarning("이미 카드가 삽입된 슬롯입니다.");
+        return;
+      }
+
+      if (blockedSlotIds.has(subSlot.slotId)) {
+        setWarning("같은 행의 다른 슬롯에 카드가 삽입되어 사용할 수 없습니다.");
+        return;
+      }
+
+      if (selectedCard.svgWidth > subSlot.width) {
+        setWarning(`이 카드의 너비(${selectedCard.svgWidth}px)는 슬롯 너비(${subSlot.width}px)를 초과합니다.`);
+        return;
+      }
+
+      const allSubSlots = selectedModel.rows!.flatMap(r => r.subSlots.map(s => s.slotId));
+      const globalSlotNo = allSubSlots.indexOf(subSlot.slotId) + 1;
+
+      const newCard: InsertedCard = {
+        instanceId: `card-instance-${String(slotNextId).padStart(3, "0")}`,
+        cardFileName: selectedCard.cardFileName,
+        cardType: selectedCard.cardType,
+        svgUrl: selectedCard.svgUrl,
+        widthType: selectedCard.widthType,
+        shelfNo: 1,
+        slotNo: globalSlotNo, // 고유 slotNo 할당 (포트 충돌 방지)
+        positionIndex: row.row * row.columns + row.subSlots.indexOf(subSlot), // 호환용
+        svgHeight: selectedCard.svgHeight,
+        slotId: subSlot.slotId,
+        rowId: row.rowId,
+      };
+      setInsertedCards((prev) => [...prev, newCard]);
+      setSlotNextId((n) => n + 1);
+    },
+    [selectedCard, selectedModel, slotOccupiedMap, slotNextId]
+  );
+
   // === uniform grid 모델: 슬롯 클릭 → 카드 삽입 ===
   const handleSlotClick = useCallback(
     (slot: SlotPosition) => {
-      if (!selectedCard || !selectedModel) return;
+      if (!selectedCard || !selectedModel || !selectedModel.cardArea) return;
 
       const posIndex = slot.row * selectedModel.cardArea.columns + slot.col;
 
@@ -462,12 +541,22 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
             // slots 모델: slotId로 좌표 결정
             if (selectedModel.slots && card.slotId) {
               const slotDef = selectedModel.slots.find(s => s.slotId === card.slotId);
-              if (!slotDef) continue;
+              if (!slotDef || !selectedModel.cardArea) continue;
               x = selectedModel.cardArea.x + slotDef.x;
               y = selectedModel.cardArea.y + slotDef.y;
               cardW = slotDef.width;
               cardH = slotDef.height;
-            } else {
+            } else if (selectedModel.rows && card.rowId && card.slotId) {
+              // row-based 모델: rowId와 slotId로 결정
+              const rowDef = selectedModel.rows.find(r => r.rowId === card.rowId);
+              if (!rowDef) continue;
+              const subDef = rowDef.subSlots.find(s => s.slotId === card.slotId);
+              if (!subDef) continue;
+              x = rowDef.x + subDef.x;
+              y = rowDef.y + subDef.y;
+              cardW = subDef.width;
+              cardH = subDef.height;
+            } else if (selectedModel.cardArea) {
               // uniform grid 모델
               const row = Math.floor(card.positionIndex / selectedModel.cardArea.columns);
               const col = card.positionIndex % selectedModel.cardArea.columns;
@@ -477,6 +566,8 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
                 ? selectedModel.cardArea.columnWidth * 2
                 : selectedModel.cardArea.columnWidth;
               cardH = CARD_ROW_HEIGHT;
+            } else {
+              continue; // fallback
             }
 
             const vb = cardSvgEl.getAttribute("viewBox");
@@ -579,7 +670,11 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
                   <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 4 }}>
                     {m.slots
                       ? `${m.slots.length}개 슬롯 (Mixed)`
-                      : `${m.cardArea.columns}열 × ${Math.floor(m.cardArea.height / CARD_ROW_HEIGHT)}행 슬롯`
+                      : m.rows
+                      ? `${m.rows.length}개 행 (Row-based)`
+                      : m.cardArea
+                      ? `${m.cardArea.columns}열 × ${Math.floor(m.cardArea.height / CARD_ROW_HEIGHT)}행 슬롯`
+                      : ""
                     }
                   </div>
                 </div>
@@ -613,9 +708,10 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
                       </div>
                     ));
                   }
-                  // R6d/R6dl: CPIOM / Standard 그룹 분리
+                  // R6d/R6dl/IXR: 그룹 분리
                   const cpiomCards = filteredCards.filter(cd => cd.cardGroup === "cpiom");
-                  const standardCards = filteredCards.filter(cd => cd.cardGroup === "standard");
+                  const standardCards = filteredCards.filter(cd => cd.cardGroup === "standard" || (!cd.cardGroup && cd.cardGroup !== "ixr"));
+                  const ixrCards = filteredCards.filter(cd => cd.cardGroup === "ixr");
                   return (
                     <>
                       {cpiomCards.length > 0 && (
@@ -644,6 +740,30 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
                         <>
                           <div className="eam-sidebar-section">Standard 카드</div>
                           {standardCards.map((cd) => (
+                            <div
+                              key={cd.cardFileName}
+                              className="eam-card-item"
+                              style={{
+                                borderColor: selectedCard?.cardFileName === cd.cardFileName ? "var(--theme-primary)" : undefined,
+                                background: selectedCard?.cardFileName === cd.cardFileName ? "rgba(110,159,255,.1)" : undefined,
+                              }}
+                              onClick={() => setSelectedCard(cd)}
+                            >
+                              <img src={cd.svgUrl} alt={cd.cardType} style={{ width: cd.widthType === "full" ? 80 : 50 }} />
+                              <div className="info">
+                                <div className="name">{cd.cardType}</div>
+                                <span className={`tag ${cd.widthType === "full" ? "standard" : cd.widthType}`}>
+                                  {cd.widthType === "full" ? "FULL" : "HALF"}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                      {ixrCards.length > 0 && (
+                        <>
+                          <div className="eam-sidebar-section">IXR 카드</div>
+                          {ixrCards.map((cd) => (
                             <div
                               key={cd.cardFileName}
                               className="eam-card-item"
@@ -713,10 +833,10 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
                       <div
                         className="eam-card-area-overlay"
                         style={{
-                          left: selectedModel.cardArea.x,
-                          top: selectedModel.cardArea.y,
-                          width: selectedModel.cardArea.width,
-                          height: selectedModel.cardArea.height,
+                          left: selectedModel.cardArea ? selectedModel.cardArea.x : 0,
+                          top: selectedModel.cardArea ? selectedModel.cardArea.y : 0,
+                          width: selectedModel.cardArea ? selectedModel.cardArea.width : (selectedModel.equipmentSize?.width || "100%"),
+                          height: selectedModel.cardArea ? selectedModel.cardArea.height : "100%",
                         }}
                       >
                         {isMixedLayout && selectedModel.slots ? (
@@ -779,7 +899,68 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
                               </div>
                             );
                           })
-                        ) : (
+                        ) : isRowLayout && selectedModel.rows ? (
+                          /* ─── Row Layout (rows 기반) ─── */
+                          selectedModel.rows.map(row => (
+                            <div key={row.rowId} className="eam-row-container" style={{
+                              left: row.x,
+                              top: row.y,
+                              width: row.width,
+                              height: row.height,
+                            }}>
+                              <div className="row-label">R{row.row}</div>
+                              {row.subSlots.map(subSlot => {
+                                const card = slotOccupiedMap.get(subSlot.slotId);
+                                const isOccupied = !!card;
+                                const isBlocked = blockedSlotIds.has(subSlot.slotId);
+
+                                if (isBlocked && !isOccupied) return null;
+
+                                const isAvailable = availableSlotIds.has(subSlot.slotId);
+                                const isDimmed = isHighlightActive && !isOccupied && !isAvailable;
+                                const isHighlight = isHighlightActive && !isOccupied && isAvailable;
+
+                                // full/half 겹침 시 풀 슬롯은 하이라이트될 때만 렌더링
+                                const hasSmallSiblings = row.subSlots.some(s => s.slotId !== subSlot.slotId && s.width < subSlot.width);
+                                if (hasSmallSiblings && !isOccupied && !isHighlight) return null;
+
+                                return (
+                                  <div
+                                    key={subSlot.slotId}
+                                    className={`eam-slot ${isOccupied ? "occupied" : ""} ${isHighlight ? "highlight" : ""} ${isDimmed ? "dimmed" : ""}`}
+                                    style={{
+                                      left: subSlot.x,
+                                      top: subSlot.y,
+                                      width: subSlot.width,
+                                      height: subSlot.height,
+                                    }}
+                                    onClick={() => {
+                                      if (card || isDimmed) return;
+                                      handleSlotClickRow(row, subSlot);
+                                    }}
+                                  >
+                                    {card ? (
+                                      <>
+                                        <CardInlineSvg cardFileName={card.cardFileName} />
+                                        <button
+                                          className="remove-btn"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleRemoveCard(card.instanceId);
+                                          }}
+                                        >
+                                          ×
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <span className="slot-label">{subSlot.slotId}</span>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ))
+                        ) : selectedModel.cardArea ? (
                           /* ─── Uniform Grid Layout ─── */
                           slots.map((slot) => {
                             const key = `${slot.row}-${slot.col}`;
@@ -790,16 +971,16 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
                             if (isOccupied && !card) return null;
 
                             const slotWidth = card?.widthType === "full"
-                              ? selectedModel.cardArea.columnWidth * 2
-                              : selectedModel.cardArea.columnWidth;
+                              ? selectedModel.cardArea!.columnWidth * 2
+                              : selectedModel.cardArea!.columnWidth;
 
                             return (
                               <div
                                 key={key}
                                 className={`eam-slot ${isOccupied ? "occupied" : ""}`}
                                 style={{
-                                  left: slot.x - selectedModel.cardArea.x,
-                                  top: slot.y - selectedModel.cardArea.y,
+                                  left: slot.x - selectedModel.cardArea!.x,
+                                  top: slot.y - selectedModel.cardArea!.y,
                                   width: slotWidth,
                                   height: slot.height,
                                 }}
@@ -829,7 +1010,7 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
                               </div>
                             );
                           })
-                        )}
+                        ) : null}
                       </div>
                     )}
                   </div>

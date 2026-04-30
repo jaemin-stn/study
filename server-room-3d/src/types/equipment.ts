@@ -10,6 +10,28 @@ export type CardWidthType = "half" | "full";
 /** 카드 그룹: cpiom = CPIOM 전용, standard = 일반 카드 */
 export type CardGroupType = "cpiom" | "standard";
 
+/** 서브 슬롯 (row-based layout용) */
+export interface EquipmentSubSlot {
+  slotId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** 행 정의 (row-based layout용) */
+export interface EquipmentRow {
+  rowId: string;
+  row: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  overlapY: number;
+  columns: number;
+  subSlots: EquipmentSubSlot[];
+}
+
 /** 슬롯 정의 (mixed layout용) */
 export interface SlotDefinition {
   slotId: string;
@@ -34,7 +56,7 @@ export interface EquipmentModel {
   rackUnit?: string; // e.g. "4U", "7U"
   baseSvgUrl: string; // e.g. "/equipment/[2U] 7250 IXR-R4-CARD.svg"
   dashboardThumbnailUrl?: string;
-  cardArea: {
+  cardArea?: {
     x: number;
     y: number;
     width: number;
@@ -42,8 +64,13 @@ export interface EquipmentModel {
     columns: number;
     columnWidth: number;
   };
+  equipmentSize?: {
+    width: number;
+  };
   /** mixed layout용 명시적 슬롯 정의 (없으면 uniform grid) */
   slots?: SlotDefinition[];
+  /** row-based layout용 행 정의 (IXR-6, IXR-10 등) */
+  rows?: EquipmentRow[];
 }
 
 /** 카드 정의 (카드 라이브러리에 표시) */
@@ -76,6 +103,24 @@ export interface EquipmentPort {
   status: "normal" | "critical" | "warning" | "disabled";
 }
 
+/** [VITE_CACHE_BREAKER_GEN_PORT] */
+export interface GeneratedPort {
+  /** 실제 포트 번호 (e.g. "1/1/9") - shelfNo/slotNo/localPort */
+  realPortNumber: string;
+  /** SVG 내 로컬 포트 번호 (e.g. "9") */
+  localPort: string;
+  /** 소속 카드 인스턴스 ID */
+  cardInstanceId: string;
+  /** 카드 파일명 (SVG 매핑용) */
+  cardFileName: string;
+  /** 포트 유형 (e.g. "qsfp", "sfp", "port") */
+  portType: string;
+  /** 포트 상태 (기본: "normal") */
+  status: "normal" | "critical" | "warning" | "disabled";
+  /** SVG path의 d 속성 (포트 위치/크기 추출용) */
+  pathD?: string;
+}
+
 /** 삽입된 카드 인스턴스 */
 export interface InsertedCard {
   instanceId: string;
@@ -91,8 +136,10 @@ export interface InsertedCard {
   svgHeight: number;
   /** 런타임 생성된 포트 목록 */
   ports?: EquipmentPort[];
-  /** mixed layout용 슬롯 ID (e.g. "row-1-full") */
+  /** mixed layout용 슬롯 ID (e.g. "row-1-full") 또는 row-based 서브 슬롯 ID */
   slotId?: string;
+  /** row-based layout용 행 ID */
+  rowId?: string;
   /** 카드 크기 타입 (e.g. "full-860x71", "half-430x46") - slots 모델 전용 */
   cardSizeType?: string;
 }

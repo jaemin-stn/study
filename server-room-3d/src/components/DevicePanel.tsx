@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useStore, checkFrontClearanceViolation } from "../store/useStore";
 import type { PortState, RegisteredDevice } from "../types";
+import type { GeneratedPort } from "../types/equipment";
 import { getHighestError } from "../utils/errorHelpers";
 import { resolveDeviceImage } from "../utils/deviceAssets";
 import { getNodeName } from "../utils/nodeUtils";
@@ -479,7 +480,14 @@ export const DevicePanel = () => {
       modelName: regDevice.modelName,
       vendor: regDevice.vendor,
       deviceId: regDevice.deviceId,
-      portStates: existingPortStates,
+      portStates: existingPortStates.length > 0 
+        ? existingPortStates 
+        : (regDevice.generatedPorts?.map((gp: GeneratedPort) => ({
+            portId: gp.realPortNumber,
+            portNumber: gp.realPortNumber,
+            portName: gp.portType,
+            status: "normal"
+          })) || []),
       insertedCards: regDevice.insertedCards,
       dashboardThumbnailUrl: regDevice.dashboardThumbnailUrl,
     } as any; // Type assertion since itemId needs to be generated in useStore

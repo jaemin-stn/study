@@ -21,7 +21,7 @@ import {
 } from "./Icons";
 import { EquipmentAssemblyModal } from "./EquipmentAssemblyModal";
 import { equipmentModels } from "../utils/cardAssets";
-import type { InsertedCard } from "../types/equipment";
+import type { InsertedCard, GeneratedPort } from "../types/equipment";
 import { useStore } from "../store/useStore";
 import { DEVICE_TEMPLATES } from "../utils/deviceTemplates";
 import type { VendorName, HierarchyNode } from "../types";
@@ -1785,7 +1785,7 @@ const RegistrationFormModal = ({
 
   // Equipment Assembly State
   const [insertedCards, setInsertedCards] = useState<InsertedCard[]>([]);
-  const [generatedPorts, setGeneratedPorts] = useState<any[]>([]);
+  const [generatedPorts, setGeneratedPorts] = useState<GeneratedPort[]>([]);
   const [dashboardThumbnailUrl, setDashboardThumbnailUrl] =
     useState<string>("");
   const [isAssemblyOpen, setIsAssemblyOpen] = useState(false);
@@ -2221,6 +2221,21 @@ export const DeviceRegistrationModal = () => {
   const [selectedChildNodeIds, setSelectedChildNodeIds] = useState<Set<string>>(
     new Set(),
   );
+
+  // --- NEW: Infinite scroll state ---
+  const [visibleCount, setVisibleCount] = useState(50);
+  
+  // Reset visibleCount when filters change
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [search, nodeFilter, directNodeOnly, selectedChildNodeIds]);
+
+  const handleTableScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop <= clientHeight * 1.5) {
+      setVisibleCount((prev) => prev + 50);
+    }
+  }, []);
 
   // Drag Handlers
   const handleDragStart = useCallback((nodeId: string) => {
@@ -3075,7 +3090,7 @@ export const DeviceRegistrationModal = () => {
                       )}
                     </div>
 
-                    <div className="drm-table-content">
+                    <div className="drm-table-content" onScroll={handleTableScroll}>
                       {filteredDevices.length > 0 ? (
                         <table className="drm-table">
                           <thead>
@@ -3112,7 +3127,7 @@ export const DeviceRegistrationModal = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {filteredDevices.map((device) => (
+                            {filteredDevices.slice(0, visibleCount).map((device) => (
                               <DeviceRow
                                 key={device.deviceId}
                                 device={device}

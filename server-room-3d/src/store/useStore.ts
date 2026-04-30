@@ -9,7 +9,7 @@ import type {
   RegisteredDevice,
   PortState,
 } from "../types";
-import { type GeneratedPort } from "../utils/portUtils";
+import { type GeneratedPort } from "../types/equipment";
 import { GRID_SPACING, RACK_WIDTH_STANDARD } from "../components/constants";
 import {
   getFrontDirection,
@@ -808,8 +808,8 @@ export const useStore = create<AppState>()(
               portStates: updates.generatedPorts 
                 ? updates.generatedPorts.map(gp => {
                     const ex = device.portStates.find(p => p.portId === gp.realPortNumber);
-                    if (ex) return ex;
-                    return { portId: gp.realPortNumber, status: "normal" } as PortState;
+                    if (ex) return { ...ex, portName: gp.portType, portNumber: gp.realPortNumber };
+                    return { portId: gp.realPortNumber, portNumber: gp.realPortNumber, portName: gp.portType, status: "normal" } as PortState;
                   })
                 : device.portStates,
             };

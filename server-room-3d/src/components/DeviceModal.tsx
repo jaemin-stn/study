@@ -7,8 +7,9 @@ import {
   generatePortMap,
   buildPortStatusMapFromPortStates,
   applyPortStatuses,
-  type GeneratedPort,
 } from '../utils/portUtils';
+import type { GeneratedPort } from '../types/equipment';
+import { ERROR_COLORS } from '../utils/errorHelpers';
 
 // 외부 타입 임포트 에러 우회를 위해 내부 정의 사용
 export interface PortState {
@@ -37,19 +38,11 @@ export interface Device {
 
 const CARD_ROW_HEIGHT = 46;
 
-/** 에러 레벨별 색상 */
-const ERROR_COLORS: Record<string, string> = {
-  critical: "#ff0000",
-  major: "#ff8000",
-  minor: "#ffff00",
-  warning: "#ffa500",
-};
-
 /** 포트 상태별 색상 (GeneratedPort.status 기준) */
 const PORT_STATUS_COLORS: Record<string, string> = {
   normal: "transparent",
-  critical: "#ff0000",
-  warning: "#ffa500",
+  critical: ERROR_COLORS.critical,
+  warning: ERROR_COLORS.warning,
   disabled: "#666666",
 };
 
@@ -152,12 +145,22 @@ const SvgPortView = ({ device, portStates }: { device: Device; portStates: PortS
           // slots 모델: slotId로 좌표 결정
           if (equipModel.slots && card.slotId) {
             const slotDef = equipModel.slots.find(s => s.slotId === card.slotId);
-            if (!slotDef) continue;
+            if (!slotDef || !equipModel.cardArea) continue;
             x = equipModel.cardArea.x + slotDef.x;
             y = equipModel.cardArea.y + slotDef.y;
             cardW = slotDef.width;
             cardH = slotDef.height;
-          } else {
+          } else if (equipModel.rows && card.rowId && card.slotId) {
+            // row-based 모델: rowId와 slotId로 결정
+            const rowDef = equipModel.rows.find(r => r.rowId === card.rowId);
+            if (!rowDef) continue;
+            const subDef = rowDef.subSlots.find(s => s.slotId === card.slotId);
+            if (!subDef) continue;
+            x = rowDef.x + subDef.x;
+            y = rowDef.y + subDef.y;
+            cardW = subDef.width;
+            cardH = subDef.height;
+          } else if (equipModel.cardArea) {
             // uniform grid 모델
             const row = Math.floor(card.positionIndex / equipModel.cardArea.columns);
             const col = card.positionIndex % equipModel.cardArea.columns;
@@ -165,6 +168,8 @@ const SvgPortView = ({ device, portStates }: { device: Device; portStates: PortS
             y = equipModel.cardArea.y + row * CARD_ROW_HEIGHT;
             cardW = card.widthType === "full" ? equipModel.cardArea.columnWidth * 2 : equipModel.cardArea.columnWidth;
             cardH = CARD_ROW_HEIGHT;
+          } else {
+            continue; // fallback
           }
 
           const vb = cardSvgEl.getAttribute("viewBox");
@@ -294,28 +299,73 @@ const SvgPortView = ({ device, portStates }: { device: Device; portStates: PortS
 
       if (!portEl || !tooltip) return;
 
-      // 모듈러 장비: realPortNumber 기반 상세 정보
-      const realPortNumber = portEl.getAttribute("data-port-number");
-      if (realPortNumber && isModularDevice) {
-        const gp = generatedPortMap.get(realPortNumber);
-        const statusColor = gp?.status === "normal" ? "#22c55e"
-          : gp?.status === "critical" ? "#ff4d4d"
-          : gp?.status === "warning" ? "#ffa500"
-          : "#888";
-        const statusLabel = gp?.status?.toUpperCase() || "NORMAL";
-        const portType = gp?.portType?.toUpperCase() || portEl.getAttribute("data-port-type")?.toUpperCase() || "";
+      const realPortNumber = portEl.getAttribute("data-port-number") || portEl.querySelector(".port-hitbox")?.getAttribute("data-port-number");
+      const gp = realPortNumber && isModularDevice ? generatedPortMap.get(realPortNumber) : null;
+      const rawId = realPortNumber || portEl.id;
 
-        tooltip.innerHTML = `
-          <div style="font-weight:700; font-size:13px; margin-bottom:6px;">${portType || 'PORT'} ${realPortNumber}</div>
-          <div style="font-weight:600; color:${statusColor}; font-size:12px;">${statusLabel}</div>
-        `;
-      } else {
-        // 비-모듈러 장비: 기존 portState 기반
-        const lookupId = portEl.getAttribute("data-port-number") || portEl.id;
-        const ps = portStateMap.get(lookupId);
-        const isError = ps?.status === "error";
-        tooltip.innerHTML = `<div style="font-weight:700;">Port ${lookupId}</div><div style="color:${isError ? '#ff4d4d' : '#22c55e'}">${ps?.status?.toUpperCase() || 'NORMAL'}</div>`;
+      let pType = gp?.portType || 
+                  portEl.getAttribute("data-port-type") || 
+                  portEl.getAttribute("data-porttype") || 
+                  portEl.querySelector(".port-hitbox")?.getAttribute("data-port-type") || 
+                  "";
+      let displayId = rawId;
+
+      // 만약 여전히 pType이 빈 문자열이거나 "port"와 같은 일반적인 문자열이라면 속성이나 ID에서 유추 시도
+      if (!pType || pType.toLowerCase() === "port") {
+        const fallbackType = portEl.getAttribute("data-port-type") || 
+                             portEl.getAttribute("data-porttype") || 
+                             portEl.querySelector(".port-hitbox")?.getAttribute("data-port-type");
+        if (fallbackType && fallbackType.toLowerCase() !== "port") {
+          pType = fallbackType;
+        } else {
+          const idMatch = portEl.id.match(/port-(qsfp28|qsfp|sfp|console|mgmt|usb)-/i);
+          if (idMatch) {
+            pType = idMatch[1];
+          }
+        }
       }
+
+      if (displayId.startsWith("port-")) {
+        const parts = displayId.split("-");
+        if (parts.length >= 3) {
+          if (!pType) pType = parts[1];
+          displayId = parts.slice(2).join("-");
+        } else {
+          displayId = displayId.replace(/^port-/, "");
+        }
+      } else if (/^p\d+$/.test(displayId)) {
+        displayId = displayId.replace(/^p/, "");
+      }
+
+      const displayType = pType ? pType.toUpperCase() : "PORT";
+
+      let statusStr = "NORMAL";
+      let statusColor = "#22c55e";
+
+      if (gp) {
+        statusStr = gp.status.toUpperCase();
+        statusColor = gp.status === "normal" ? "#22c55e"
+          : gp.status === "critical" ? ERROR_COLORS.critical
+          : gp.status === "warning" ? ERROR_COLORS.warning
+          : "#888";
+      } else {
+        const ps = portStateMap.get(rawId);
+        if (ps) {
+          statusStr = ps.status.toUpperCase();
+          const isError = ps.status === "error";
+          // 지원하는 경우 에러 레벨 색상 매핑
+          if (isError && ps.errorLevel && ERROR_COLORS[ps.errorLevel]) {
+            statusColor = ERROR_COLORS[ps.errorLevel];
+          } else {
+            statusColor = isError ? "#ff4d4d" : "#22c55e";
+          }
+        }
+      }
+
+      tooltip.innerHTML = `
+        <div style="font-weight:700; font-size:13px; margin-bottom:6px;">${displayType} ${displayId}</div>
+        <div style="font-weight:600; color:${statusColor}; font-size:12px;">${statusStr}</div>
+      `;
       tooltip.style.display = "block";
     };
     const handleMouseMove = (e: MouseEvent) => {
@@ -471,44 +521,47 @@ export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: 
       backgroundColor: "var(--modal-backdrop)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, backdropFilter: "blur(5px)"
     }}>
       <div className="modal-content" onClick={e => e.stopPropagation()} style={{
-        backgroundColor: "var(--modal-bg)", padding: "24px", borderRadius: "var(--radius-lg)", width: "940px", border: "1px solid var(--modal-border)", boxShadow: "var(--elevation-3)"
+        backgroundColor: "var(--modal-bg)", borderRadius: "var(--radius-lg)", width: "940px", border: "1px solid var(--modal-border)", boxShadow: "var(--elevation-3)",
+        maxHeight: "90vh", display: "flex", flexDirection: "column"
       }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-            <h2 style={{ color: "var(--text-primary)", margin: 0, fontSize: "20px", fontWeight: "600" }}>{device.title}</h2>
-            <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: "24px", cursor: "pointer", lineHeight: "1" }}>×</button>
+        <div style={{ padding: "24px 24px 0 24px", flexShrink: 0 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "16px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <h2 style={{ color: "var(--text-primary)", margin: 0, fontSize: "20px", fontWeight: "600" }}>{device.title}</h2>
+              <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--text-secondary)", fontSize: "24px", cursor: "pointer", lineHeight: "1" }}>×</button>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span style={{ 
+                backgroundColor: "var(--severity-success-bg)", 
+                color: "var(--severity-success-text)", 
+                padding: "2px 8px", 
+                borderRadius: "12px", 
+                fontSize: "12px", 
+                fontWeight: "600",
+                textTransform: "capitalize" 
+              }}>
+                {device.type || "Router"}
+              </span>
+              <span style={{ color: "var(--text-secondary)", fontSize: "14px" }}>Rack: {rackName || device.rackId || "Unknown"}</span>
+            </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span style={{ 
-              backgroundColor: "var(--severity-success-bg)", 
-              color: "var(--severity-success-text)", 
-              padding: "2px 8px", 
-              borderRadius: "12px", 
-              fontSize: "12px", 
-              fontWeight: "600",
-              textTransform: "capitalize" 
-            }}>
-              {device.type || "Router"}
-            </span>
-            <span style={{ color: "var(--text-secondary)", fontSize: "14px" }}>Rack: {rackName || device.rackId || "Unknown"}</span>
-          </div>
+          <div style={{ margin: "0 -24px", borderBottom: "1px solid var(--border-medium)" }} />
         </div>
-        
-        <div style={{ margin: "0 -24px 20px -24px", borderBottom: "1px solid var(--border-medium)" }} />
 
-        <div style={{ 
-          backgroundColor: "var(--bg-secondary)", 
-          borderRadius: "var(--radius-md)", 
-          border: "1px solid var(--border-medium)",
-          padding: "16px",
-          overflow: "hidden", 
-          minHeight: "200px", 
-          display: "flex", 
-          alignItems: "center", 
-          justifyContent: "center" 
-        }}>
-          <SvgPortView device={device} portStates={devicePortStates} />
-        </div>
+        <div style={{ padding: "20px 24px 24px 24px", overflowY: "auto", flex: 1 }}>
+          <div style={{ 
+            backgroundColor: "var(--bg-secondary)", 
+            borderRadius: "var(--radius-md)", 
+            border: "1px solid var(--border-medium)",
+            padding: "16px",
+            overflow: "hidden", 
+            minHeight: "200px", 
+            display: "flex", 
+            alignItems: "flex-start", 
+            justifyContent: "center" 
+          }}>
+            <SvgPortView device={device} portStates={devicePortStates} />
+          </div>
         
         {/* Active Faults */}
         {(() => {
@@ -573,6 +626,7 @@ export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: 
             </div>
           );
         })()}
+        </div>
 
         <div className="port-tooltip" style={{
           position: "fixed", pointerEvents: "none", display: "none", backgroundColor: "var(--panel-bg)",

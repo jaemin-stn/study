@@ -62,6 +62,9 @@ export interface AppState {
   _cameraRef: Camera | null;
   _controlsRef: any | null;
 
+  // Gizmo interaction state
+  isGizmoHovered: boolean;
+
   // Imported 3D Models
   importedModels: ImportedModel[];
   selectedModelId: string | null;
@@ -378,6 +381,8 @@ export const useStore = create<AppState>()(
   preFocusCameraState: null,
   pendingImportFile: null,
   setPendingImportFile: (file) => set({ pendingImportFile: file }),
+
+  isGizmoHovered: false,
 
   _cameraRef: null,
   _controlsRef: null,

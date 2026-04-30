@@ -319,6 +319,8 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
   }, [model.position, model.rotation, model.scale]);
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
+    if (useStore.getState().isGizmoHovered) return;
+
     const { isEditMode: editMode, selectRack, selectModel } = useStore.getState();
 
     if (!editMode) {
@@ -375,6 +377,7 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
     <group
       onPointerDown={handlePointerDown}
       onPointerOver={() => {
+        if (useStore.getState().isGizmoHovered) return;
         if (isEditMode) {
           document.body.style.cursor = isMoveEnabled ? "grab" : "pointer";
         }

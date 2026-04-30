@@ -122,9 +122,11 @@ export const Scene = () => {
       camera={{ position: [10, 10, 10], fov: 50 }}
       style={{ width: "100%", height: "100vh", background: backgroundColor }}
       onPointerDown={(e) => {
+        if (useStore.getState().isGizmoHovered) return;
         pointerDownPos.current = { x: e.clientX, y: e.clientY };
       }}
       onPointerMissed={(e) => {
+        if (useStore.getState().isGizmoHovered) return;
         // Only clear focus on a "click" (minimal movement between down and up)
         if (pointerDownPos.current) {
           const dx = e.clientX - pointerDownPos.current.x;
@@ -154,7 +156,11 @@ export const Scene = () => {
       />
 
       <GizmoHelper alignment="top-right" margin={[440, 140]}>
-        <group scale={1.4}>
+        <group 
+          scale={1.4}
+          onPointerOver={() => useStore.setState({ isGizmoHovered: true })}
+          onPointerOut={() => useStore.setState({ isGizmoHovered: false })}
+        >
           <GizmoViewcube
             opacity={1}
             color={isDarkMode ? "#2A3342" : "#D8DEE8"}

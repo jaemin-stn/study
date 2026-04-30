@@ -138,6 +138,9 @@ export const Rack = memo(({
   });
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
+    // Ignore pointer events if the user is interacting with the dashboard Gizmo
+    if (useStore.getState().isGizmoHovered) return;
+
     // Determine if the raycaster intersected a PivotControls gizmo (or the model it controls)
     const hitGizmo = e.intersections.some((hit) => {
       let obj: Object3D | null = hit.object;
@@ -407,6 +410,7 @@ export const Rack = memo(({
         scale={[width + 0.1, height + 0.1, depth + 0.1]}
         onPointerDown={handlePointerDown}
         onPointerOver={(e) => {
+          if (useStore.getState().isGizmoHovered) return;
           e.stopPropagation();
           setHoveredRack(rackId);
         }}
@@ -612,6 +616,7 @@ const DeviceMesh = ({
     <group
       position={[0, centerY, -0.41]}
       onClick={(e) => {
+        if (useStore.getState().isGizmoHovered) return;
         e.stopPropagation();
         onSelect();
       }}

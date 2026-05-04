@@ -10,7 +10,6 @@ export const CameraController = () => {
   const selectedRackId = useStore((state) => state.selectedRackId);
   const focusedRackId = useStore((state) => state.focusedRackId);
   const highlightedDeviceId = useStore((state) => state.highlightedDeviceId);
-  const racks = useStore((state) => state.racks);
   const isEditMode = useStore((state) => state.isEditMode);
   const setPreFocusCameraState = useStore(
     (state) => state.setPreFocusCameraState,
@@ -74,7 +73,8 @@ export const CameraController = () => {
       return;
     }
 
-    const rack = racks.find((r) => r.rackId === targetRackId);
+    const currentRacks = useStore.getState().racks;
+    const rack = currentRacks.find((r) => r.rackId === targetRackId);
     if (!rack || !controls) return;
 
     const perspectiveCamera = camera as PerspectiveCamera;
@@ -120,7 +120,7 @@ export const CameraController = () => {
     // 맞은편 랙(장애물) 탐색
     let obstructionDist = Infinity;
     const activeNodeId = useStore.getState().activeNodeId;
-    const allRacks = racks.filter(
+    const allRacks = currentRacks.filter(
       (r) => r.mapId === activeNodeId && r.rackId !== rack.rackId,
     );
 
@@ -276,7 +276,7 @@ export const CameraController = () => {
     } else if (!targetId) {
       setupFocus(null, false);
     }
-  }, [selectedRackId, focusedRackId, isEditMode, highlightedDeviceId, racks]);
+  }, [selectedRackId, focusedRackId, isEditMode, highlightedDeviceId]);
 
   useFrame((state, delta) => {
     if (!isAnimating.current || !controls || isInteracting.current) return;

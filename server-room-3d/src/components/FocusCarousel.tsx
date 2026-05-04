@@ -18,15 +18,14 @@ const CarouselStyles = React.memo(() => (
 ));
 
 export const FocusCarousel: React.FC = () => {
-  const {
-    racks,
-    selectedRackId,
-    selectRack,
-    focusRack,
-    isEditMode,
-    activeNodeId,
-    nodes,
-  } = useStore();
+  // Phase 2: 개별 셀렉터로 전환 — 전체 store 구독 제거
+  const racks = useStore((s) => s.racks);
+  const selectedRackId = useStore((s) => s.selectedRackId);
+  const selectRack = useStore((s) => s.selectRack);
+  const focusRack = useStore((s) => s.focusRack);
+  const isEditMode = useStore((s) => s.isEditMode);
+  const activeNodeId = useStore((s) => s.activeNodeId);
+  const nodes = useStore((s) => s.nodes);
 
   // Filter racks rigidly by active node only
   const groupRacks = React.useMemo(() => {

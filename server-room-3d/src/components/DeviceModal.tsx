@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from '../store/useStore';
-import { equipmentModels, loadCardSvgRaw } from '../utils/cardAssets';
+import { equipmentModels, loadCardSvgRaw, loadCardSvgRawSync } from '../utils/cardAssets';
 import { resolveDeviceSvgContent } from '../utils/deviceAssets';
 import {
   generatePortMap,
@@ -61,10 +61,19 @@ const ensureKeyframe = (name: string, color: string) => {
   document.head.appendChild(style);
 };
 
+// 합성된 SVG HTML 모듈 레벨 캐시 (재열기 시 즉시 렌더링)
+const _composedHtmlCache = new Map<string, string>();
+
 const SvgPortView = ({ device, portStates }: { device: Device; portStates: PortState[] }) => {
-  const [composedHtml, setComposedHtml] = useState<string>("");
   const containerRef = useRef<HTMLDivElement>(null);
   const { modelName, insertedCards = [] } = device;
+  const cardsKey = JSON.stringify(insertedCards);
+  const _cacheKey = `${modelName}::${cardsKey}`;
+
+  // 캐시에서 동기 초기화 → 재열기 시 첫 렌더에서 즉시 표시
+  const [composedHtml, setComposedHtml] = useState<string>(() =>
+    _composedHtmlCache.get(_cacheKey) || ""
+  );
 
   const equipModel = useMemo(() => {
     return equipmentModels.find(m => m.modelName === modelName);
@@ -73,26 +82,34 @@ const SvgPortView = ({ device, portStates }: { device: Device; portStates: PortS
   // 모듈러 카드 장비인지 판별
   const isModularDevice = !!equipModel && insertedCards.length > 0;
 
-  // 카드 SVG raw text 캐시 (모듈러 장비 전용)
-  const [cardSvgMap, setCardSvgMap] = useState<Map<string, string>>(new Map());
+  // 카드 SVG raw text 캐시 (동기 캐시 우선 시도)
+  const [cardSvgMap, setCardSvgMap] = useState<Map<string, string>>(() => {
+    if (!isModularDevice) return new Map();
+    const uniqueFileNames = [...new Set(insertedCards.map((c: any) => c.cardFileName))];
+    const syncMap = new Map<string, string>();
+    for (const fn of uniqueFileNames) {
+      const cached = loadCardSvgRawSync(fn);
+      if (cached) syncMap.set(fn, cached);
+    }
+    return syncMap.size === uniqueFileNames.length ? syncMap : new Map();
+  });
 
-  // 카드 SVG raw text 로드
-  const cardsKey = JSON.stringify(insertedCards);
+  // 카드 SVG async fallback (동기 캐시 미스 시에만 실행)
   useEffect(() => {
-    if (!isModularDevice) return;
+    if (!isModularDevice || cardSvgMap.size > 0) return;
     let isMounted = true;
-    const loadCards = async () => {
+    const uniqueFileNames = [...new Set(insertedCards.map((c: any) => c.cardFileName))];
+    Promise.all(
+      uniqueFileNames.map(async (fn) => {
+        const raw = await loadCardSvgRaw(fn);
+        return [fn, raw] as const;
+      })
+    ).then((results) => {
+      if (!isMounted) return;
       const map = new Map<string, string>();
-      const uniqueFileNames = [...new Set(insertedCards.map(c => c.cardFileName))];
-      await Promise.all(
-        uniqueFileNames.map(async (fn) => {
-          const raw = await loadCardSvgRaw(fn);
-          if (raw) map.set(fn, raw);
-        })
-      );
-      if (isMounted) setCardSvgMap(map);
-    };
-    loadCards();
+      for (const [fn, raw] of results) { if (raw) map.set(fn, raw); }
+      setCardSvgMap(map);
+    });
     return () => { isMounted = false; };
   }, [isModularDevice, cardsKey]);
 
@@ -111,8 +128,9 @@ const SvgPortView = ({ device, portStates }: { device: Device; portStates: PortS
     [generatedPorts]
   );
 
-  // 1단계: SVG 합성 (isRedrawNeeded 판별을 위해 상태 유지)
+  // 1단계: SVG 합성 (캐시 히트 시 스킵)
   useEffect(() => {
+    if (_composedHtmlCache.has(_cacheKey)) return; // 이미 캐시에서 초기화됨
     let isMounted = true;
     const compose = async () => {
       try {
@@ -124,15 +142,22 @@ const SvgPortView = ({ device, portStates }: { device: Device; portStates: PortS
           return;
         }
 
+        // 모듈러 장비: 카드 SVG 미로드 시 base만 표시 (waterfall 방지)
+        if (isModularDevice && cardSvgMap.size === 0) {
+          setComposedHtml(baseSvg);
+          return;
+        }
+
         const parser = new DOMParser();
         const baseDoc = parser.parseFromString(baseSvg, "image/svg+xml");
         const baseSvgEl = baseDoc.querySelector("svg");
         if (!baseSvgEl) { setComposedHtml(baseSvg); return; }
 
-        const cardPromises = insertedCards.map((card) =>
-          loadCardSvgRaw(card.cardFileName).then((raw) => ({ card, raw }))
-        );
-        const cardResults = await Promise.all(cardPromises);
+        // cardSvgMap에서 동기적으로 조회 (중복 비동기 로드 제거)
+        const cardResults = insertedCards.map((card) => ({
+          card,
+          raw: cardSvgMap.get(card.cardFileName),
+        }));
 
         for (const { card, raw } of cardResults) {
           if (!raw) continue;
@@ -205,6 +230,7 @@ const SvgPortView = ({ device, portStates }: { device: Device; portStates: PortS
         }
 
         const finalHtml = new XMLSerializer().serializeToString(baseDoc);
+        _composedHtmlCache.set(_cacheKey, finalHtml);
         if (isMounted) setComposedHtml(finalHtml);
       } catch (e) {
         console.error("Compose Error:", e);
@@ -212,7 +238,7 @@ const SvgPortView = ({ device, portStates }: { device: Device; portStates: PortS
     };
     compose();
     return () => { isMounted = false; };
-  }, [modelName, cardsKey, equipModel]);
+  }, [modelName, cardsKey, equipModel, isModularDevice, cardSvgMap, _cacheKey]);
 
   // 기존 포트 에러 맵 (비-모듈러 장비용)
   const errorPortMap = useMemo(() => 

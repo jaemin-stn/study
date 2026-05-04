@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, forwardRef, Suspense, memo } from "react";
+import { useEffect, useMemo, useRef, useCallback, forwardRef, Suspense, memo } from "react";
 import { RoundedBox, useTexture, Billboard, Html } from "@react-three/drei";
 import { animated, useSpring } from "@react-spring/three";
 import { type ThreeEvent, useThree, useFrame } from "@react-three/fiber";
@@ -128,13 +128,15 @@ export const Rack = memo(({
       ? [dragPosition[0], height / 2 + 0.1, dragPosition[1]]
       : [position[0] * GRID_SPACING, height / 2, position[1] * GRID_SPACING];
 
+  // Phase 3: Spring config 참조 안정화 — 매 렌더마다 새 객체 생성 방지
+  const springConfig = useMemo(() => ({ mass: 1, tension: 280, friction: 30 }), []);
   const { pos, rot, scale, doorRotation } = useSpring({
     pos: currentTargetPos,
     rot: [0, rotationRad, 0],
     scale: isInternalDragging ? 1.05 : 1,
     doorRotation: isInternalFocused ? -Math.PI / 2 : 0,
-    config: { mass: 1, tension: 280, friction: 30 },
-    immediate: isInternalDragging, // Use immediate only during active dragging
+    config: springConfig,
+    immediate: isInternalDragging,
   });
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
@@ -253,53 +255,11 @@ export const Rack = memo(({
           />
         </mesh>
 
-        {/* ── LEFT SIDE PANEL (perforated sheet only) ── */}
-        {(() => {
-          const panelW = depth - 0.04;
-          const panelH = height - 0.06;
-          const xOff = -width / 2;
-          return (
-            <group position={[xOff, 0, 0]} rotation={[0, -Math.PI / 2, 0]}>
-              <mesh>
-                <planeGeometry args={[panelW, panelH]} />
-                <meshStandardMaterial
-                  color={frameColor}
-                  roughness={0.7}
-                  metalness={0.8}
-                  alphaMap={perforatedTexture}
-                  transparent
-                  alphaTest={0.5}
-                  side={DoubleSide}
-                  depthWrite={false}
-                />
-              </mesh>
-            </group>
-          );
-        })()}
+        {/* ── LEFT SIDE PANEL ── */}
+        <PerforatedPanel xOff={-width / 2} rotY={-Math.PI / 2} panelW={depth - 0.04} panelH={height - 0.06} color={frameColor} texture={perforatedTexture} />
 
-        {/* ── RIGHT SIDE PANEL (perforated sheet only) ── */}
-        {(() => {
-          const panelW = depth - 0.04;
-          const panelH = height - 0.06;
-          const xOff = width / 2;
-          return (
-            <group position={[xOff, 0, 0]} rotation={[0, Math.PI / 2, 0]}>
-              <mesh>
-                <planeGeometry args={[panelW, panelH]} />
-                <meshStandardMaterial
-                  color={frameColor}
-                  roughness={0.7}
-                  metalness={0.8}
-                  alphaMap={perforatedTexture}
-                  transparent
-                  alphaTest={0.5}
-                  side={DoubleSide}
-                  depthWrite={false}
-                />
-              </mesh>
-            </group>
-          );
-        })()}
+        {/* ── RIGHT SIDE PANEL ── */}
+        <PerforatedPanel xOff={width / 2} rotY={Math.PI / 2} panelW={depth - 0.04} panelH={height - 0.06} color={frameColor} texture={perforatedTexture} />
 
         <group position={[0, 0, 0]}>
           {/* Internal Structural Bracing - Horizontal rails at the back */}
@@ -422,87 +382,70 @@ export const Rack = memo(({
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      {isHovered && (
-        <Billboard position={[0, height / 2 + 0.4, 0]}>
-          <Html center zIndexRange={[0, 10]} style={{ pointerEvents: "none" }}>
-            <div
+      {/* Phase 1: 호버 태그 항상 마운트 — DOM 마운트/언마운트 비용 제거 */}
+      <Billboard position={[0, height / 2 + 0.4, 0]} visible={isHovered}>
+        <Html center zIndexRange={[0, 10]} style={{ pointerEvents: "none" }}>
+          <div
+            style={{
+              background: isDarkMode
+                ? "rgba(23, 24, 28, 0.85)"
+                : "rgba(255, 255, 255, 0.9)",
+              color: isDarkMode ? "#ebedef" : "#202226",
+              padding: "4px 12px",
+              borderRadius: "16px",
+              fontSize: "12px",
+              fontWeight: 600,
+              border: isDarkMode
+                ? isSelected
+                  ? "1px solid #FFFFFF"
+                  : "1px solid rgba(255, 255, 255, 0.1)"
+                : isSelected
+                  ? "1px solid #1a73e8"
+                  : "1px solid rgba(0, 0, 0, 0.08)",
+              boxShadow: isDarkMode
+                ? "0 4px 15px rgba(0, 0, 0, 0.4)"
+                : "0 4px 12px rgba(0, 0, 0, 0.1)",
+              whiteSpace: "nowrap",
+              backdropFilter: "blur(8px)",
+              pointerEvents: "none",
+              userSelect: "none",
+              display: isHovered ? "flex" : "none",
+              alignItems: "center",
+              gap: "6px",
+              fontFamily: "Inter, system-ui, sans-serif",
+            }}
+          >
+            <span
               style={{
+                width: "6px",
+                height: "6px",
+                borderRadius: "50%",
                 background: isDarkMode
-                  ? "rgba(23, 24, 28, 0.85)"
-                  : "rgba(255, 255, 255, 0.9)",
-                color: isDarkMode ? "#ebedef" : "#202226",
-                padding: "4px 12px",
-                borderRadius: "16px",
-                fontSize: "12px",
-                fontWeight: 600,
-                border: isDarkMode
                   ? isSelected
-                    ? "1px solid #FFFFFF"
-                    : "1px solid rgba(255, 255, 255, 0.1)"
-                  : isSelected
-                    ? "1px solid #1a73e8"
-                    : "1px solid rgba(0, 0, 0, 0.08)",
-                boxShadow: isDarkMode
-                  ? "0 4px 15px rgba(0, 0, 0, 0.4)"
-                  : "0 4px 12px rgba(0, 0, 0, 0.1)",
-                whiteSpace: "nowrap",
-                backdropFilter: "blur(8px)",
-                pointerEvents: "none",
-                userSelect: "none",
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                fontFamily: "Inter, system-ui, sans-serif",
+                    ? "#FFFFFF"
+                    : "#4d5261"
+                  : "#1a73e8",
+                display: "inline-block",
               }}
-            >
-              <span
-                style={{
-                  width: "6px",
-                  height: "6px",
-                  borderRadius: "50%",
-                  background: isDarkMode
-                    ? isSelected
-                      ? "#FFFFFF"
-                      : "#4d5261"
-                    : "#1a73e8",
-                  display: "inline-block",
-                }}
-              />
-              <span>{`${rackSize}U`}</span>
-              <span style={{ opacity: 0.4 }}>|</span>
-              <span>
-                {rackTitle || `Rack ${rackId.slice(0, 4).toUpperCase()}`}
-              </span>
-            </div>
-          </Html>
-        </Billboard>
-      )}
+            />
+            <span>{`${rackSize}U`}</span>
+            <span style={{ opacity: 0.4 }}>|</span>
+            <span>
+              {rackTitle || `Rack ${rackId.slice(0, 4).toUpperCase()}`}
+            </span>
+          </div>
+        </Html>
+      </Billboard>
 
       <group position={[0, 0, depth / 2 - 0.07]}>
         {/* Removed per-rack pointLight for performance */}
         {devices.map((device) => (
-          <DeviceMesh
+          <MemoDeviceMesh
             key={device.itemId}
             device={device}
             rackHeight={height}
             rackWidth={width}
-            onSelect={() => {
-              const { focusRack, selectDevice, isEditMode } =
-                useStore.getState();
-
-              if (isEditMode) return;
-
-              // Use the snapshot captured in handlePointerDown (which fires FIRST)
-              // to determine if the rack was ALREADY focused before this interaction.
-              if (selectedRackIdBeforePointerDown === rackId) {
-                // Rack was already focused → open port modal
-                selectDevice(device.itemId);
-              } else {
-                // Rack was NOT focused → handlePointerDown already called selectRack(rackId)
-                // Just focus the camera; no modal.
-                focusRack(rackId);
-              }
-            }}
+            rackId={rackId}
           />
         ))}
       </group>
@@ -520,6 +463,51 @@ export const Rack = memo(({
         />
       )}
     </animated.group>
+  );
+});
+
+// Phase 1: PerforatedPanel — IIFE 제거, memo 컴포넌트로 분리
+const PerforatedPanel = memo(({ xOff, rotY, panelW, panelH, color, texture }: {
+  xOff: number; rotY: number; panelW: number; panelH: number; color: string; texture: CanvasTexture;
+}) => (
+  <group position={[xOff, 0, 0]} rotation={[0, rotY, 0]}>
+    <mesh>
+      <planeGeometry args={[panelW, panelH]} />
+      <meshStandardMaterial
+        color={color}
+        roughness={0.7}
+        metalness={0.8}
+        alphaMap={texture}
+        transparent
+        alphaTest={0.5}
+        side={DoubleSide}
+        depthWrite={false}
+      />
+    </mesh>
+  </group>
+));
+
+// Phase 1: MemoDeviceMesh — onSelect를 내부에서 안정화
+const MemoDeviceMesh = memo(({ device, rackHeight, rackWidth, rackId }: {
+  device: Device; rackHeight: number; rackWidth: number; rackId: string;
+}) => {
+  const onSelect = useCallback(() => {
+    const { focusRack, selectDevice, isEditMode } = useStore.getState();
+    if (isEditMode) return;
+    if (selectedRackIdBeforePointerDown === rackId) {
+      selectDevice(device.itemId);
+    } else {
+      focusRack(rackId);
+    }
+  }, [rackId, device.itemId]);
+
+  return (
+    <DeviceMesh
+      device={device}
+      rackHeight={rackHeight}
+      rackWidth={rackWidth}
+      onSelect={onSelect}
+    />
   );
 });
 
@@ -612,6 +600,11 @@ const DeviceMesh = ({
     }
   });
 
+  const resolvedUrl = useMemo(
+    () => device.dashboardThumbnailUrl || resolveDeviceImage(device.modelName),
+    [device.dashboardThumbnailUrl, device.modelName],
+  );
+
   return (
     <group
       position={[0, centerY, -0.41]}
@@ -622,9 +615,6 @@ const DeviceMesh = ({
       }}
     >
       {(() => {
-        const resolvedUrl =
-          device.dashboardThumbnailUrl || resolveDeviceImage(device.modelName);
-
         const content = (
           <>
             <RoundedBox

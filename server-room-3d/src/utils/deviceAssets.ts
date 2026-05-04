@@ -34,6 +34,9 @@ for (const [path, mod] of Object.entries(assetModules)) {
 
 // ── SVG: modelName → Promise resolving to raw SVG text ─────────────────────
 const deviceSvgPromiseMap = new Map<string, () => Promise<{ default: string }>>();
+
+// ── SVG content cache (resolved raw text → 재열기 시 즉시 반환) ──────────────
+const svgContentCache = new Map<string, string>();
 for (const [path, importFn] of Object.entries(svgRawModules)) {
   const filename = path.split("/").pop() ?? "";
   const modelName = filename.replace(/\.svg$/i, "").replace(/^\[\d+U\]\s*/, "");
@@ -60,11 +63,17 @@ export const resolveDeviceImage = (modelName?: string): string | undefined => {
  */
 export const resolveDeviceSvgContent = async (modelName?: string): Promise<string | undefined> => {
   if (!modelName) return undefined;
-  const importFn = deviceSvgPromiseMap.get(modelName) ?? deviceSvgPromiseMap.get(modelName.toLowerCase());
-  
+
+  // 캐시 히트 시 즉시 반환 (동적 import 스킵)
+  const cacheKey = modelName.toLowerCase();
+  const cached = svgContentCache.get(cacheKey);
+  if (cached) return cached;
+
+  const importFn = deviceSvgPromiseMap.get(modelName) ?? deviceSvgPromiseMap.get(cacheKey);
   if (importFn) {
     try {
       const mod = await importFn();
+      svgContentCache.set(cacheKey, mod.default);
       return mod.default;
     } catch (err) {
       console.error("Failed to load SVG for model:", modelName, err);

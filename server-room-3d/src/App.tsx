@@ -7,9 +7,7 @@ import { FocusCarousel } from "./components/FocusCarousel";
 import { Breadcrumb } from "./components/Breadcrumb";
 import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
 
-const DeviceModal = React.lazy(() =>
-  import("./components/DeviceModal").then((m) => ({ default: m.DeviceModal })),
-);
+import { DeviceModal } from "./components/DeviceModal";
 const ImportExportModal = React.lazy(() =>
   import("./components/ImportExportModal").then((m) => ({
     default: m.ImportExportModal,

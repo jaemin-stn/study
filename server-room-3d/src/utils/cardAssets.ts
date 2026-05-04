@@ -245,36 +245,60 @@ export function getCardsForModel(model: EquipmentModel): CardDefinition[] {
   );
 }
 
+/** 카드 SVG raw text 메모리 캐시 */
+const _cardSvgRawCache = new Map<string, string>();
+
+// ── O(1) Map Lookups for SVGs ──────────────────────────────────────────────
+const _cardRawModuleMap = new Map<string, () => Promise<{ default: string }>>();
+const _baseEquipRawModuleMap = new Map<string, () => Promise<{ default: string }>>();
+const _baseEquipUrlModuleMap = new Map<string, string>();
+
+function initMaps() {
+  const allCardSources = { ...cardRawModules, ...cpiomRawModules, ...mdasRawModules, ...ixrRawModules };
+  for (const [path, importFn] of Object.entries(allCardSources)) {
+    const fn = path.split("/").pop() ?? "";
+    _cardRawModuleMap.set(fn, importFn);
+  }
+  for (const [path, importFn] of Object.entries(baseEquipRawModules)) {
+    const fn = path.split("/").pop() ?? "";
+    _baseEquipRawModuleMap.set(fn, importFn);
+  }
+  for (const [path, mod] of Object.entries(baseEquipUrlModules)) {
+    const fn = path.split("/").pop() ?? "";
+    _baseEquipUrlModuleMap.set(fn, mod.default);
+  }
+}
+initMaps();
+
 /**
  * 카드 SVG raw text 로드 (인라인 렌더링용)
- * R-series, CPIOM, MDAs 모든 카드 타입 지원
+ * 캐시 히트 시 즉시 반환, 미스 시 O(1) Map 룩업으로 동적 로드
  */
 export async function loadCardSvgRaw(
   cardFileName: string,
 ): Promise<string | undefined> {
-  // 모든 카드 raw 모듈 소스를 순차 검색
-  const allRawSources = [
-    cardRawModules,
-    cpiomRawModules,
-    mdasRawModules,
-    ixrRawModules,
-  ];
+  const cached = _cardSvgRawCache.get(cardFileName);
+  if (cached) return cached;
 
-  for (const rawModules of allRawSources) {
-    for (const [path, importFn] of Object.entries(rawModules)) {
-      const fn = path.split("/").pop() ?? "";
-      if (fn === cardFileName) {
-        try {
-          const mod = await importFn();
-          return mod.default;
-        } catch (err) {
-          console.error("Failed to load card SVG:", cardFileName, err);
-          return undefined;
-        }
-      }
+  const importFn = _cardRawModuleMap.get(cardFileName);
+  if (importFn) {
+    try {
+      const mod = await importFn();
+      _cardSvgRawCache.set(cardFileName, mod.default);
+      return mod.default;
+    } catch (err) {
+      console.error("Failed to load card SVG:", cardFileName, err);
+      return undefined;
     }
   }
   return undefined;
+}
+
+/** 카드 SVG raw text 동기 캐시 조회 (캐시 미스 시 undefined) */
+export function loadCardSvgRawSync(
+  cardFileName: string,
+): string | undefined {
+  return _cardSvgRawCache.get(cardFileName);
 }
 
 /**
@@ -283,17 +307,14 @@ export async function loadCardSvgRaw(
 export async function loadBaseEquipmentSvgRaw(
   baseSvgUrl: string,
 ): Promise<string | undefined> {
-  // baseSvgUrl 예: "[2U] 7250 IXR-R4-CARD.svg"
-  for (const [path, importFn] of Object.entries(baseEquipRawModules)) {
-    const fn = path.split("/").pop() ?? "";
-    if (fn === baseSvgUrl) {
-      try {
-        const mod = await importFn();
-        return mod.default;
-      } catch (err) {
-        console.error("Failed to load base equipment SVG:", baseSvgUrl, err);
-        return undefined;
-      }
+  const importFn = _baseEquipRawModuleMap.get(baseSvgUrl);
+  if (importFn) {
+    try {
+      const mod = await importFn();
+      return mod.default;
+    } catch (err) {
+      console.error("Failed to load base equipment SVG:", baseSvgUrl, err);
+      return undefined;
     }
   }
   return undefined;
@@ -303,16 +324,77 @@ export async function loadBaseEquipmentSvgRaw(
  * Base 장비 SVG URL (img 태그용)
  */
 export function getBaseEquipmentSvgUrl(baseSvgUrl: string): string | undefined {
-  for (const [path, mod] of Object.entries(baseEquipUrlModules)) {
-    const fn = path.split("/").pop() ?? "";
-    if (fn === baseSvgUrl) {
-      return mod.default;
-    }
-  }
-  return undefined;
+  return _baseEquipUrlModuleMap.get(baseSvgUrl);
 }
 
 // ── 장비 모델 목록 ─────────────────────────────────────────────────────
+
+// --- Factory Functions for Equipment Rows ---
+function createR6FullSlot(row: number, y: number) {
+  return { slotId: `row-${row}-full`, row, col: 1, x: 0, y, width: 860, height: 71, slotType: "full-860x71", accepts: ["full"] };
+}
+function createR6HalfSlots(row: number, y: number) {
+  return [
+    { slotId: `row-${row}-left`, row, col: 1, x: 0, y, width: 430, height: 46, slotType: "half-430x46", accepts: ["half"] },
+    { slotId: `row-${row}-right`, row, col: 2, x: 430, y, width: 430, height: 46, slotType: "half-430x46", accepts: ["half"] },
+  ];
+}
+
+function createR6dFullSlot(row: number, y: number) {
+  return { slotId: `r6d-row-${row}-full`, row, x: 0, y, width: 828, height: 77, slotType: "full-828x77", allowedCardGroups: ["standard"], accepts: ["full-828x80"] };
+}
+function createR6dHalfSlots(row: number, y: number) {
+  return [
+    { slotId: `r6d-row-${row}-left`, row, col: 1, x: 0, y, width: 414, height: 77, slotType: "half-414x77", allowedCardGroups: ["standard"], accepts: ["half-414x77"] },
+    { slotId: `r6d-row-${row}-right`, row, col: 2, x: 414, y, width: 414, height: 77, slotType: "half-414x77", allowedCardGroups: ["standard"], accepts: ["half-414x77"] },
+  ];
+}
+
+function createR6dlStandardRow(row: number, y: number) {
+  return { slotId: `r6dl-row-${row}`, row, x: 0, y, width: 828, height: 80, slotType: "full-828x80", allowedCardGroups: ["standard"], accepts: ["full-828x80"] };
+}
+function createR6dlCpiomRow(row: number, y: number) {
+  return { slotId: `r6dl-row-${row}`, row, x: 0, y, width: 828, height: 72, slotType: "full-828x72", allowedCardGroups: ["cpiom"], accepts: ["cpiom-828x72"] };
+}
+
+function createIxrStandardRow(prefix: string, row: number, y: number, overlapY: number) {
+  return {
+    rowId: `${prefix}-row-${row}`,
+    row,
+    x: 0,
+    y,
+    width: 984,
+    height: 116,
+    overlapY,
+    columns: 2,
+    subSlots: [
+      { slotId: `${prefix}-r${row}-full`, x: 0, y: 0, width: 984, height: 116 },
+      { slotId: `${prefix}-r${row}-c1`, x: 0, y: 0, width: 492, height: 116 },
+      { slotId: `${prefix}-r${row}-c2`, x: 492, y: 0, width: 492, height: 116 },
+    ],
+  };
+}
+
+function createIxrCpmRow(prefix: string, row: number, y: number, overlapY: number) {
+  return {
+    rowId: `${prefix}-row-${row}`,
+    row,
+    x: 0,
+    y,
+    width: 984,
+    height: 102,
+    overlapY,
+    columns: 6,
+    subSlots: Array.from({ length: 6 }).map((_, i) => ({
+      slotId: `${prefix}-r${row}-c${i + 1}`,
+      x: i * 164,
+      y: 0,
+      width: 164,
+      height: 102,
+    })),
+  };
+}
+
 export const equipmentModels: EquipmentModel[] = [
   {
     modelId: "7250-ixr-r4",
@@ -340,99 +422,13 @@ export const equipmentModels: EquipmentModel[] = [
       columnWidth: 430,
     },
     slots: [
-      // Row 1-2: full-width 860×71
-      {
-        slotId: "row-1-full",
-        row: 1,
-        col: 1,
-        x: 0,
-        y: 0,
-        width: 860,
-        height: 71,
-        slotType: "full-860x71",
-        accepts: ["full"],
-      },
-      {
-        slotId: "row-2-full",
-        row: 2,
-        col: 1,
-        x: 0,
-        y: 71,
-        width: 860,
-        height: 71,
-        slotType: "full-860x71",
-        accepts: ["full"],
-      },
-      // Row 3-5: half-width 430×46
-      {
-        slotId: "row-3-left",
-        row: 3,
-        col: 1,
-        x: 0,
-        y: 142,
-        width: 430,
-        height: 46,
-        slotType: "half-430x46",
-        accepts: ["half"],
-      },
-      {
-        slotId: "row-3-right",
-        row: 3,
-        col: 2,
-        x: 430,
-        y: 142,
-        width: 430,
-        height: 46,
-        slotType: "half-430x46",
-        accepts: ["half"],
-      },
-      {
-        slotId: "row-4-left",
-        row: 4,
-        col: 1,
-        x: 0,
-        y: 188,
-        width: 430,
-        height: 46,
-        slotType: "half-430x46",
-        accepts: ["half"],
-      },
-      {
-        slotId: "row-4-right",
-        row: 4,
-        col: 2,
-        x: 430,
-        y: 188,
-        width: 430,
-        height: 46,
-        slotType: "half-430x46",
-        accepts: ["half"],
-      },
-      {
-        slotId: "row-5-left",
-        row: 5,
-        col: 1,
-        x: 0,
-        y: 234,
-        width: 430,
-        height: 46,
-        slotType: "half-430x46",
-        accepts: ["half"],
-      },
-      {
-        slotId: "row-5-right",
-        row: 5,
-        col: 2,
-        x: 430,
-        y: 234,
-        width: 430,
-        height: 46,
-        slotType: "half-430x46",
-        accepts: ["half"],
-      },
+      createR6FullSlot(1, 0),
+      createR6FullSlot(2, 71),
+      ...createR6HalfSlots(3, 142),
+      ...createR6HalfSlots(4, 188),
+      ...createR6HalfSlots(5, 234),
     ],
   },
-  // ── 7250 IXR-R6d (4U) ──────────────────────────────────────────────────
   {
     modelId: "7250-ixr-r6d",
     modelName: "7250 IXR-R6d",
@@ -440,145 +436,22 @@ export const equipmentModels: EquipmentModel[] = [
     baseSvgUrl: "[4U] 7250 IXR-R6d-CARD.svg",
     cardArea: {
       x: 136,
-      y: 2,
+      y: 22,
       width: 828,
-      height: 375,
-      columns: 2,
-      columnWidth: 414,
+      height: 384,
+      columns: 1,
+      columnWidth: 828,
     },
     slots: [
-      // Row 1-2: CPIOM only (828×72)
-      {
-        slotId: "r6d-row-1",
-        row: 1,
-        x: 0,
-        y: 0,
-        width: 828,
-        height: 72,
-        slotType: "full-828x72",
-        allowedCardGroups: ["cpiom"],
-        accepts: ["cpiom-828x72"],
-      },
-      {
-        slotId: "r6d-row-2",
-        row: 2,
-        x: 0,
-        y: 72,
-        width: 828,
-        height: 72,
-        slotType: "full-828x72",
-        allowedCardGroups: ["cpiom"],
-        accepts: ["cpiom-828x72"],
-      },
-      // Row 3-5: Standard — half(414×77) OR full(828×77) 선택 가능 (상호 배제)
-      {
-        slotId: "r6d-row-3-full",
-        row: 3,
-        x: 0,
-        y: 144,
-        width: 828,
-        height: 77,
-        slotType: "full-828x77",
-        allowedCardGroups: ["standard"],
-        accepts: ["full-828x80"],
-      },
-      {
-        slotId: "r6d-row-3-left",
-        row: 3,
-        col: 1,
-        x: 0,
-        y: 144,
-        width: 414,
-        height: 77,
-        slotType: "half-414x77",
-        allowedCardGroups: ["standard"],
-        accepts: ["half-414x77"],
-      },
-      {
-        slotId: "r6d-row-3-right",
-        row: 3,
-        col: 2,
-        x: 414,
-        y: 144,
-        width: 414,
-        height: 77,
-        slotType: "half-414x77",
-        allowedCardGroups: ["standard"],
-        accepts: ["half-414x77"],
-      },
-      {
-        slotId: "r6d-row-4-full",
-        row: 4,
-        x: 0,
-        y: 221,
-        width: 828,
-        height: 77,
-        slotType: "full-828x77",
-        allowedCardGroups: ["standard"],
-        accepts: ["full-828x80"],
-      },
-      {
-        slotId: "r6d-row-4-left",
-        row: 4,
-        col: 1,
-        x: 0,
-        y: 221,
-        width: 414,
-        height: 77,
-        slotType: "half-414x77",
-        allowedCardGroups: ["standard"],
-        accepts: ["half-414x77"],
-      },
-      {
-        slotId: "r6d-row-4-right",
-        row: 4,
-        col: 2,
-        x: 414,
-        y: 221,
-        width: 414,
-        height: 77,
-        slotType: "half-414x77",
-        allowedCardGroups: ["standard"],
-        accepts: ["half-414x77"],
-      },
-      {
-        slotId: "r6d-row-5-full",
-        row: 5,
-        x: 0,
-        y: 298,
-        width: 828,
-        height: 77,
-        slotType: "full-828x77",
-        allowedCardGroups: ["standard"],
-        accepts: ["full-828x80"],
-      },
-      {
-        slotId: "r6d-row-5-left",
-        row: 5,
-        col: 1,
-        x: 0,
-        y: 298,
-        width: 414,
-        height: 77,
-        slotType: "half-414x77",
-        allowedCardGroups: ["standard"],
-        accepts: ["half-414x77"],
-      },
-      {
-        slotId: "r6d-row-5-right",
-        row: 5,
-        col: 2,
-        x: 414,
-        y: 298,
-        width: 414,
-        height: 77,
-        slotType: "half-414x77",
-        allowedCardGroups: ["standard"],
-        accepts: ["half-414x77"],
-      },
+      createR6dFullSlot(1, 0),
+      createR6dFullSlot(2, 67),
+      ...createR6dHalfSlots(3, 144),
+      createR6dFullSlot(4, 221),
+      ...createR6dHalfSlots(4, 221),
+      createR6dFullSlot(5, 298),
+      ...createR6dHalfSlots(5, 298),
     ],
   },
-  // ── 7250 IXR-R6dl (7U) ─────────────────────────────────────────────────
   {
     modelId: "7250-ixr-r6dl",
     modelName: "7250 IXR-R6dl",
@@ -593,100 +466,16 @@ export const equipmentModels: EquipmentModel[] = [
       columnWidth: 828,
     },
     slots: [
-      // Row 1-3: Standard full-width (828×80)
-      {
-        slotId: "r6dl-row-1",
-        row: 1,
-        x: 0,
-        y: 0,
-        width: 828,
-        height: 80,
-        slotType: "full-828x80",
-        allowedCardGroups: ["standard"],
-        accepts: ["full-828x80"],
-      },
-      {
-        slotId: "r6dl-row-2",
-        row: 2,
-        x: 0,
-        y: 80,
-        width: 828,
-        height: 80,
-        slotType: "full-828x80",
-        allowedCardGroups: ["standard"],
-        accepts: ["full-828x80"],
-      },
-      {
-        slotId: "r6dl-row-3",
-        row: 3,
-        x: 0,
-        y: 160,
-        width: 828,
-        height: 80,
-        slotType: "full-828x80",
-        allowedCardGroups: ["standard"],
-        accepts: ["full-828x80"],
-      },
-      // Row 4-5: CPIOM only (828×72)
-      {
-        slotId: "r6dl-row-4",
-        row: 4,
-        x: 0,
-        y: 240,
-        width: 828,
-        height: 72,
-        slotType: "full-828x72",
-        allowedCardGroups: ["cpiom"],
-        accepts: ["cpiom-828x72"],
-      },
-      {
-        slotId: "r6dl-row-5",
-        row: 5,
-        x: 0,
-        y: 312,
-        width: 828,
-        height: 72,
-        slotType: "full-828x72",
-        allowedCardGroups: ["cpiom"],
-        accepts: ["cpiom-828x72"],
-      },
-      // Row 6-8: Standard full-width (828×80)
-      {
-        slotId: "r6dl-row-6",
-        row: 6,
-        x: 0,
-        y: 384,
-        width: 828,
-        height: 80,
-        slotType: "full-828x80",
-        allowedCardGroups: ["standard"],
-        accepts: ["full-828x80"],
-      },
-      {
-        slotId: "r6dl-row-7",
-        row: 7,
-        x: 0,
-        y: 464,
-        width: 828,
-        height: 80,
-        slotType: "full-828x80",
-        allowedCardGroups: ["standard"],
-        accepts: ["full-828x80"],
-      },
-      {
-        slotId: "r6dl-row-8",
-        row: 8,
-        x: 0,
-        y: 544,
-        width: 828,
-        height: 80,
-        slotType: "full-828x80",
-        allowedCardGroups: ["standard"],
-        accepts: ["full-828x80"],
-      },
+      createR6dlStandardRow(1, 0),
+      createR6dlStandardRow(2, 80),
+      createR6dlStandardRow(3, 160),
+      createR6dlCpiomRow(4, 240),
+      createR6dlCpiomRow(5, 312),
+      createR6dlStandardRow(6, 384),
+      createR6dlStandardRow(7, 464),
+      createR6dlStandardRow(8, 544),
     ],
   },
-  // ── 7250 IXR-6 (7U) ──────────────────────────────────────────────────
   {
     modelId: "7250-ixr-6",
     modelName: "7250 IXR-6",
@@ -695,102 +484,14 @@ export const equipmentModels: EquipmentModel[] = [
     dashboardThumbnailUrl: "/thumbnails/7250-ixr-6.png",
     equipmentSize: { width: 984 },
     rows: [
-      {
-        rowId: "ixr6-row-1",
-        row: 1,
-        x: 0,
-        y: 20,
-        width: 984,
-        height: 116,
-        overlapY: 0,
-        columns: 2,
-        subSlots: [
-          { slotId: "ixr6-r1-full", x: 0, y: 0, width: 984, height: 116 },
-          { slotId: "ixr6-r1-c1", x: 0, y: 0, width: 492, height: 116 },
-          { slotId: "ixr6-r1-c2", x: 492, y: 0, width: 492, height: 116 },
-        ],
-      },
-      {
-        rowId: "ixr6-row-2",
-        row: 2,
-        x: 0,
-        y: 130,
-        width: 984,
-        height: 116,
-        overlapY: -6,
-        columns: 2,
-        subSlots: [
-          { slotId: "ixr6-r2-full", x: 0, y: 0, width: 984, height: 116 },
-          { slotId: "ixr6-r2-c1", x: 0, y: 0, width: 492, height: 116 },
-          { slotId: "ixr6-r2-c2", x: 492, y: 0, width: 492, height: 116 },
-        ],
-      },
-      {
-        rowId: "ixr6-row-3",
-        row: 3,
-        x: 0,
-        y: 240,
-        width: 984,
-        height: 116,
-        overlapY: -6,
-        columns: 2,
-        subSlots: [
-          { slotId: "ixr6-r3-full", x: 0, y: 0, width: 984, height: 116 },
-          { slotId: "ixr6-r3-c1", x: 0, y: 0, width: 492, height: 116 },
-          { slotId: "ixr6-r3-c2", x: 492, y: 0, width: 492, height: 116 },
-        ],
-      },
-      {
-        rowId: "ixr6-row-4",
-        row: 4,
-        x: 0,
-        y: 350,
-        width: 984,
-        height: 116,
-        overlapY: -6,
-        columns: 2,
-        subSlots: [
-          { slotId: "ixr6-r4-full", x: 0, y: 0, width: 984, height: 116 },
-          { slotId: "ixr6-r4-c1", x: 0, y: 0, width: 492, height: 116 },
-          { slotId: "ixr6-r4-c2", x: 492, y: 0, width: 492, height: 116 },
-        ],
-      },
-      {
-        rowId: "ixr6-row-5",
-        row: 5,
-        x: 0,
-        y: 460,
-        width: 984,
-        height: 116,
-        overlapY: -6,
-        columns: 2,
-        subSlots: [
-          { slotId: "ixr6-r5-full", x: 0, y: 0, width: 984, height: 116 },
-          { slotId: "ixr6-r5-c1", x: 0, y: 0, width: 492, height: 116 },
-          { slotId: "ixr6-r5-c2", x: 492, y: 0, width: 492, height: 116 },
-        ],
-      },
-      {
-        rowId: "ixr6-row-6",
-        row: 6,
-        x: 0,
-        y: 570,
-        width: 984,
-        height: 102,
-        overlapY: -6,
-        columns: 6,
-        subSlots: [
-          { slotId: "ixr6-r6-c1", x: 0, y: 0, width: 164, height: 102 },
-          { slotId: "ixr6-r6-c2", x: 164, y: 0, width: 164, height: 102 },
-          { slotId: "ixr6-r6-c3", x: 328, y: 0, width: 164, height: 102 },
-          { slotId: "ixr6-r6-c4", x: 492, y: 0, width: 164, height: 102 },
-          { slotId: "ixr6-r6-c5", x: 656, y: 0, width: 164, height: 102 },
-          { slotId: "ixr6-r6-c6", x: 820, y: 0, width: 164, height: 102 },
-        ],
-      },
+      createIxrStandardRow("ixr6", 1, 20, 0),
+      createIxrStandardRow("ixr6", 2, 130, -6),
+      createIxrStandardRow("ixr6", 3, 240, -6),
+      createIxrStandardRow("ixr6", 4, 350, -6),
+      createIxrStandardRow("ixr6", 5, 460, -6),
+      createIxrCpmRow("ixr6", 6, 570, -6),
     ],
   },
-  // ── 7250 IXR-10 (13U) ──────────────────────────────────────────────────
   {
     modelId: "7250-ixr-10",
     modelName: "7250 IXR-10",
@@ -799,177 +500,17 @@ export const equipmentModels: EquipmentModel[] = [
     dashboardThumbnailUrl: "/thumbnails/7250-ixr-10.png",
     equipmentSize: { width: 984 },
     rows: [
-      {
-        rowId: "ixr10-row-1",
-        row: 1,
-        x: 0,
-        y: 20,
-        width: 984,
-        height: 116,
-        overlapY: 0,
-        columns: 2,
-        subSlots: [
-          { slotId: "ixr10-r1-full", x: 0, y: 0, width: 984, height: 116 },
-          { slotId: "ixr10-r1-c1", x: 0, y: 0, width: 492, height: 116 },
-          { slotId: "ixr10-r1-c2", x: 492, y: 0, width: 492, height: 116 },
-        ],
-      },
-      {
-        rowId: "ixr10-row-2",
-        row: 2,
-        x: 0,
-        y: 130,
-        width: 984,
-        height: 116,
-        overlapY: -6,
-        columns: 2,
-        subSlots: [
-          { slotId: "ixr10-r2-full", x: 0, y: 0, width: 984, height: 116 },
-          { slotId: "ixr10-r2-c1", x: 0, y: 0, width: 492, height: 116 },
-          { slotId: "ixr10-r2-c2", x: 492, y: 0, width: 492, height: 116 },
-        ],
-      },
-      {
-        rowId: "ixr10-row-3",
-        row: 3,
-        x: 0,
-        y: 240,
-        width: 984,
-        height: 116,
-        overlapY: -6,
-        columns: 2,
-        subSlots: [
-          { slotId: "ixr10-r3-full", x: 0, y: 0, width: 984, height: 116 },
-          { slotId: "ixr10-r3-c1", x: 0, y: 0, width: 492, height: 116 },
-          { slotId: "ixr10-r3-c2", x: 492, y: 0, width: 492, height: 116 },
-        ],
-      },
-      {
-        rowId: "ixr10-row-4",
-        row: 4,
-        x: 0,
-        y: 350,
-        width: 984,
-        height: 116,
-        overlapY: -6,
-        columns: 2,
-        subSlots: [
-          { slotId: "ixr10-r4-full", x: 0, y: 0, width: 984, height: 116 },
-          { slotId: "ixr10-r4-c1", x: 0, y: 0, width: 492, height: 116 },
-          { slotId: "ixr10-r4-c2", x: 492, y: 0, width: 492, height: 116 },
-        ],
-      },
-      {
-        rowId: "ixr10-row-5",
-        row: 5,
-        x: 0,
-        y: 460,
-        width: 984,
-        height: 116,
-        overlapY: -6,
-        columns: 2,
-        subSlots: [
-          { slotId: "ixr10-r5-full", x: 0, y: 0, width: 984, height: 116 },
-          { slotId: "ixr10-r5-c1", x: 0, y: 0, width: 492, height: 116 },
-          { slotId: "ixr10-r5-c2", x: 492, y: 0, width: 492, height: 116 },
-        ],
-      },
-      {
-        rowId: "ixr10-row-6",
-        row: 6,
-        x: 0,
-        y: 570,
-        width: 984,
-        height: 116,
-        overlapY: -6,
-        columns: 2,
-        subSlots: [
-          { slotId: "ixr10-r6-full", x: 0, y: 0, width: 984, height: 116 },
-          { slotId: "ixr10-r6-c1", x: 0, y: 0, width: 492, height: 116 },
-          { slotId: "ixr10-r6-c2", x: 492, y: 0, width: 492, height: 116 },
-        ],
-      },
-      {
-        rowId: "ixr10-row-7",
-        row: 7,
-        x: 0,
-        y: 680,
-        width: 984,
-        height: 116,
-        overlapY: -6,
-        columns: 2,
-        subSlots: [
-          { slotId: "ixr10-r7-full", x: 0, y: 0, width: 984, height: 116 },
-          { slotId: "ixr10-r7-c1", x: 0, y: 0, width: 492, height: 116 },
-          { slotId: "ixr10-r7-c2", x: 492, y: 0, width: 492, height: 116 },
-        ],
-      },
-      {
-        rowId: "ixr10-row-8",
-        row: 8,
-        x: 0,
-        y: 790,
-        width: 984,
-        height: 116,
-        overlapY: -6,
-        columns: 2,
-        subSlots: [
-          { slotId: "ixr10-r8-full", x: 0, y: 0, width: 984, height: 116 },
-          { slotId: "ixr10-r8-c1", x: 0, y: 0, width: 492, height: 116 },
-          { slotId: "ixr10-r8-c2", x: 492, y: 0, width: 492, height: 116 },
-        ],
-      },
-      {
-        rowId: "ixr10-row-9",
-        row: 9,
-        x: 0,
-        y: 900,
-        width: 984,
-        height: 116,
-        overlapY: -6,
-        columns: 2,
-        subSlots: [
-          { slotId: "ixr10-r9-full", x: 0, y: 0, width: 984, height: 116 },
-          { slotId: "ixr10-r9-c1", x: 0, y: 0, width: 492, height: 116 },
-          { slotId: "ixr10-r9-c2", x: 492, y: 0, width: 492, height: 116 },
-        ],
-      },
-      {
-        rowId: "ixr10-row-10",
-        row: 10,
-        x: 0,
-        y: 1044,
-        width: 984,
-        height: 102,
-        overlapY: 0,
-        columns: 6,
-        subSlots: [
-          { slotId: "ixr10-r10-c1", x: 0, y: 0, width: 164, height: 102 },
-          { slotId: "ixr10-r10-c2", x: 164, y: 0, width: 164, height: 102 },
-          { slotId: "ixr10-r10-c3", x: 328, y: 0, width: 164, height: 102 },
-          { slotId: "ixr10-r10-c4", x: 492, y: 0, width: 164, height: 102 },
-          { slotId: "ixr10-r10-c5", x: 656, y: 0, width: 164, height: 102 },
-          { slotId: "ixr10-r10-c6", x: 820, y: 0, width: 164, height: 102 },
-        ],
-      },
-      {
-        rowId: "ixr10-row-11",
-        row: 11,
-        x: 0,
-        y: 1146,
-        width: 984,
-        height: 102,
-        overlapY: 0,
-        columns: 6,
-        subSlots: [
-          { slotId: "ixr10-r11-c1", x: 0, y: 0, width: 164, height: 102 },
-          { slotId: "ixr10-r11-c2", x: 164, y: 0, width: 164, height: 102 },
-          { slotId: "ixr10-r11-c3", x: 328, y: 0, width: 164, height: 102 },
-          { slotId: "ixr10-r11-c4", x: 492, y: 0, width: 164, height: 102 },
-          { slotId: "ixr10-r11-c5", x: 656, y: 0, width: 164, height: 102 },
-          { slotId: "ixr10-r11-c6", x: 820, y: 0, width: 164, height: 102 },
-        ],
-      },
+      createIxrStandardRow("ixr10", 1, 20, 0),
+      createIxrStandardRow("ixr10", 2, 130, -6),
+      createIxrStandardRow("ixr10", 3, 240, -6),
+      createIxrStandardRow("ixr10", 4, 350, -6),
+      createIxrStandardRow("ixr10", 5, 460, -6),
+      createIxrStandardRow("ixr10", 6, 570, -6),
+      createIxrStandardRow("ixr10", 7, 680, -6),
+      createIxrStandardRow("ixr10", 8, 790, -6),
+      createIxrStandardRow("ixr10", 9, 900, -6),
+      createIxrCpmRow("ixr10", 10, 1044, 0),
+      createIxrCpmRow("ixr10", 11, 1146, 0),
     ],
   },
 ];

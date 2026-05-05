@@ -82,7 +82,7 @@ const PANEL_STYLES = `
 .device-tile-img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: fill;
     transition: opacity 0.3s;
 }
 .device-tile-img-placeholder {

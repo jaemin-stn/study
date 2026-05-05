@@ -263,15 +263,21 @@ const SvgPortView = ({ device, portStates }: { device: Device; portStates: PortS
         const containerWidth = 880;
         const svgWidth = svgEl.viewBox?.baseVal?.width || 984;
         const svgHeight = svgEl.viewBox?.baseVal?.height || 200;
-        if (svgWidth > containerWidth) {
-          const scale = containerWidth / svgWidth;
+
+        const scale = svgWidth > containerWidth ? containerWidth / svgWidth : 1;
+
+        if (scale < 1) {
           container.style.transform = `scale(${scale})`;
           container.style.transformOrigin = "top center";
-          if (container.parentElement) {
-            container.parentElement.style.height = `${svgHeight * scale}px`;
-            container.parentElement.style.overflow = "hidden";
-          }
+        } else {
+          container.style.transform = "none";
         }
+
+        if (container.parentElement) {
+          container.parentElement.style.height = `${svgHeight * scale}px`;
+          container.parentElement.style.overflow = "hidden";
+        }
+
         svgEl.style.width = "auto";
         svgEl.style.height = "auto";
         svgEl.style.display = "block";

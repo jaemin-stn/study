@@ -663,7 +663,8 @@ const DeviceMesh = ({
   );
 };
 
-const ImageFaceplate = forwardRef<
+// Phase 3: memo로 래핑하여 동일 url/size에 대한 불필요한 텍스처 리렌더 방지
+const ImageFaceplate = memo(forwardRef<
   Mesh,
   {
     url: string;
@@ -679,7 +680,7 @@ const ImageFaceplate = forwardRef<
       <meshStandardMaterial map={texture} transparent={hasError} />
     </mesh>
   );
-});
+}));
 
 const DeviceFaceplate = forwardRef<
   Mesh,

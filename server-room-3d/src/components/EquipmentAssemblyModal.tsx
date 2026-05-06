@@ -599,7 +599,9 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
             img.src = url;
           });
 
-          const SCALE = 4; // 썸네일 화질 개선을 위한 해상도 스케일업
+          // Phase 3: SCALE 4→2, PNG→WebP로 data URL 크기 ~70% 감소
+          // → 3D 텍스처 GPU 업로드 비용 + structuredClone 비용 절감
+          const SCALE = 2;
           const canvas = document.createElement("canvas");
           canvas.width = img.naturalWidth * SCALE;
           canvas.height = img.naturalHeight * SCALE;
@@ -607,7 +609,7 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
           
           // 크기를 키운 캔버스에 이미지를 그려 화질 보존
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          thumbnailDataUrl = canvas.toDataURL("image/png");
+          thumbnailDataUrl = canvas.toDataURL("image/webp", 0.8);
           URL.revokeObjectURL(url);
         }
       }

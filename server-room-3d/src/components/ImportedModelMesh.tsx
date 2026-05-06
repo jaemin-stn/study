@@ -10,6 +10,7 @@ import {
   DEFAULT_LIGHT_PARAMS,
 } from "../utils/builtinModels";
 import { DigitalClock } from "./DigitalClock";
+import { getNodeSensorData } from "./DashboardWidgets";
 import { GltfErrorBoundary } from "./GltfErrorBoundary";
 
 interface ImportedModelMeshProps {
@@ -292,6 +293,10 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
   const isClock = model.builtinType === "Clock";
   const isLight = model.builtinType === "Light";
 
+  // Sensor data for DigitalClock — synced with dashboard overview
+  const activeNodeId = useStore((s) => s.activeNodeId);
+  const sensorData = activeNodeId ? getNodeSensorData(activeNodeId) : undefined;
+
   const updateModel = useStore((s) => s.updateModel);
   const setModelDragging = useStore((s) => s.setModelDragging);
 
@@ -397,7 +402,10 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
       ) : isPartition ? (
         <PartitionMesh model={model} />
       ) : isClock ? (
-        <DigitalClock />
+        <DigitalClock
+          temperature={sensorData?.temperature ?? undefined}
+          humidity={sensorData?.humidity ?? undefined}
+        />
       ) : isLight ? (
         <LightMesh model={model} />
       ) : (

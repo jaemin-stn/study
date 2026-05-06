@@ -92,15 +92,35 @@ const severityConfig: Record<
 };
 
 // Sensor data type (mock for now)
-interface SensorData {
+export interface SensorData {
   temperature: number | null;
   humidity: number | null;
 }
 
 // Mock sensor data per known node ID
-const MOCK_SENSOR_DATA: Record<string, SensorData> = {
+export const MOCK_SENSOR_DATA: Record<string, SensorData> = {
   [GWACHEON_NODE_ID]: { temperature: 22.5, humidity: 45.0 },
+  [GWACHEON_NODE_ID.replace('-1f', '-2f')]: { temperature: 22.1, humidity: 39.0 }, // gwacheon-room-2f
   [DAEJEON_NODE_ID]: { temperature: 23.8, humidity: 42.0 },
+  ["gwacheon-center"]: { temperature: 23.2, humidity: 41.0 },
+  ["daejeon-center"]: { temperature: 23.1, humidity: 54.0 },
+  ["sudogwon"]: { temperature: 24.4, humidity: 43.0 },
+  ["chungcheong"]: { temperature: 21.0, humidity: 62.0 },
+  ["gyeonggi"]: { temperature: 23.8, humidity: 44.0 },
+  ["daejeon-city"]: { temperature: 21.3, humidity: 43.0 },
+};
+
+/** 노드 ID에 대한 결정론적 센서 데이터 반환 (MOCK_SENSOR_DATA 우선, 없으면 해시 기반 생성) */
+export const getNodeSensorData = (nodeId: string): SensorData => {
+  if (MOCK_SENSOR_DATA[nodeId]) return MOCK_SENSOR_DATA[nodeId];
+  // Deterministic hash-based fallback for unknown nodes
+  let hash = 0;
+  for (let i = 0; i < nodeId.length; i++) {
+    hash = ((hash << 5) - hash + nodeId.charCodeAt(i)) | 0;
+  }
+  const t = 20 + ((Math.abs(hash) % 50) / 10);        // 20.0 ~ 24.9
+  const h = 30 + ((Math.abs(hash >> 8) % 400) / 10);   // 30.0 ~ 69.9
+  return { temperature: Math.round(t * 10) / 10, humidity: Math.round(h) };
 };
 
 export const DashboardWidgets = () => {
@@ -212,10 +232,7 @@ export const DashboardWidgets = () => {
       .map(node => ({
         id: node.nodeId,
         name: node.name,
-        data: MOCK_SENSOR_DATA[node.nodeId] || { 
-          temperature: 20 + Math.random() * 5, 
-          humidity: 30 + Math.random() * 40 
-        }
+        data: getNodeSensorData(node.nodeId)
       }))
       .filter(n => n.id !== "root"); // Skip root if needed
 

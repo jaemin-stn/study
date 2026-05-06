@@ -6,12 +6,16 @@ interface DigitalClockProps {
   color?: string;
   dimensions?: [number, number, number];
   emissiveIntensity?: number;
+  temperature?: number;
+  humidity?: number;
 }
 
 export const DigitalClock = forwardRef<Mesh, DigitalClockProps>(({
   color = '#1a1a1a',
   dimensions = [1.2, 0.85, 0.05],
-  emissiveIntensity = 0.15
+  emissiveIntensity = 0.15,
+  temperature = 24.5,
+  humidity = 42
 }, ref) => {
   const baseCanvas = useMemo(() => {
     const c = document.createElement('canvas');
@@ -94,27 +98,39 @@ export const DigitalClock = forwardRef<Mesh, DigitalClockProps>(({
       ctx.fillText('88:88', 60, 210);
       ctx.font = 'italic bold 110px "D7MBI"';
       ctx.fillText('88', 860, 330);
-      ctx.font = 'italic 110px "D7MBI"';
-      ctx.fillText('88.8', 193, 520);
-      ctx.fillText('88', 780, 520);
 
       const labelFont = '50px "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
+      const valueFont = 'italic 110px "D7MBI"';
       const labelColor = 'white';
-      let curX = 75;
 
-      ctx.font = labelFont; ctx.fillStyle = labelColor; ctx.fillText('온도 ', curX, 520 + 60);
-      curX += ctx.measureText('온도 ').width;
+      // Fixed layout positions (canvas width = 1100)
+      // Layout: "온도" [value] "℃  |  습도" [value] "%"
+      const TEMP_LABEL_X = 30;   // "온도"
+      const TEMP_VALUE_X = 145;  // temperature value (7-seg)
+      const UNIT_LABEL_X = 510;  // "℃  |  습도"
+      const HUMID_VALUE_X = 780; // humidity value (7-seg)
+      const PERCENT_X = 1010;    // "%"
+      const LABEL_Y = 580;       // label baseline
+      const VALUE_Y = 520;       // value baseline
 
-      emissiveCtx.font = 'italic 110px "D7MBI"';
-      curX += emissiveCtx.measureText('24.5').width;
+      // 온도 label
+      ctx.font = labelFont; ctx.fillStyle = labelColor; ctx.fillText('온도', TEMP_LABEL_X, LABEL_Y);
 
-      ctx.font = labelFont; ctx.fillStyle = labelColor; ctx.fillText(' ℃    |   습도 ', curX, 520 + 60);
-      curX += ctx.measureText(' ℃    |   습도 ').width;
+      // Temperature shadow digits (88.8)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.font = valueFont;
+      ctx.fillText('88.8', TEMP_VALUE_X, VALUE_Y);
 
-      emissiveCtx.font = 'italic 110px "D7MBI"';
-      curX += emissiveCtx.measureText('42').width;
+      // ℃ | 습도 label
+      ctx.font = labelFont; ctx.fillStyle = labelColor; ctx.fillText('℃  |  습도', UNIT_LABEL_X, LABEL_Y);
 
-      ctx.font = labelFont; ctx.fillStyle = labelColor; ctx.fillText(' %', curX, 520 + 60);
+      // Humidity shadow digits (88)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.1)';
+      ctx.font = valueFont;
+      ctx.fillText('88', HUMID_VALUE_X, VALUE_Y);
+
+      // % label
+      ctx.font = labelFont; ctx.fillStyle = labelColor; ctx.fillText('%', PERCENT_X, LABEL_Y);
 
       staticDrawnRef.current = true;
       baseTexture.needsUpdate = true;
@@ -149,19 +165,34 @@ export const DigitalClock = forwardRef<Mesh, DigitalClockProps>(({
       emissiveCtx.fillText(seconds, 860, 330);
 
       const labelFont = '50px "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
+      const valueFont = 'italic 110px "D7MBI"';
       const valueColor = 'rgba(26, 240, 255, 1)';
-      let curX = 75;
+      const labelColor = 'rgba(255, 255, 255, 1)';
 
-      ctx.font = labelFont;
-      curX += ctx.measureText('온도 ').width;
+      // Fixed layout positions (must match base canvas)
+      const TEMP_LABEL_X = 30;
+      const TEMP_VALUE_X = 145;
+      const UNIT_LABEL_X = 510;
+      const HUMID_VALUE_X = 780;
+      const PERCENT_X = 1010;
+      const LABEL_Y = 580;
+      const VALUE_Y = 520;
 
-      emissiveCtx.font = 'italic 110px "D7MBI"'; emissiveCtx.fillStyle = valueColor; emissiveCtx.fillText('24.5', curX, 520);
-      curX += emissiveCtx.measureText('24.5').width;
+      // Draw labels on emissive canvas (so they glow and aren't hidden by value emission)
+      emissiveCtx.font = labelFont; emissiveCtx.fillStyle = labelColor;
+      emissiveCtx.fillText('온도', TEMP_LABEL_X, LABEL_Y);
+      emissiveCtx.fillText('℃  |  습도', UNIT_LABEL_X, LABEL_Y);
+      emissiveCtx.fillText('%', PERCENT_X, LABEL_Y);
 
-      ctx.font = labelFont;
-      curX += ctx.measureText(' ℃    |   습도 ').width;
+      // Draw temperature value (from props)
+      const tempStr = temperature.toFixed(1);
+      emissiveCtx.font = valueFont; emissiveCtx.fillStyle = valueColor;
+      emissiveCtx.fillText(tempStr, TEMP_VALUE_X, VALUE_Y);
 
-      emissiveCtx.font = 'italic 110px "D7MBI"'; emissiveCtx.fillStyle = valueColor; emissiveCtx.fillText('42', curX, 520);
+      // Draw humidity value (from props)
+      const humStr = Math.round(humidity).toString();
+      emissiveCtx.font = valueFont; emissiveCtx.fillStyle = valueColor;
+      emissiveCtx.fillText(humStr, HUMID_VALUE_X, VALUE_Y);
     } else {
       emissiveCtx.fillStyle = 'white'; emissiveCtx.font = 'bold 100px sans-serif'; emissiveCtx.textAlign = 'center';
       emissiveCtx.textBaseline = 'alphabetic';

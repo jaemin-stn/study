@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useMemo } from "react";
 import { useStore } from "../store/useStore";
 import { resolveDeviceSvgContent } from "../utils/deviceAssets";
 
@@ -10,6 +10,10 @@ import { resolveDeviceSvgContent } from "../utils/deviceAssets";
  * 두 가지 케이스를 처리:
  * 1. Exact match: mock portId(port-5)가 SVG에 그대로 존재 → portName/portNumber만 보강
  * 2. Index fallback: mock portId(port-14)가 SVG에 없음 → SVG의 N번째 포트로 리매핑 + 보강
+ * 
+ * ⚠️ 모듈러 카드 장비(insertedCards.length > 0)는 EquipmentAssemblyModal.handleSave에서
+ *    generatePortMap으로 이미 정확한 portName/portNumber가 생성되므로 enrichment 대상에서 제외합니다.
+ *    이를 통해 racks → useEffect → updateDevicePortStates → racks 순환 트리거를 차단합니다.
  */
 export const PortErrorSynchronizer = () => {
   const racks = useStore((s) => s.racks);
@@ -20,7 +24,30 @@ export const PortErrorSynchronizer = () => {
   const isSyncingRef = useRef(false);
   const pendingSyncRef = useRef(false);
 
+  // Phase 1: racks 전체 참조 대신 장비 fingerprint 기반 의존성
+  // → racks 내부 데이터가 변해도 enrichment 대상 장비가 동일하면 useEffect 재실행 방지
+  const deviceFingerprint = useMemo(() => {
+    const parts: string[] = [];
+    for (const rack of racks) {
+      for (const device of rack.devices) {
+        // 모듈러 카드 장비는 enrichment 대상이 아니므로 fingerprint에서 제외
+        if (device.insertedCards && device.insertedCards.length > 0) continue;
+        const errorCount = device.portStates.filter(p => p.status === "error").length;
+        if (errorCount > 0 && device.modelName) {
+          const needsEnrich = device.portStates.some(p => p.status === "error" && !p.portName);
+          if (needsEnrich && !processedRef.current.has(device.itemId)) {
+            parts.push(`${device.itemId}:${device.modelName}:${errorCount}`);
+          }
+        }
+      }
+    }
+    return parts.join("|");
+  }, [racks]);
+
   useEffect(() => {
+    // fingerprint가 비어있으면 enrichment 대상 없음 — 스킵
+    if (!deviceFingerprint) return;
+
     const synchronizePorts = async () => {
       if (isSyncingRef.current) {
         pendingSyncRef.current = true;
@@ -41,6 +68,12 @@ export const PortErrorSynchronizer = () => {
         for (const device of rack.devices) {
           // 이미 처리된 장비는 스킵
           if (processedRef.current.has(device.itemId)) continue;
+
+          // 모듈러 카드 장비는 스킵 (EquipmentAssemblyModal에서 이미 포트 정보 생성됨)
+          if (device.insertedCards && device.insertedCards.length > 0) {
+            processedRef.current.add(device.itemId);
+            continue;
+          }
 
           const hasError = device.portStates.some((p) => p.status === "error");
           if (!hasError || !device.modelName) continue;
@@ -126,18 +159,16 @@ export const PortErrorSynchronizer = () => {
 
     let debounceTimer: ReturnType<typeof setTimeout>;
 
-    if (racks.length > 0) {
-      debounceTimer = setTimeout(() => {
-        synchronizePorts();
-      }, 300);
-    }
+    debounceTimer = setTimeout(() => {
+      synchronizePorts();
+    }, 300);
 
     return () => {
       if (debounceTimer) {
         clearTimeout(debounceTimer);
       }
     };
-  }, [racks, layouts, activeNodeId, updateDevicePortStates]);
+  }, [deviceFingerprint, layouts, activeNodeId, updateDevicePortStates]);
 
   return null;
 };

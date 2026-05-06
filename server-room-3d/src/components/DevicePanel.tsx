@@ -204,7 +204,7 @@ const PANEL_STYLES = `
 
 /* Registered device list in modal */
 .reg-device-list {
-    max-height: 400px;
+    height: 400px;
     overflow-y: auto;
     border: 1px solid var(--border-weak);
     border-radius: var(--radius-md);
@@ -370,6 +370,9 @@ export const DevicePanel = () => {
   );
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [isDeleteRackModalOpen, setIsDeleteRackModalOpen] = useState(false);
+  // Filter & Sort state for add-device modal
+  const [showUnmountedOnly, setShowUnmountedOnly] = useState(false);
+  const [sortKey, setSortKey] = useState<'regDate' | 'title' | 'modelName'>('regDate');
   // Remount confirmation state
   const [remountPending, setRemountPending] = useState<{
     regDeviceId: string;
@@ -857,8 +860,98 @@ export const DevicePanel = () => {
                   등록된 장비가 없습니다.
                 </div>
               ) : (
+                <>
+                {/* Filter & Sort Controls */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  marginBottom: '8px',
+                  flexWrap: 'wrap',
+                }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: 'var(--font-size-xs)',
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={showUnmountedOnly}
+                      onChange={(e) => setShowUnmountedOnly(e.target.checked)}
+                      style={{
+                        accentColor: 'var(--theme-primary)',
+                        width: '14px',
+                        height: '14px',
+                        cursor: 'pointer',
+                      }}
+                    />
+                    미실장 장비만 보기
+                  </label>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    marginLeft: 'auto',
+                  }}>
+                    <span style={{
+                      fontSize: 'var(--font-size-xs)',
+                      color: 'var(--text-tertiary)',
+                      whiteSpace: 'nowrap',
+                    }}>정렬:</span>
+                    <select
+                      value={sortKey}
+                      onChange={(e) => setSortKey(e.target.value as 'regDate' | 'title' | 'modelName')}
+                      style={{
+                        fontSize: 'var(--font-size-xs)',
+                        color: 'var(--text-primary)',
+                        background: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-weak)',
+                        borderRadius: 'var(--radius-sm)',
+                        padding: '3px 8px',
+                        cursor: 'pointer',
+                        outline: 'none',
+                      }}
+                    >
+                      <option value="regDate">등록시간순</option>
+                      <option value="title">장비명순</option>
+                      <option value="modelName">모델명순</option>
+                    </select>
+                  </div>
+                </div>
                 <div className="reg-device-list">
-                  {groupRegDevices.map((rd) => {
+                  {(() => {
+                    // Apply filter
+                    let filtered = groupRegDevices;
+                    if (showUnmountedOnly) {
+                      filtered = filtered.filter((rd) => !findExistingMount(rd.deviceId));
+                    }
+                    // Apply sort
+                    const sorted = [...filtered].sort((a, b) => {
+                      switch (sortKey) {
+                        case 'title': {
+                          const aName = (a.title || a.modelName || '').toLowerCase();
+                          const bName = (b.title || b.modelName || '').toLowerCase();
+                          return aName.localeCompare(bName, 'ko');
+                        }
+                        case 'modelName': {
+                          const aModel = (a.modelName || '').toLowerCase();
+                          const bModel = (b.modelName || '').toLowerCase();
+                          return aModel.localeCompare(bModel, 'ko');
+                        }
+                        case 'regDate':
+                        default: {
+                          const aDate = a.regDate || '';
+                          const bDate = b.regDate || '';
+                          // 최신 등록이 위로
+                          return bDate.localeCompare(aDate);
+                        }
+                      }
+                    });
+                    return sorted.map((rd) => {
                     const thumb = rd.dashboardThumbnailUrl || resolveDeviceImage(rd.modelName);
                     const isSelected = selectedRegDeviceId === rd.deviceId;
                     const placeable = canPlace(rd.size || 1);
@@ -977,8 +1070,10 @@ export const DevicePanel = () => {
                         )}
                       </div>
                     );
-                  })}
+                  });
+                  })()}
                 </div>
+                </>
               )}
             </div>
 

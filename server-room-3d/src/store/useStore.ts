@@ -436,13 +436,18 @@ export const useStore = create<AppState>()(
       _importDirty,
     } = get();
     if (_importDirty) return true;
-    if (!baselineRacks || !baselineModels || !baselineNodes) return false;
+
+    // Use empty arrays as fallback if baselines are null/undefined.
+    // This ensures that if the current state has items, it correctly flags as dirty.
+    const baseRacks = baselineRacks || [];
+    const baseModels = baselineModels || [];
+    const baseNodes = baselineNodes || [];
 
     // Robust field-by-field comparison with epsilon tolerance
     return (
-      !layoutsEqual(racks, baselineRacks) ||
-      !layoutsEqual(importedModels, baselineModels) ||
-      !layoutsEqual(nodes, baselineNodes)
+      !layoutsEqual(racks, baseRacks) ||
+      !layoutsEqual(importedModels, baseModels) ||
+      !layoutsEqual(nodes, baseNodes)
     );
   },
 

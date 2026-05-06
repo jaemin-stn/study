@@ -1,7 +1,7 @@
 import { useEffect, useRef, useMemo, Suspense } from "react";
 import { type ThreeEvent, useThree } from "@react-three/fiber";
 import { useGLTF, Html, Billboard, PivotControls } from "@react-three/drei";
-import { Box3, Euler, Matrix4, Mesh, Quaternion, Vector3 } from 'three';
+import { Box3, Euler, Matrix4, Mesh, Object3D, Quaternion, Vector3 } from 'three';
 import { useStore } from "../store/useStore";
 import type { ImportedModel, LightParams } from "../types";
 import {

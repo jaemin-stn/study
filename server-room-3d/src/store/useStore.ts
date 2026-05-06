@@ -790,38 +790,44 @@ export const useStore = create<AppState>()(
         d.deviceId === id ? { ...d, ...updates } : d,
       );
 
-      // Also update any placed devices in racks that reference this registered device
-      const updatedRacks = state.racks.map((rack) => ({
-        ...rack,
-        devices: rack.devices.map((device) => {
-          if (device.deviceId === id) {
-            return {
-              ...device,
-              title: updates.title ?? device.title,
-              IPAddr: updates.IPAddr ?? device.IPAddr,
-              macAddr: updates.macAddr ?? device.macAddr,
-              vendor: updates.vendor ?? device.vendor,
-              modelName: updates.modelName ?? device.modelName,
-              size: updates.size ?? device.size,
-              insertedCards: updates.insertedCards !== undefined ? updates.insertedCards : device.insertedCards,
-              dashboardThumbnailUrl: updates.dashboardThumbnailUrl !== undefined ? updates.dashboardThumbnailUrl : device.dashboardThumbnailUrl,
-              portStates: updates.generatedPorts 
-                ? updates.generatedPorts.map(gp => {
-                    const ex = device.portStates.find(p => p.portId === gp.realPortNumber);
-                    if (ex) return { ...ex, portName: gp.portType, portNumber: gp.realPortNumber };
-                    return { portId: gp.realPortNumber, portNumber: gp.realPortNumber, portName: gp.portType, status: "normal" } as PortState;
-                  })
-                : device.portStates,
-            };
-          }
-          return device;
-        }),
-      }));
+      // Phase 4: 해당 device가 없는 rack은 참조 유지 (불필요한 복사 방지)
+      let racksChanged = false;
+      const updatedRacks = state.racks.map((rack) => {
+        const hasTarget = rack.devices.some(d => d.deviceId === id);
+        if (!hasTarget) return rack; // 원래 참조 유지
+        racksChanged = true;
+        return {
+          ...rack,
+          devices: rack.devices.map((device) => {
+            if (device.deviceId === id) {
+              return {
+                ...device,
+                title: updates.title ?? device.title,
+                IPAddr: updates.IPAddr ?? device.IPAddr,
+                macAddr: updates.macAddr ?? device.macAddr,
+                vendor: updates.vendor ?? device.vendor,
+                modelName: updates.modelName ?? device.modelName,
+                size: updates.size ?? device.size,
+                insertedCards: updates.insertedCards !== undefined ? updates.insertedCards : device.insertedCards,
+                dashboardThumbnailUrl: updates.dashboardThumbnailUrl !== undefined ? updates.dashboardThumbnailUrl : device.dashboardThumbnailUrl,
+                portStates: updates.generatedPorts 
+                  ? updates.generatedPorts.map(gp => {
+                      const ex = device.portStates.find(p => p.portId === gp.realPortNumber);
+                      if (ex) return { ...ex, portName: gp.portType, portNumber: gp.realPortNumber };
+                      return { portId: gp.realPortNumber, portNumber: gp.realPortNumber, portName: gp.portType, status: "normal" } as PortState;
+                    })
+                  : device.portStates,
+              };
+            }
+            return device;
+          }),
+        };
+      });
 
       return {
         registeredDevices: updatedRegDevices,
-        racks: updatedRacks,
-        layouts: state.activeNodeId
+        racks: racksChanged ? updatedRacks : state.racks,
+        layouts: state.activeNodeId && racksChanged
           ? {
               ...state.layouts,
               [state.activeNodeId]: {

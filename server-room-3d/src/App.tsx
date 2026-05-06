@@ -535,11 +535,13 @@ function App() {
       {/* Side Panel */}
       {selectedRackId && <DevicePanel />}
 
-      {/* Global Device Modal — 상시 마운트로 SVG DOM 재로딩 방지 */}
-      <DeviceModal
-        deviceId={selectedDeviceId || ""}
-        onClose={() => selectDevice(null)}
-      />
+      {/* Phase 5: Device Modal — 선택 시에만 마운트 (SVG 캐시는 모듈 레벨) */}
+      {selectedDeviceId && (
+        <DeviceModal
+          deviceId={selectedDeviceId}
+          onClose={() => selectDevice(null)}
+        />
+      )}
 
       {/* Global Import/Export Modal */}
       {importExportModalRackId !== null && (

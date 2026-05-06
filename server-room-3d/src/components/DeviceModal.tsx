@@ -68,7 +68,8 @@ const _composedHtmlCache = new Map<string, string>();
 const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: PortState[] }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { modelName, insertedCards = [] } = device;
-  const cardsKey = JSON.stringify(insertedCards);
+  // Phase 2: JSON.stringify 대신 instanceId 조합으로 경량 캐시 키 생성
+  const cardsKey = insertedCards.map(c => c.instanceId).join(',');
   const _cacheKey = `${modelName}::${cardsKey}`;
 
   // 캐시에서 동기 초기화 → 재열기 시 첫 렌더에서 즉시 표시
@@ -481,7 +482,14 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
   const pd = prevProps.device;
   const nd = nextProps.device;
   if (pd.itemId !== nd.itemId || pd.modelName !== nd.modelName) return false;
-  if (JSON.stringify(pd.insertedCards) !== JSON.stringify(nd.insertedCards)) return false;
+  // Phase 2: insertedCards 배열 길이 + 경계값 instanceId 비교 (O(1))
+  if (pd.insertedCards?.length !== nd.insertedCards?.length) return false;
+  if (pd.insertedCards?.length) {
+    if (pd.insertedCards[0]?.instanceId !== nd.insertedCards![0]?.instanceId) return false;
+    const pLast = pd.insertedCards[pd.insertedCards.length - 1];
+    const nLast = nd.insertedCards![nd.insertedCards!.length - 1];
+    if (pLast?.instanceId !== nLast?.instanceId) return false;
+  }
   if (pd.dashboardThumbnailUrl !== nd.dashboardThumbnailUrl) return false;
   // portStates: 에러 상태만 비교 (길이 + 에러포트 내용)
   const prevErr = prevProps.portStates.filter(p => p.status === 'error');
@@ -568,7 +576,8 @@ export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: 
       return null;
     }
     // 핵심 필드만 비교하여 불필요한 SvgPortView 리렌더 방지
-    const newKey = `${rawDevice.itemId}::${rawDevice.modelName}::${JSON.stringify(rawDevice.insertedCards)}::${JSON.stringify(rawDevice.portStates)}::${rawDevice.dashboardThumbnailUrl || ""}`;
+    // Phase 2: JSON.stringify 대신 경량 필드 조합으로 키 생성
+    const newKey = `${rawDevice.itemId}::${rawDevice.modelName}::${rawDevice.insertedCards?.length ?? 0}::${rawDevice.insertedCards?.[0]?.instanceId ?? ""}::${rawDevice.portStates.length}::${rawDevice.portStates.filter(p => p.status === 'error').length}::${rawDevice.dashboardThumbnailUrl?.length ?? 0}`;
     if (prevDeviceRef.current.key === newKey && prevDeviceRef.current.device) {
       return prevDeviceRef.current.device;
     }

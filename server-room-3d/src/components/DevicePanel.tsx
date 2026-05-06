@@ -336,7 +336,7 @@ const PANEL_STYLES = `
 const PanelStyles = React.memo(() => <style>{PANEL_STYLES}</style>);
 
 export const DevicePanel = () => {
-  // Phase 2-D: 개별 셀렉터로 불필요 리렌더 방지
+  // Phase 2: 개별 셀렉터로 불필요 리렌더 방지
   const racks = useStore((s) => s.racks);
   const registeredDevices = useStore((s) => s.registeredDevices);
   const nodes = useStore((s) => s.nodes);
@@ -354,7 +354,9 @@ export const DevicePanel = () => {
   const focusRack = useStore((s) => s.focusRack);
   const showToast = useStore((s) => s.showToast);
   const findExistingMount = useStore((s) => s.findExistingMount);
-  const rack = racks.find((r) => r.rackId === selectedRackId);
+  const rack = useMemo(() => racks.find((r) => r.rackId === selectedRackId), [racks, selectedRackId]);
+  // 방향 제어에서 같은 mapId의 랙 목록 필요
+  const sameNodeRacks = useMemo(() => rack ? racks.filter((r) => r.mapId === rack.mapId) : [], [racks, rack?.mapId]);
 
   // Rack UI name edit state
   const [isEditingName, setIsEditingName] = useState(false);
@@ -1315,7 +1317,7 @@ export const DevicePanel = () => {
                 { label: "West (270°)", value: 270 },
               ].map((dir) => {
                 const wouldViolate = checkFrontClearanceViolation(
-                  racks.filter((r) => r.mapId === rack.mapId),
+                  sameNodeRacks,
                   rack.rackId,
                   rack.position,
                   dir.value as 0 | 90 | 180 | 270,

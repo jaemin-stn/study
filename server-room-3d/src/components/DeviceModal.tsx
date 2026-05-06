@@ -1,6 +1,7 @@
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from '../store/useStore';
+import { useShallow } from 'zustand/react/shallow';
 import { equipmentModels, loadCardSvgRaw, loadCardSvgRawSync } from '../utils/cardAssets';
 import { resolveDeviceSvgContent } from '../utils/deviceAssets';
 import {
@@ -64,7 +65,7 @@ const ensureKeyframe = (name: string, color: string) => {
 // 합성된 SVG HTML 모듈 레벨 캐시 (재열기 시 즉시 렌더링)
 const _composedHtmlCache = new Map<string, string>();
 
-const SvgPortView = ({ device, portStates }: { device: Device; portStates: PortState[] }) => {
+const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: PortState[] }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { modelName, insertedCards = [] } = device;
   const cardsKey = JSON.stringify(insertedCards);
@@ -247,15 +248,15 @@ const SvgPortView = ({ device, portStates }: { device: Device; portStates: PortS
   );
   const portStateMap = useMemo(() => new Map(portStates.map(p => [p.portId, p])), [portStates]);
 
-  // 2단계: DOM 주입 및 상호작용 (프리징 방지 핵심)
+  // 2단계: SVG 스타일 조정 및 상호작용 바인딩
+  // (dangerouslySetInnerHTML이 DOM 주입을 처리하므로 innerHTML 직접 설정 불필요)
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !composedHtml) return;
 
-    // 이미 주입된 것과 같으면 리렌더링 패스
-    const currentHash = composedHtml.length.toString();
+    // 스타일 조정: 최초 1회만 실행 (해시 비교)
+    const currentHash = _cacheKey + '::' + composedHtml.length;
     if (container.dataset.renderedHash !== currentHash) {
-      container.innerHTML = composedHtml;
       container.dataset.renderedHash = currentHash;
       
       const svgEl = container.querySelector("svg");
@@ -471,8 +472,26 @@ const SvgPortView = ({ device, portStates }: { device: Device; portStates: PortS
     };
   }, [composedHtml, portStateMap, errorPortMap, isModularDevice, generatedPortMap, generatedPorts]);
 
-  return <div ref={containerRef} style={{ position: "relative" }} />;
-};
+  // 초기 렌더에서 캐시된 HTML을 dangerouslySetInnerHTML로 즉시 표시
+  // → 리마운트 시에도 useEffect 실행 전에 SVG가 바로 보임
+  return <div ref={containerRef} style={{ position: "relative" }} dangerouslySetInnerHTML={composedHtml ? { __html: composedHtml } : undefined} />;
+}, (prevProps, nextProps) => {
+  // Custom areEqual: 핵심 필드만 비교하여 불필요한 리렌더 방지
+  if (prevProps.device === nextProps.device && prevProps.portStates === nextProps.portStates) return true;
+  const pd = prevProps.device;
+  const nd = nextProps.device;
+  if (pd.itemId !== nd.itemId || pd.modelName !== nd.modelName) return false;
+  if (JSON.stringify(pd.insertedCards) !== JSON.stringify(nd.insertedCards)) return false;
+  if (pd.dashboardThumbnailUrl !== nd.dashboardThumbnailUrl) return false;
+  // portStates: 에러 상태만 비교 (길이 + 에러포트 내용)
+  const prevErr = prevProps.portStates.filter(p => p.status === 'error');
+  const nextErr = nextProps.portStates.filter(p => p.status === 'error');
+  if (prevErr.length !== nextErr.length) return false;
+  for (let i = 0; i < prevErr.length; i++) {
+    if (prevErr[i].portId !== nextErr[i].portId || prevErr[i].errorLevel !== nextErr[i].errorLevel) return false;
+  }
+  return true;
+});
 
 /**
  * SVG 내부 id 속성들을 instancePrefix로 프리픽싱하여 충돌 방지.
@@ -531,17 +550,32 @@ function prefixSvgIds(svgEl: Element, prefix: string) {
 }
 
 export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: () => void }) => {
-  const racks = useStore((s) => s.racks);
-  const { device, rackName } = useMemo(() => {
-    if (!deviceId) return { device: null, rackName: "" };
-    for (const r of racks) {
-      // itemId 또는 deviceId 둘 중 하나라도 매칭되면 반환
+  // Phase 1: racks 전체 대신 세분화된 셀렉터 — 이 device가 속한 rack의 devices만 구독
+  const { rawDevice, rackName } = useStore(useShallow(useCallback((s) => {
+    if (!deviceId) return { rawDevice: null, rackName: "" };
+    for (const r of s.racks) {
       const d = r.devices.find(d => d.itemId === deviceId || d.deviceId === deviceId);
-      if (d) return { device: d as unknown as Device, rackName: r.rackTitle || `Rack ${r.rackId.slice(0, 4).toUpperCase()}` };
+      if (d) return { rawDevice: d, rackName: r.rackTitle || `Rack ${r.rackId.slice(0, 4).toUpperCase()}` };
     }
-    console.warn("DeviceModal: Device not found for ID:", deviceId);
-    return { device: null, rackName: "" };
-  }, [racks, deviceId]);
+    return { rawDevice: null, rackName: "" };
+  }, [deviceId])));
+
+  // Phase 1: device 참조 안정화 — 실제 데이터가 변하지 않으면 이전 참조 재사용
+  const prevDeviceRef = useRef<{ device: Device | null; key: string }>({ device: null, key: "" });
+  const device = useMemo(() => {
+    if (!rawDevice) {
+      prevDeviceRef.current = { device: null, key: "" };
+      return null;
+    }
+    // 핵심 필드만 비교하여 불필요한 SvgPortView 리렌더 방지
+    const newKey = `${rawDevice.itemId}::${rawDevice.modelName}::${JSON.stringify(rawDevice.insertedCards)}::${JSON.stringify(rawDevice.portStates)}::${rawDevice.dashboardThumbnailUrl || ""}`;
+    if (prevDeviceRef.current.key === newKey && prevDeviceRef.current.device) {
+      return prevDeviceRef.current.device;
+    }
+    const stable = rawDevice as unknown as Device;
+    prevDeviceRef.current = { device: stable, key: newKey };
+    return stable;
+  }, [rawDevice]);
 
   const devicePortStates = useMemo(() => device?.portStates || [], [device]);
 

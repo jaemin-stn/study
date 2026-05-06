@@ -259,18 +259,15 @@ function App() {
   const undo = useStore((s) => s.undo);
   const saveChanges = useStore((s) => s.saveChanges);
 
-  // Phase 2-B: getIsDirty()를 필요한 state에만 의존하도록 최적화
+  // Phase 2: isDirty — isEditMode가 아닐 때는 항상 false (비교 스킵)
   const racks = useStore((s) => s.racks);
   const importedModels = useStore((s) => s.importedModels);
   const nodes = useStore((s) => s.nodes);
-  const baselineRacks = useStore((s) => s.baselineRacks);
-  const baselineModels = useStore((s) => s.baselineModels);
-  const baselineNodes = useStore((s) => s.baselineNodes);
   const _importDirty = useStore((s) => s._importDirty);
-
   const isDirty = useMemo(() => {
+    if (!isEditMode && !_importDirty) return false;
     return useStore.getState().getIsDirty();
-  }, [racks, importedModels, nodes, baselineRacks, baselineModels, baselineNodes, _importDirty]);
+  }, [isEditMode, _importDirty, racks, importedModels, nodes]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -538,15 +535,11 @@ function App() {
       {/* Side Panel */}
       {selectedRackId && <DevicePanel />}
 
-      {/* Global Device Modal */}
-      {selectedDeviceId && (
-        <React.Suspense fallback={null}>
-          <DeviceModal
-            deviceId={selectedDeviceId}
-            onClose={() => selectDevice(null)}
-          />
-        </React.Suspense>
-      )}
+      {/* Global Device Modal — 상시 마운트로 SVG DOM 재로딩 방지 */}
+      <DeviceModal
+        deviceId={selectedDeviceId || ""}
+        onClose={() => selectDevice(null)}
+      />
 
       {/* Global Import/Export Modal */}
       {importExportModalRackId !== null && (

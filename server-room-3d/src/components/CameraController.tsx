@@ -9,7 +9,7 @@ export const CameraController = () => {
   const { camera, controls } = useThree();
   const selectedRackId = useStore((state) => state.selectedRackId);
   const focusedRackId = useStore((state) => state.focusedRackId);
-  const highlightedDeviceId = useStore((state) => state.highlightedDeviceId);
+
   const isEditMode = useStore((state) => state.isEditMode);
   const setPreFocusCameraState = useStore(
     (state) => state.setPreFocusCameraState,
@@ -268,15 +268,12 @@ export const CameraController = () => {
     const targetId = focusedRackId || selectedRackId;
     const { isDragging } = useStore.getState();
 
-    // Reset lastProcessedRackId on highlight changes
-    if (highlightedDeviceId) lastProcessedRackId.current = null;
-
     if (targetId && (focusedRackId || !isEditMode) && !isDragging) {
       setupFocus(targetId, !!focusedRackId);
     } else if (!targetId) {
       setupFocus(null, false);
     }
-  }, [selectedRackId, focusedRackId, isEditMode, highlightedDeviceId]);
+  }, [selectedRackId, focusedRackId, isEditMode]);
 
   useFrame((state, delta) => {
     if (!isAnimating.current || !controls || isInteracting.current) return;

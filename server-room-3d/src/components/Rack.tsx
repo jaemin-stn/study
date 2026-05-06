@@ -180,7 +180,7 @@ export const Rack = memo(({
       // If we hit a SOLID part of a Rack or Device BEFORE hitting a model,
       // it means the model is hidden behind the rack.
       // We skip SHARED_GEO.interactBox because it is an invisible bounding box.
-      if (hit.object.geometry !== SHARED_GEO.interactBox) {
+      if ((hit.object as Mesh).geometry !== SHARED_GEO.interactBox) {
         break;
       }
     }

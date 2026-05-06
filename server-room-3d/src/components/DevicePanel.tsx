@@ -372,7 +372,15 @@ export const DevicePanel = () => {
   const [isDeleteRackModalOpen, setIsDeleteRackModalOpen] = useState(false);
   // Filter & Sort state for add-device modal
   const [showUnmountedOnly, setShowUnmountedOnly] = useState(false);
-  const [sortKey, setSortKey] = useState<'regDate' | 'title' | 'modelName'>('regDate');
+  const [sortKey, setSortKey] = useState<'regDateDesc' | 'regDateAsc' | 'title' | 'modelName'>('regDateDesc');
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (listRef.current) {
+      listRef.current.scrollTop = 0;
+    }
+  }, [sortKey, showUnmountedOnly]);
+
   // Remount confirmation state
   const [remountPending, setRemountPending] = useState<{
     regDeviceId: string;
@@ -904,7 +912,7 @@ export const DevicePanel = () => {
                     }}>정렬:</span>
                     <select
                       value={sortKey}
-                      onChange={(e) => setSortKey(e.target.value as 'regDate' | 'title' | 'modelName')}
+                      onChange={(e) => setSortKey(e.target.value as 'regDateDesc' | 'regDateAsc' | 'title' | 'modelName')}
                       style={{
                         fontSize: 'var(--font-size-xs)',
                         color: 'var(--text-primary)',
@@ -916,13 +924,14 @@ export const DevicePanel = () => {
                         outline: 'none',
                       }}
                     >
-                      <option value="regDate">등록시간순</option>
+                      <option value="regDateDesc">최신순</option>
+                      <option value="regDateAsc">오래된순</option>
                       <option value="title">장비명순</option>
                       <option value="modelName">모델명순</option>
                     </select>
                   </div>
                 </div>
-                <div className="reg-device-list">
+                <div className="reg-device-list" ref={listRef}>
                   {(() => {
                     // Apply filter
                     let filtered = groupRegDevices;
@@ -942,7 +951,13 @@ export const DevicePanel = () => {
                           const bModel = (b.modelName || '').toLowerCase();
                           return aModel.localeCompare(bModel, 'ko');
                         }
-                        case 'regDate':
+                        case 'regDateAsc': {
+                          const aDate = a.regDate || '';
+                          const bDate = b.regDate || '';
+                          // 오래된 등록이 위로
+                          return aDate.localeCompare(bDate);
+                        }
+                        case 'regDateDesc':
                         default: {
                           const aDate = a.regDate || '';
                           const bDate = b.regDate || '';

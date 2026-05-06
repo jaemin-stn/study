@@ -134,6 +134,7 @@ export const Scene = () => {
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < 5) {
             useStore.getState().selectRack(null);
+            useStore.getState().selectModel(null);
           }
         }
         pointerDownPos.current = null;

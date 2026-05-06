@@ -1,5 +1,5 @@
 import { useEffect, useRef, useMemo, Suspense } from "react";
-import { type ThreeEvent } from "@react-three/fiber";
+import { type ThreeEvent, useThree } from "@react-three/fiber";
 import { useGLTF, Html, Billboard, PivotControls } from "@react-three/drei";
 import { Box3, Euler, Matrix4, Mesh, Quaternion, Vector3 } from 'three';
 import { useStore } from "../store/useStore";
@@ -299,6 +299,7 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
 
   const updateModel = useStore((s) => s.updateModel);
   const setModelDragging = useStore((s) => s.setModelDragging);
+  const { controls } = useThree();
 
 
   // Live pose ref — stores the current transform while dragging without triggering re-renders
@@ -325,6 +326,26 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
 
   const handlePointerDown = (e: ThreeEvent<PointerEvent>) => {
     if (useStore.getState().isGizmoHovered) return;
+
+    // Check if the user is clicking the PivotControls gizmo.
+    // Because depthTest={false}, the gizmo is visually on top.
+    // If the raycaster intersected the gizmo, we must let it handle the event,
+    // even if the model geometry is geometrically closer to the camera.
+    const hitGizmo = e.intersections.some((hit) => {
+      let obj: Object3D | null = hit.object;
+      let isInner = false;
+      let isGizmo = false;
+      while (obj) {
+        if (obj.userData?.isInnerContent) isInner = true;
+        if (obj.userData?.isGizmo) isGizmo = true;
+        obj = obj.parent;
+      }
+      return isGizmo && !isInner;
+    });
+
+    if (hitGizmo) {
+      return; // Do nothing, let PivotControls catch it
+    }
 
     const { isEditMode: editMode, selectRack, selectModel } = useStore.getState();
 
@@ -380,6 +401,7 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
 
   const innerContent = (
     <group
+      userData={{ isInnerContent: true }}
       onPointerDown={handlePointerDown}
       onPointerOver={() => {
         if (useStore.getState().isGizmoHovered) return;
@@ -477,7 +499,7 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
   );
 
   return (
-    <>
+    <group userData={{ isModelContainer: true, modelId: model.id }}>
       {shouldTransform ? (
         <PivotControls
           matrix={matrix}
@@ -490,6 +512,11 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
           disableSliders={false}
           onDragStart={() => {
             isDragging.current = true;
+            // Imperatively disable OrbitControls IMMEDIATELY to prevent
+            // camera movement competing with PivotControls drag (XZ slider).
+            // React state update (setModelDragging) only takes effect next render,
+            // by which time OrbitControls has already captured the pointer.
+            if (controls) (controls as any).enabled = false;
             setModelDragging(model.id);
           }}
           onDrag={(m) => {
@@ -509,6 +536,8 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
           }}
           onDragEnd={() => {
             isDragging.current = false;
+            // Re-enable OrbitControls imperatively before state update
+            if (controls) (controls as any).enabled = true;
             setModelDragging(null);
             // Commit final pose to store ONCE on drag end
             updateModel(model.id, {
@@ -529,6 +558,6 @@ export const ImportedModelMesh = ({ model }: ImportedModelMeshProps) => {
           {innerContent}
         </group>
       )}
-    </>
+    </group>
   );
 };

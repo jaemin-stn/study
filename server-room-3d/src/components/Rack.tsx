@@ -143,18 +143,50 @@ export const Rack = memo(({
     // Ignore pointer events if the user is interacting with the dashboard Gizmo
     if (useStore.getState().isGizmoHovered) return;
 
-    // Determine if the raycaster intersected a PivotControls gizmo (or the model it controls)
+    // 1. GIZMO PRIORITY: Because PivotControls has depthTest={false}, it's visually always on top.
+    // If the ray hits a Gizmo anywhere, the user intended to click it.
     const hitGizmo = e.intersections.some((hit) => {
       let obj: Object3D | null = hit.object;
+      let isInner = false;
+      let isGizmo = false;
       while (obj) {
-        if (obj.userData && obj.userData.isGizmo) return true;
+        if (obj.userData?.isInnerContent) isInner = true;
+        if (obj.userData?.isGizmo) isGizmo = true;
         obj = obj.parent;
       }
-      return false;
+      return isGizmo && !isInner;
     });
 
-    if (hitGizmo) {
-      // Do not stop propagation and do not select rack; let the gizmo handle it.
+    if (hitGizmo) return; // Yield to gizmo immediately
+
+    // 2. MODEL PRIORITY: Determine if the raycaster intersected an ImportedModel BEFORE hitting a solid rack part
+    let hitModel = false;
+    for (const hit of e.intersections) {
+      let isModel = false;
+      let obj: Object3D | null = hit.object;
+      while (obj) {
+        if (obj.userData && obj.userData.isModelContainer) {
+          isModel = true;
+          break;
+        }
+        obj = obj.parent;
+      }
+
+      if (isModel) {
+        hitModel = true;
+        break;
+      }
+
+      // If we hit a SOLID part of a Rack or Device BEFORE hitting a model,
+      // it means the model is hidden behind the rack.
+      // We skip SHARED_GEO.interactBox because it is an invisible bounding box.
+      if (hit.object.geometry !== SHARED_GEO.interactBox) {
+        break;
+      }
+    }
+
+    if (hitModel) {
+      // Do not stop propagation and do not select rack; let the model handle it.
       return;
     }
 

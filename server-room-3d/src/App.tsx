@@ -264,10 +264,13 @@ function App() {
   const importedModels = useStore((s) => s.importedModels);
   const nodes = useStore((s) => s.nodes);
   const _importDirty = useStore((s) => s._importDirty);
+  const baselineRacks = useStore((s) => s.baselineRacks);
+  const baselineModels = useStore((s) => s.baselineModels);
+  const baselineNodes = useStore((s) => s.baselineNodes);
   const isDirty = useMemo(() => {
     if (!isEditMode && !_importDirty) return false;
     return useStore.getState().getIsDirty();
-  }, [isEditMode, _importDirty, racks, importedModels, nodes]);
+  }, [isEditMode, _importDirty, racks, importedModels, nodes, baselineRacks, baselineModels, baselineNodes]);
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

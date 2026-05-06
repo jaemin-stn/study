@@ -100,7 +100,7 @@ export const DigitalClock = forwardRef<Mesh, DigitalClockProps>(({
       ctx.fillText('88', 860, 330);
 
       const labelFont = '50px "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
-      const valueFont = 'italic 110px "D7MBI"';
+      const valueFont = 'italic 110px "D7MI"'; // Changed from D7MBI to D7MI for thinner text
       const labelColor = 'white';
 
       // Fixed layout positions (canvas width = 1100)
@@ -165,24 +165,14 @@ export const DigitalClock = forwardRef<Mesh, DigitalClockProps>(({
       emissiveCtx.fillText(seconds, 860, 330);
 
       const labelFont = '50px "Malgun Gothic", "Apple SD Gothic Neo", sans-serif';
-      const valueFont = 'italic 110px "D7MBI"';
+      const valueFont = 'italic 110px "D7MI"'; // Changed from D7MBI to D7MI for thinner text
       const valueColor = 'rgba(26, 240, 255, 1)';
       const labelColor = 'rgba(255, 255, 255, 1)';
 
       // Fixed layout positions (must match base canvas)
-      const TEMP_LABEL_X = 30;
       const TEMP_VALUE_X = 145;
-      const UNIT_LABEL_X = 510;
       const HUMID_VALUE_X = 780;
-      const PERCENT_X = 1010;
-      const LABEL_Y = 580;
       const VALUE_Y = 520;
-
-      // Draw labels on emissive canvas (so they glow and aren't hidden by value emission)
-      emissiveCtx.font = labelFont; emissiveCtx.fillStyle = labelColor;
-      emissiveCtx.fillText('온도', TEMP_LABEL_X, LABEL_Y);
-      emissiveCtx.fillText('℃  |  습도', UNIT_LABEL_X, LABEL_Y);
-      emissiveCtx.fillText('%', PERCENT_X, LABEL_Y);
 
       // Draw temperature value (from props)
       const tempStr = temperature.toFixed(1);

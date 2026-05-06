@@ -257,6 +257,7 @@ function App() {
   const selectDevice = useStore((s) => s.selectDevice);
   const setPendingImportFile = useStore((s) => s.setPendingImportFile);
   const undo = useStore((s) => s.undo);
+  const redo = useStore((s) => s.redo);
   const saveChanges = useStore((s) => s.saveChanges);
 
   // Phase 2: isDirty — isEditMode가 아닐 때는 항상 false (비교 스킵)
@@ -274,23 +275,32 @@ function App() {
 
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === "z") {
-        // Prevent undo when typing in inputs/textareas
-        const activeElem = document.activeElement;
-        const isInput =
-          activeElem instanceof HTMLInputElement ||
-          activeElem instanceof HTMLTextAreaElement ||
-          (activeElem as HTMLElement)?.isContentEditable;
+      // Prevent shortcuts when typing in inputs/textareas
+      const activeElem = document.activeElement;
+      const isInput =
+        activeElem instanceof HTMLInputElement ||
+        activeElem instanceof HTMLTextAreaElement ||
+        (activeElem as HTMLElement)?.isContentEditable;
 
-        if (!isInput) {
+      if (!isInput && (e.ctrlKey || e.metaKey)) {
+        if (e.key === "z" || e.key === "Z") {
           e.preventDefault();
-          undo();
+          if (e.shiftKey) {
+            redo();
+          } else {
+            undo();
+          }
+        } else if (e.key === "s" || e.key === "S") {
+          e.preventDefault();
+          if (useStore.getState().getIsDirty()) {
+            saveChanges();
+          }
         }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [undo]);
+  }, [undo, redo, saveChanges]);
 
   const toolbarImportInputRef = useRef<HTMLInputElement>(null);
 

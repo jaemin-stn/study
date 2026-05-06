@@ -89,6 +89,11 @@ export interface AppState {
     importedModels: ImportedModel[];
     nodes: HierarchyNode[];
   }[];
+  redoStack: {
+    racks: Rack[];
+    importedModels: ImportedModel[];
+    nodes: HierarchyNode[];
+  }[];
   showUnsavedDialog: boolean;
   pendingAction:
     | { type: "node"; value: string | null }
@@ -228,6 +233,7 @@ export interface AppState {
   // Edit Session Actions
   pushUndoState: () => void;
   undo: () => void;
+  redo: () => void;
   saveChanges: () => void;
   discardChanges: () => void;
   cancelConfirmation: () => void;
@@ -408,6 +414,7 @@ export const useStore = create<AppState>()(
   baselineModels: null,
   baselineNodes: null,
   undoStack: [],
+  redoStack: [],
   showUnsavedDialog: false,
   pendingAction: null,
   _importDirty: false,
@@ -461,22 +468,44 @@ export const useStore = create<AppState>()(
 
     set({
       undoStack: [...undoStack, newEntry].slice(-50), // Limit to 50 entries
+      redoStack: [], // Clear redo stack on new action
     });
   },
 
   undo: () => {
-    const { isEditMode, undoStack } = get();
+    const { isEditMode, undoStack, redoStack, racks, importedModels, nodes } = get();
     if (!isEditMode || undoStack.length === 0) return;
 
     const newStack = [...undoStack];
     const prevState = newStack.pop();
 
     if (prevState) {
+      const currentState = { racks, importedModels, nodes };
       set({
         racks: prevState.racks,
         importedModels: prevState.importedModels,
         nodes: prevState.nodes,
         undoStack: newStack,
+        redoStack: [...redoStack, currentState].slice(-50),
+      });
+    }
+  },
+
+  redo: () => {
+    const { isEditMode, undoStack, redoStack, racks, importedModels, nodes } = get();
+    if (!isEditMode || redoStack.length === 0) return;
+
+    const newRedoStack = [...redoStack];
+    const nextState = newRedoStack.pop();
+
+    if (nextState) {
+      const currentState = { racks, importedModels, nodes };
+      set({
+        racks: nextState.racks,
+        importedModels: nextState.importedModels,
+        nodes: nextState.nodes,
+        undoStack: [...undoStack, currentState].slice(-50),
+        redoStack: newRedoStack,
       });
     }
   },
@@ -508,6 +537,7 @@ export const useStore = create<AppState>()(
       baselineModels: snapshot.importedModels,
       baselineNodes: snapshot.nodes,
       undoStack: [],
+      redoStack: [],
       showUnsavedDialog: false,
       pendingAction: null,
       _importDirty: false,
@@ -537,6 +567,7 @@ export const useStore = create<AppState>()(
           baselineModels: newSnap.importedModels,
           baselineNodes: newSnap.nodes,
           undoStack: [],
+          redoStack: [],
           selectedRackId: null,
           focusedRackId: null,
           selectedDeviceId: null,
@@ -574,6 +605,7 @@ export const useStore = create<AppState>()(
         importedModels: restored.importedModels,
         nodes: restored.nodes,
         undoStack: [],
+        redoStack: [],
         showUnsavedDialog: false,
         pendingAction: null,
         _importDirty: false,
@@ -595,6 +627,7 @@ export const useStore = create<AppState>()(
     } else {
       set({
         undoStack: [],
+        redoStack: [],
         showUnsavedDialog: false,
         pendingAction: null,
         _importDirty: false,
@@ -624,6 +657,7 @@ export const useStore = create<AppState>()(
           baselineModels: discardSnap.importedModels,
           baselineNodes: discardSnap.nodes,
           undoStack: [],
+          redoStack: [],
           selectedRackId: null,
           focusedRackId: null,
           selectedDeviceId: null,
@@ -694,6 +728,7 @@ export const useStore = create<AppState>()(
           }),
 
       undoStack: [], // Clear undo stack on node switch to prevent mixing node states
+      redoStack: [], // Clear redo stack on node switch
       selectedRackId: null,
       focusedRackId: null,
       selectedDeviceId: null,
@@ -1167,57 +1202,69 @@ export const useStore = create<AppState>()(
     if (!rack) return false;
 
     let finalPosition = [...newPosition] as [number, number];
-    const SNAP_THRESHOLD = 0.5;
-    const worldX = newPosition[0] * GRID_SPACING;
+    
+    // Deadzone check for accidental micro-movements on click
+    const distMoved = Math.sqrt(
+      Math.pow(newPosition[0] - rack.position[0], 2) +
+      Math.pow(newPosition[1] - rack.position[1], 2)
+    );
+
     const nodeRacks = racks.filter((r) => r.mapId === rack.mapId);
 
-    let xSnapped = false;
-    for (const other of nodeRacks) {
-      if (other.rackId === id) continue;
-      // ── X축 스냅 (좌우로 나란히 붙이기): 같은 Z 행 ──
-      if (Math.abs(other.position[1] - newPosition[1]) <= 0.1) {
-        const otherWorldX = other.position[0] * GRID_SPACING;
-        const gap =
-          Math.abs(worldX - otherWorldX) - (rack.width + other.width) / 2;
+    if (distMoved < 0.05) {
+      finalPosition = [...rack.position];
+    } else {
+      const SNAP_THRESHOLD = 0.5;
+      const worldX = newPosition[0] * GRID_SPACING;
 
-        if (gap >= -0.1 && gap < SNAP_THRESHOLD) {
-          const direction = worldX > otherWorldX ? 1 : -1;
-          const snappedWorldX =
-            otherWorldX + (direction * (other.width + rack.width)) / 2;
-          finalPosition[0] = snappedWorldX / GRID_SPACING;
-          finalPosition[1] = other.position[1]; // 완벽한 전후 정렬 (Align Z-axis)
-          xSnapped = true;
-          break;
-        }
-      }
-    }
-
-    // ── Z축 스냅 (앞뒤로 붙이기 / back-to-back): 같은 X 열 ──
-    if (!xSnapped) {
-      const worldZ = newPosition[1] * GRID_SPACING;
-      const RACK_D = 1.0; // RACK_DEPTH 상수와 동일
-
+      let xSnapped = false;
       for (const other of nodeRacks) {
         if (other.rackId === id) continue;
-        const otherWorldX = other.position[0] * GRID_SPACING;
-        // 같은 X 열: X 거리가 두 랙 폭 절반의 합 이내
-        if (
-          Math.abs(worldX - otherWorldX) >
-          (rack.width + other.width) / 2 + 0.1
-        )
-          continue;
+        // ── X축 스냅 (좌우로 나란히 붙이기): 같은 Z 행 ──
+        if (Math.abs(other.position[1] - newPosition[1]) <= 0.1) {
+          const otherWorldX = other.position[0] * GRID_SPACING;
+          const gap =
+            Math.abs(worldX - otherWorldX) - (rack.width + other.width) / 2;
 
-        const otherWorldZ = other.position[1] * GRID_SPACING;
-        const zGap =
-          Math.abs(worldZ - otherWorldZ) - (RACK_D + RACK_D) / 2;
+          if (gap >= -0.1 && gap < SNAP_THRESHOLD) {
+            const direction = worldX > otherWorldX ? 1 : -1;
+            const snappedWorldX =
+              otherWorldX + (direction * (other.width + rack.width)) / 2;
+            finalPosition[0] = snappedWorldX / GRID_SPACING;
+            finalPosition[1] = other.position[1]; // 완벽한 전후 정렬 (Align Z-axis)
+            xSnapped = true;
+            break;
+          }
+        }
+      }
 
-        if (zGap >= -0.1 && zGap < SNAP_THRESHOLD) {
-          const direction = worldZ > otherWorldZ ? 1 : -1;
-          const snappedWorldZ =
-            otherWorldZ + (direction * (RACK_D + RACK_D)) / 2;
-          finalPosition[1] = snappedWorldZ / GRID_SPACING;
-          finalPosition[0] = other.position[0]; // 완벽한 좌우 정렬 (Align X-axis)
-          break;
+      // ── Z축 스냅 (앞뒤로 붙이기 / back-to-back): 같은 X 열 ──
+      if (!xSnapped) {
+        const worldZ = newPosition[1] * GRID_SPACING;
+        const RACK_D = 1.0; // RACK_DEPTH 상수와 동일
+
+        for (const other of nodeRacks) {
+          if (other.rackId === id) continue;
+          const otherWorldX = other.position[0] * GRID_SPACING;
+          // 같은 X 열: X 거리가 두 랙 폭 절반의 합 이내
+          if (
+            Math.abs(worldX - otherWorldX) >
+            (rack.width + other.width) / 2 + 0.1
+          )
+            continue;
+
+          const otherWorldZ = other.position[1] * GRID_SPACING;
+          const zGap =
+            Math.abs(worldZ - otherWorldZ) - (RACK_D + RACK_D) / 2;
+
+          if (zGap >= -0.1 && zGap < SNAP_THRESHOLD) {
+            const direction = worldZ > otherWorldZ ? 1 : -1;
+            const snappedWorldZ =
+              otherWorldZ + (direction * (RACK_D + RACK_D)) / 2;
+            finalPosition[1] = snappedWorldZ / GRID_SPACING;
+            finalPosition[0] = other.position[0]; // 완벽한 좌우 정렬 (Align X-axis)
+            break;
+          }
         }
       }
     }
@@ -1338,6 +1385,7 @@ export const useStore = create<AppState>()(
         baselineModels: editSnap.importedModels,
         baselineNodes: editSnap.nodes,
         undoStack: [],
+        redoStack: [],
         isEditMode: true,
       });
       return;
@@ -1363,6 +1411,7 @@ export const useStore = create<AppState>()(
       baselineRacks: null,
       baselineModels: null,
       undoStack: [],
+      redoStack: [],
     });
   },
 

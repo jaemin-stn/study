@@ -815,8 +815,14 @@ export const useStore = create<AppState>()(
   setShowEquipmentInTree: (show) => set({ showEquipmentInTree: show }),
 
   addRegisteredDevice: (deviceData) => {
+    // Generate current timestamp in 'YYYY-MM-DD HH:mm:ss' format
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000; // offset in milliseconds
+    const localISOTime = (new Date(now.getTime() - tzOffset)).toISOString().replace('T', ' ').substring(0, 19);
+
     const newDevice: RegisteredDevice = {
       ...deviceData,
+      regDate: deviceData.regDate || localISOTime,
       deviceId: crypto.randomUUID(),
     };
     set((state) => ({
@@ -825,9 +831,14 @@ export const useStore = create<AppState>()(
   },
 
   updateRegisteredDevice: (id: string, updates: Partial<RegisteredDevice> & { generatedPorts?: GeneratedPort[] }) => {
+    // Generate current timestamp in 'YYYY-MM-DD HH:mm:ss' format
+    const now = new Date();
+    const tzOffset = now.getTimezoneOffset() * 60000;
+    const localISOTime = (new Date(now.getTime() - tzOffset)).toISOString().replace('T', ' ').substring(0, 19);
+
     set((state) => {
       const updatedRegDevices = state.registeredDevices.map((d) =>
-        d.deviceId === id ? { ...d, ...updates } : d,
+        d.deviceId === id ? { ...d, ...updates, modiDate: localISOTime } : d,
       );
 
       // Phase 4: 해당 device가 없는 rack은 참조 유지 (불필요한 복사 방지)

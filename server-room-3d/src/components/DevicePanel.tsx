@@ -952,15 +952,15 @@ export const DevicePanel = () => {
                           return aModel.localeCompare(bModel, 'ko');
                         }
                         case 'regDateAsc': {
-                          const aDate = a.regDate || '';
-                          const bDate = b.regDate || '';
+                          const aDate = a.modiDate || a.regDate || '';
+                          const bDate = b.modiDate || b.regDate || '';
                           // 오래된 등록이 위로
                           return aDate.localeCompare(bDate);
                         }
                         case 'regDateDesc':
                         default: {
-                          const aDate = a.regDate || '';
-                          const bDate = b.regDate || '';
+                          const aDate = a.modiDate || a.regDate || '';
+                          const bDate = b.modiDate || b.regDate || '';
                           // 최신 등록이 위로
                           return bDate.localeCompare(aDate);
                         }

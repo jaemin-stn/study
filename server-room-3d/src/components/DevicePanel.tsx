@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { useStore, checkFrontClearanceViolation } from "../store/useStore";
 import type { PortState, RegisteredDevice } from "../types";
@@ -55,285 +55,7 @@ const DeviceTileImage = ({ src, alt }: { src: string; alt: string }) => {
   );
 };
 
-const PANEL_STYLES = `
-/* ---------- Device Tile ---------- */
-.device-tile {
-    position: relative;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    cursor: pointer;
-    display: flex;
-    align-items: stretch;
-    transition: box-shadow 0.2s, transform 0.15s;
-    margin-bottom: 2px;
-}
-.device-tile:hover {
-    box-shadow: 0 0 0 2px var(--theme-primary), var(--elevation-2);
-    z-index: 2;
-}
-
-/* Image wrapper */
-.device-tile-img-wrap {
-    width: 100%;
-    height: 100%;
-    position: absolute;
-    inset: 0;
-}
-.device-tile-img {
-    width: 100%;
-    height: 100%;
-    object-fit: fill;
-    transition: opacity 0.3s;
-}
-.device-tile-img-placeholder {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--bg-tertiary);
-}
-@keyframes dt-spin {
-    to { transform: rotate(360deg); }
-}
-.device-tile-img-spinner {
-    width: 16px;
-    height: 16px;
-    border: 2px solid var(--border-medium);
-    border-top-color: var(--theme-primary);
-    border-radius: 50%;
-    animation: dt-spin 0.7s linear infinite;
-}
-
-@keyframes dt-error-pulse {
-    0% { box-shadow: 0 0 0 0px var(--severity-critical); }
-    50% { box-shadow: 0 0 12px 2px var(--severity-critical-bg); }
-    100% { box-shadow: 0 0 0 0px var(--severity-critical); }
-}
-.device-tile.has-error {
-    animation: dt-error-pulse 2s infinite;
-    border-color: var(--severity-critical) !important;
-    z-index: 1;
-}
-@keyframes dt-highlight-pulse {
-    0% { box-shadow: 0 0 0 0px var(--theme-primary); outline: 2px solid transparent; }
-    50% { box-shadow: 0 0 15px 4px var(--selected-bg); outline: 2px solid var(--theme-primary); }
-    100% { box-shadow: 0 0 0 0px var(--theme-primary); outline: 2px solid transparent; }
-}
-.device-tile.is-highlighted {
-    animation: dt-highlight-pulse 1.2s ease-in-out infinite;
-    z-index: 10;
-    border-color: var(--theme-primary) !important;
-}
-
-/* Gradient overlay for text legibility */
-.device-tile-overlay {
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg, rgba(0,0,0,0.75) 0%, rgba(0,0,0,0.3) 60%, rgba(0,0,0,0.6) 100%);
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 10px;
-    z-index: 1;
-}
-.device-tile-overlay-plain {
-    position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 10px;
-    width: 100%;
-    z-index: 1;
-}
-
-/* Delete button */
-.device-tile-delete {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 24px;
-    height: 24px;
-    border-radius: var(--radius-sm);
-    border: 1px solid var(--severity-critical-bg);
-    background: var(--severity-critical-bg);
-    color: var(--severity-critical-text);
-    font-size: var(--font-size-md);
-    font-weight: var(--font-weight-bold);
-    cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    flex-shrink: 0;
-    opacity: 0.6;
-}
-.device-tile:hover .device-tile-delete {
-    opacity: 1;
-    background: var(--severity-critical);
-    color: #fff;
-    border-color: var(--severity-critical);
-    transform: scale(1.1);
-    box-shadow: var(--elevation-2);
-}
-.device-tile-delete:active {
-    transform: scale(0.9);
-}
-
-/* ---------- Add Device Modal ---------- */
-.add-device-modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.6);
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    animation: fadeIn 0.15s ease-out;
-}
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-.add-device-modal {
-    background: var(--panel-bg);
-    border: 1px solid var(--panel-border);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--elevation-3);
-    width: 520px;
-    max-height: 90vh;
-    overflow-y: auto;
-}
-
-/* Registered device list in modal */
-.reg-device-list {
-    height: 400px;
-    overflow-y: auto;
-    border: 1px solid var(--border-weak);
-    border-radius: var(--radius-md);
-}
-.reg-device-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-    cursor: pointer;
-    border-bottom: 1px solid var(--border-weak);
-    transition: background 0.15s;
-}
-.reg-device-item:last-child { border-bottom: none; }
-.reg-device-item:hover {
-    background: var(--bg-secondary);
-}
-.reg-device-item.selected {
-    background: rgba(var(--theme-primary-rgb, 110, 159, 255), 0.15);
-    border-left: 3px solid var(--theme-primary);
-}
-.reg-device-item-thumb {
-    width: 48px;
-    height: 32px;
-    border-radius: var(--radius-sm);
-    overflow: hidden;
-    flex-shrink: 0;
-    background: var(--bg-tertiary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.reg-device-item-thumb img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-.reg-device-item-info {
-    flex: 1;
-    min-width: 0;
-}
-.reg-device-item-model {
-    font-weight: 600;
-    font-size: var(--font-size-sm);
-    color: var(--text-primary);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.reg-device-item-details {
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-.reg-device-item-badge {
-    padding: 1px 6px;
-    border-radius: var(--radius-sm);
-    background: var(--bg-tertiary);
-    font-size: var(--font-size-xs);
-    color: var(--text-secondary);
-    font-weight: 500;
-}
-
-/* ---------- Confirm Modal ---------- */
-.confirm-modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: var(--modal-backdrop);
-    z-index: 2000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    animation: fadeIn 0.1s ease-out;
-}
-.confirm-modal-card {
-    background: var(--modal-bg);
-    border: 1px solid var(--border-medium);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--elevation-3);
-    width: 380px;
-    padding: var(--spacing-lg);
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    animation: scaleUp 0.15s ease-out;
-}
-@keyframes scaleUp {
-    from { transform: scale(0.95); opacity: 0; }
-    to { transform: scale(1); opacity: 1; }
-}
-.confirm-modal-header {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-.confirm-modal-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    background: var(--severity-critical-bg);
-    color: var(--severity-critical-text);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 20px;
-    flex-shrink: 0;
-}
-.confirm-modal-title {
-    font-size: var(--font-size-lg);
-    font-weight: var(--font-weight-semibold);
-    color: var(--text-primary);
-    margin: 0;
-}
-.confirm-modal-body {
-    font-size: var(--font-size-sm);
-    color: var(--text-secondary);
-    line-height: 1.5;
-}
-.confirm-modal-actions {
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    margin-top: 8px;
-}
-`;
-
-const PanelStyles = React.memo(() => <style>{PANEL_STYLES}</style>);
+import "./DevicePanel.css";
 
 export const DevicePanel = () => {
   // Phase 2: 개별 셀렉터로 불필요 리렌더 방지
@@ -354,9 +76,15 @@ export const DevicePanel = () => {
   const focusRack = useStore((s) => s.focusRack);
   const showToast = useStore((s) => s.showToast);
   const findExistingMount = useStore((s) => s.findExistingMount);
-  const rack = useMemo(() => racks.find((r) => r.rackId === selectedRackId), [racks, selectedRackId]);
+  const rack = useMemo(
+    () => racks.find((r) => r.rackId === selectedRackId),
+    [racks, selectedRackId],
+  );
   // 방향 제어에서 같은 mapId의 랙 목록 필요
-  const sameNodeRacks = useMemo(() => rack ? racks.filter((r) => r.mapId === rack.mapId) : [], [racks, rack?.mapId]);
+  const sameNodeRacks = useMemo(
+    () => (rack ? racks.filter((r) => r.mapId === rack.mapId) : []),
+    [racks, rack?.mapId],
+  );
 
   // Rack UI name edit state
   const [isEditingName, setIsEditingName] = useState(false);
@@ -372,7 +100,9 @@ export const DevicePanel = () => {
   const [isDeleteRackModalOpen, setIsDeleteRackModalOpen] = useState(false);
   // Filter & Sort state for add-device modal
   const [showUnmountedOnly, setShowUnmountedOnly] = useState(false);
-  const [sortKey, setSortKey] = useState<'regDateDesc' | 'regDateAsc' | 'title' | 'modelName'>('regDateDesc');
+  const [sortKey, setSortKey] = useState<
+    "regDateDesc" | "regDateAsc" | "title" | "modelName"
+  >("regDateDesc");
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -481,7 +211,11 @@ export const DevicePanel = () => {
     doMount(selectedRegDeviceId, start);
   };
 
-  const doMount = (regDeviceId: string, slot: number, existingPortStates: PortState[] = []) => {
+  const doMount = (
+    regDeviceId: string,
+    slot: number,
+    existingPortStates: PortState[] = [],
+  ) => {
     const regDevice = findRegDevice(regDeviceId);
     if (!regDevice || !rack) return;
 
@@ -493,14 +227,15 @@ export const DevicePanel = () => {
       modelName: regDevice.modelName,
       vendor: regDevice.vendor,
       deviceId: regDevice.deviceId,
-      portStates: existingPortStates.length > 0 
-        ? existingPortStates 
-        : (regDevice.generatedPorts?.map((gp: GeneratedPort) => ({
-            portId: gp.realPortNumber,
-            portNumber: gp.realPortNumber,
-            portName: gp.portType,
-            status: "normal"
-          })) || []),
+      portStates:
+        existingPortStates.length > 0
+          ? existingPortStates
+          : regDevice.generatedPorts?.map((gp: GeneratedPort) => ({
+              portId: gp.realPortNumber,
+              portNumber: gp.realPortNumber,
+              portName: gp.portType,
+              status: "normal",
+            })) || [],
       insertedCards: regDevice.insertedCards,
       dashboardThumbnailUrl: regDevice.dashboardThumbnailUrl,
     } as any; // Type assertion since itemId needs to be generated in useStore
@@ -516,9 +251,13 @@ export const DevicePanel = () => {
   const handleRemountConfirm = () => {
     if (!remountPending || addModalSlot === null) return;
     // Capture existing device's portStates before removal so error states survive the move
-    const srcRack = racks.find((r) => r.rackId === remountPending.existingRackId);
+    const srcRack = racks.find(
+      (r) => r.rackId === remountPending.existingRackId,
+    );
     const srcDevice = srcRack?.devices.find(
-      (d) => d.deviceId === remountPending.existingDeviceId || d.itemId === remountPending.existingDeviceId,
+      (d) =>
+        d.deviceId === remountPending.existingDeviceId ||
+        d.itemId === remountPending.existingDeviceId,
     );
     const preservedPortStates = srcDevice?.portStates ?? [];
     // Remove from old rack first, then mount at new position
@@ -563,9 +302,10 @@ export const DevicePanel = () => {
           (regDev
             ? regDev.title || regDev.modelName
             : (device.modelName ?? device.title)) || "Device";
-        const imageSrc = regDev?.dashboardThumbnailUrl || device.dashboardThumbnailUrl || resolveDeviceImage(
-          regDev?.modelName ?? device.modelName,
-        );
+        const imageSrc =
+          regDev?.dashboardThumbnailUrl ||
+          device.dashboardThumbnailUrl ||
+          resolveDeviceImage(regDev?.modelName ?? device.modelName);
         const hasImage = !!imageSrc;
 
         const errorInfo = getHighestError(device.portStates);
@@ -869,225 +609,260 @@ export const DevicePanel = () => {
                 </div>
               ) : (
                 <>
-                {/* Filter & Sort Controls */}
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  marginBottom: '8px',
-                  flexWrap: 'wrap',
-                }}>
-                  <label style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    fontSize: 'var(--font-size-xs)',
-                    color: 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    userSelect: 'none',
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={showUnmountedOnly}
-                      onChange={(e) => setShowUnmountedOnly(e.target.checked)}
+                  {/* Filter & Sort Controls */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      marginBottom: "8px",
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <label
                       style={{
-                        accentColor: 'var(--theme-primary)',
-                        width: '14px',
-                        height: '14px',
-                        cursor: 'pointer',
-                      }}
-                    />
-                    미실장 장비만 보기
-                  </label>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    marginLeft: 'auto',
-                  }}>
-                    <span style={{
-                      fontSize: 'var(--font-size-xs)',
-                      color: 'var(--text-tertiary)',
-                      whiteSpace: 'nowrap',
-                    }}>정렬:</span>
-                    <select
-                      value={sortKey}
-                      onChange={(e) => setSortKey(e.target.value as 'regDateDesc' | 'regDateAsc' | 'title' | 'modelName')}
-                      style={{
-                        fontSize: 'var(--font-size-xs)',
-                        color: 'var(--text-primary)',
-                        background: 'var(--bg-tertiary)',
-                        border: '1px solid var(--border-weak)',
-                        borderRadius: 'var(--radius-sm)',
-                        padding: '3px 8px',
-                        cursor: 'pointer',
-                        outline: 'none',
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        fontSize: "var(--font-size-xs)",
+                        color: "var(--text-secondary)",
+                        cursor: "pointer",
+                        userSelect: "none",
                       }}
                     >
-                      <option value="regDateDesc">최신순</option>
-                      <option value="regDateAsc">오래된순</option>
-                      <option value="title">장비명순</option>
-                      <option value="modelName">모델명순</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="reg-device-list" ref={listRef}>
-                  {(() => {
-                    // Apply filter
-                    let filtered = groupRegDevices;
-                    if (showUnmountedOnly) {
-                      filtered = filtered.filter((rd) => !findExistingMount(rd.deviceId));
-                    }
-                    // Apply sort
-                    const sorted = [...filtered].sort((a, b) => {
-                      switch (sortKey) {
-                        case 'title': {
-                          const aName = (a.title || a.modelName || '').toLowerCase();
-                          const bName = (b.title || b.modelName || '').toLowerCase();
-                          return aName.localeCompare(bName, 'ko');
-                        }
-                        case 'modelName': {
-                          const aModel = (a.modelName || '').toLowerCase();
-                          const bModel = (b.modelName || '').toLowerCase();
-                          return aModel.localeCompare(bModel, 'ko');
-                        }
-                        case 'regDateAsc': {
-                          const aDate = a.modiDate || a.regDate || '';
-                          const bDate = b.modiDate || b.regDate || '';
-                          // 오래된 등록이 위로
-                          return aDate.localeCompare(bDate);
-                        }
-                        case 'regDateDesc':
-                        default: {
-                          const aDate = a.modiDate || a.regDate || '';
-                          const bDate = b.modiDate || b.regDate || '';
-                          // 최신 등록이 위로
-                          return bDate.localeCompare(aDate);
-                        }
-                      }
-                    });
-                    return sorted.map((rd) => {
-                    const thumb = rd.dashboardThumbnailUrl || resolveDeviceImage(rd.modelName);
-                    const isSelected = selectedRegDeviceId === rd.deviceId;
-                    const placeable = canPlace(rd.size || 1);
-                    const existingMount = findExistingMount(rd.deviceId);
-                    const isMountedElsewhere =
-                      !!existingMount && existingMount.rackId !== rack.rackId;
-                    const isMountedHere =
-                      !!existingMount && existingMount.rackId === rack.rackId;
-                    return (
-                      <div
-                        key={rd.deviceId}
-                        className={`reg-device-item ${isSelected ? "selected" : ""} ${!placeable && !isMountedElsewhere ? "disabled" : ""}`}
-                        onClick={() => {
-                          if (placeable || isMountedElsewhere)
-                            setSelectedRegDeviceId(rd.deviceId);
-                        }}
+                      <input
+                        type="checkbox"
+                        checked={showUnmountedOnly}
+                        onChange={(e) => setShowUnmountedOnly(e.target.checked)}
                         style={{
-                          opacity: placeable || isMountedElsewhere ? 1 : 0.45,
-                          cursor:
-                            placeable || isMountedElsewhere
-                              ? "pointer"
-                              : "not-allowed",
-                          position: "relative",
-                          outline: isMountedElsewhere
-                            ? "1px solid var(--severity-warning, #f59e0b)"
-                            : undefined,
+                          accentColor: "var(--theme-primary)",
+                          width: "14px",
+                          height: "14px",
+                          cursor: "pointer",
+                        }}
+                      />
+                      미실장 장비만 보기
+                    </label>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                        marginLeft: "auto",
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "var(--font-size-xs)",
+                          color: "var(--text-tertiary)",
+                          whiteSpace: "nowrap",
                         }}
                       >
-                        <div className="reg-device-item-thumb">
-                          {thumb ? (
-                            <img
-                              src={thumb}
-                              alt={rd.modelName}
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display =
-                                  "none";
-                              }}
-                            />
-                          ) : (
-                            <span
-                              style={{
-                                fontSize: "10px",
-                                color: "var(--text-tertiary)",
-                              }}
-                            >
-                              No IMG
-                            </span>
-                          )}
-                        </div>
-                        <div className="reg-device-item-info">
+                        정렬:
+                      </span>
+                      <select
+                        value={sortKey}
+                        onChange={(e) =>
+                          setSortKey(
+                            e.target.value as
+                              | "regDateDesc"
+                              | "regDateAsc"
+                              | "title"
+                              | "modelName",
+                          )
+                        }
+                        style={{
+                          fontSize: "var(--font-size-xs)",
+                          color: "var(--text-primary)",
+                          background: "var(--bg-tertiary)",
+                          border: "1px solid var(--border-weak)",
+                          borderRadius: "var(--radius-sm)",
+                          padding: "3px 8px",
+                          cursor: "pointer",
+                          outline: "none",
+                        }}
+                      >
+                        <option value="regDateDesc">최신순</option>
+                        <option value="regDateAsc">오래된순</option>
+                        <option value="title">장비명순</option>
+                        <option value="modelName">모델명순</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="reg-device-list" ref={listRef}>
+                    {(() => {
+                      // Apply filter
+                      let filtered = groupRegDevices;
+                      if (showUnmountedOnly) {
+                        filtered = filtered.filter(
+                          (rd) => !findExistingMount(rd.deviceId),
+                        );
+                      }
+                      // Apply sort
+                      const sorted = [...filtered].sort((a, b) => {
+                        switch (sortKey) {
+                          case "title": {
+                            const aName = (
+                              a.title ||
+                              a.modelName ||
+                              ""
+                            ).toLowerCase();
+                            const bName = (
+                              b.title ||
+                              b.modelName ||
+                              ""
+                            ).toLowerCase();
+                            return aName.localeCompare(bName, "ko");
+                          }
+                          case "modelName": {
+                            const aModel = (a.modelName || "").toLowerCase();
+                            const bModel = (b.modelName || "").toLowerCase();
+                            return aModel.localeCompare(bModel, "ko");
+                          }
+                          case "regDateAsc": {
+                            const aDate = a.modiDate || a.regDate || "";
+                            const bDate = b.modiDate || b.regDate || "";
+                            // 오래된 등록이 위로
+                            return aDate.localeCompare(bDate);
+                          }
+                          case "regDateDesc":
+                          default: {
+                            const aDate = a.modiDate || a.regDate || "";
+                            const bDate = b.modiDate || b.regDate || "";
+                            // 최신 등록이 위로
+                            return bDate.localeCompare(aDate);
+                          }
+                        }
+                      });
+                      return sorted.map((rd) => {
+                        const thumb =
+                          rd.dashboardThumbnailUrl ||
+                          resolveDeviceImage(rd.modelName);
+                        const isSelected = selectedRegDeviceId === rd.deviceId;
+                        const placeable = canPlace(rd.size || 1);
+                        const existingMount = findExistingMount(rd.deviceId);
+                        const isMountedElsewhere =
+                          !!existingMount &&
+                          existingMount.rackId !== rack.rackId;
+                        const isMountedHere =
+                          !!existingMount &&
+                          existingMount.rackId === rack.rackId;
+                        return (
                           <div
-                            className="reg-device-item-model"
-                            style={{ marginBottom: "2px" }}
+                            key={rd.deviceId}
+                            className={`reg-device-item ${isSelected ? "selected" : ""} ${!placeable && !isMountedElsewhere ? "disabled" : ""}`}
+                            onClick={() => {
+                              if (placeable || isMountedElsewhere)
+                                setSelectedRegDeviceId(rd.deviceId);
+                            }}
+                            style={{
+                              opacity:
+                                placeable || isMountedElsewhere ? 1 : 0.45,
+                              cursor:
+                                placeable || isMountedElsewhere
+                                  ? "pointer"
+                                  : "not-allowed",
+                              position: "relative",
+                              outline: isMountedElsewhere
+                                ? "1px solid var(--severity-warning, #f59e0b)"
+                                : undefined,
+                            }}
                           >
-                            {rd.title || rd.modelName}
-                          </div>
-                          <div className="reg-device-item-details">
-                            {rd.title &&
-                              rd.title !== rd.modelName && (
+                            <div className="reg-device-item-thumb">
+                              {thumb ? (
+                                <img
+                                  src={thumb}
+                                  alt={rd.modelName}
+                                  onError={(e) => {
+                                    (
+                                      e.target as HTMLImageElement
+                                    ).style.display = "none";
+                                  }}
+                                />
+                              ) : (
                                 <span
-                                  className="reg-device-item-badge"
                                   style={{
-                                    background: "var(--bg-primary)",
-                                    border: "1px solid var(--border-weak)",
+                                    fontSize: "10px",
+                                    color: "var(--text-tertiary)",
                                   }}
                                 >
-                                  {rd.modelName}
+                                  No IMG
                                 </span>
                               )}
-                            <span className="reg-device-item-badge">
-                              {rd.size}U
-                            </span>
-                            <span className="reg-device-item-badge">
-                              {rd.vendor}
-                            </span>
-                            <span>{rd.IPAddr}</span>
+                            </div>
+                            <div className="reg-device-item-info">
+                              <div
+                                className="reg-device-item-model"
+                                style={{ marginBottom: "2px" }}
+                              >
+                                {rd.title || rd.modelName}
+                              </div>
+                              <div className="reg-device-item-details">
+                                {rd.title && rd.title !== rd.modelName && (
+                                  <span
+                                    className="reg-device-item-badge"
+                                    style={{
+                                      background: "var(--bg-primary)",
+                                      border: "1px solid var(--border-weak)",
+                                    }}
+                                  >
+                                    {rd.modelName}
+                                  </span>
+                                )}
+                                <span className="reg-device-item-badge">
+                                  {rd.size}U
+                                </span>
+                                <span className="reg-device-item-badge">
+                                  {rd.vendor}
+                                </span>
+                                <span>{rd.IPAddr}</span>
+                              </div>
+                            </div>
+                            {(isMountedHere || isMountedElsewhere) && (
+                              <span
+                                style={{
+                                  fontSize: "var(--font-size-xs)",
+                                  color: isMountedElsewhere
+                                    ? "#f59e0b"
+                                    : "#22c55e",
+                                  fontWeight: 600,
+                                  background: isMountedElsewhere
+                                    ? "rgba(245,158,11,0.12)"
+                                    : "rgba(34,197,94,0.12)",
+                                  border: `1px solid ${isMountedElsewhere ? "rgba(245,158,11,0.4)" : "rgba(34,197,94,0.4)"}`,
+                                  borderRadius: "var(--radius-sm)",
+                                  padding: "2px 8px",
+                                  whiteSpace: "nowrap",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {isMountedElsewhere
+                                  ? "⚠ 다른 랙에 탑재됨"
+                                  : "✓ 이 랙에 탑재됨"}
+                              </span>
+                            )}
+                            {!placeable && !isMountedElsewhere && (
+                              <span
+                                style={{
+                                  fontSize: "var(--font-size-xs)",
+                                  color: "#ff6b6b",
+                                  fontWeight: 600,
+                                  background: "rgba(255, 60, 60, 0.1)",
+                                  border: "1px solid rgba(255, 60, 60, 0.3)",
+                                  borderRadius: "var(--radius-sm)",
+                                  padding: "2px 8px",
+                                  whiteSpace: "nowrap",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                배치 불가
+                              </span>
+                            )}
                           </div>
-                        </div>
-                        {(isMountedHere || isMountedElsewhere) && (
-                          <span
-                            style={{
-                              fontSize: "var(--font-size-xs)",
-                              color: isMountedElsewhere ? "#f59e0b" : "#22c55e",
-                              fontWeight: 600,
-                              background: isMountedElsewhere
-                                ? "rgba(245,158,11,0.12)"
-                                : "rgba(34,197,94,0.12)",
-                              border: `1px solid ${isMountedElsewhere ? "rgba(245,158,11,0.4)" : "rgba(34,197,94,0.4)"}`,
-                              borderRadius: "var(--radius-sm)",
-                              padding: "2px 8px",
-                              whiteSpace: "nowrap",
-                              flexShrink: 0,
-                            }}
-                          >
-                            {isMountedElsewhere
-                              ? "⚠ 다른 랙에 탑재됨"
-                              : "✓ 이 랙에 탑재됨"}
-                          </span>
-                        )}
-                        {!placeable && !isMountedElsewhere && (
-                          <span
-                            style={{
-                              fontSize: "var(--font-size-xs)",
-                              color: "#ff6b6b",
-                              fontWeight: 600,
-                              background: "rgba(255, 60, 60, 0.1)",
-                              border: "1px solid rgba(255, 60, 60, 0.3)",
-                              borderRadius: "var(--radius-sm)",
-                              padding: "2px 8px",
-                              whiteSpace: "nowrap",
-                              flexShrink: 0,
-                            }}
-                          >
-                            배치 불가
-                          </span>
-                        )}
-                      </div>
-                    );
-                  });
-                  })()}
-                </div>
+                        );
+                      });
+                    })()}
+                  </div>
                 </>
               )}
             </div>
@@ -1252,8 +1027,7 @@ export const DevicePanel = () => {
                       }}
                     >
                       「
-                      {selectedRegDevice?.title ||
-                        selectedRegDevice?.modelName}
+                      {selectedRegDevice?.title || selectedRegDevice?.modelName}
                       」
                     </p>
                     <p style={{ marginTop: "12px", marginBottom: 0 }}>
@@ -1311,8 +1085,6 @@ export const DevicePanel = () => {
 
   return (
     <div className="grafana-side-panel" style={{ width: "400px" }}>
-      <PanelStyles />
-
       <div className="grafana-side-panel-header">
         <div>
           {isEditingName ? (

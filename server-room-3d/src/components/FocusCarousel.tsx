@@ -6,16 +6,7 @@ import { findNode } from "../utils/nodeUtils";
  * Provides a navigation UI to cycle through focused racks in normal mode.
  * Scoped to the active node and its subtree.
  */
-const CarouselStyles = React.memo(() => (
-  <style>
-    {`
-      @keyframes slideUp {
-        from { transform: translate(-50%, 20px); opacity: 0; }
-        to { transform: translate(-50%, 0); opacity: 1; }
-      }
-    `}
-  </style>
-));
+import "./FocusCarousel.css";
 
 export const FocusCarousel: React.FC = () => {
   // Phase 2: 개별 셀렉터로 전환 — 전체 store 구독 제거
@@ -75,8 +66,6 @@ export const FocusCarousel: React.FC = () => {
         animation: "slideUp 0.3s ease-out",
       }}
     >
-      <CarouselStyles />
-
       {/* Previous Button */}
       <button
         className="grafana-btn grafana-btn-secondary"

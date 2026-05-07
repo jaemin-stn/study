@@ -6,7 +6,7 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import { FocusCarousel } from "./components/FocusCarousel";
 import { Breadcrumb } from "./components/Breadcrumb";
 import { UnsavedChangesDialog } from "./components/UnsavedChangesDialog";
-
+import "./App.css";
 import { DeviceModal } from "./components/DeviceModal";
 const ImportExportModal = React.lazy(() =>
   import("./components/ImportExportModal").then((m) => ({
@@ -179,68 +179,6 @@ const Toast = () => {
     document.body,
   );
 };
-
-const APP_STYLES = `
-.toast-overlay {
-  position: fixed;
-  left: 50%;
-  z-index: 9999;
-  pointer-events: none;
-}
-.toast-overlay.success {
-  top: 50%;
-  transform: translate(-50%, -50%);
-}
-.toast-overlay.error {
-  bottom: 40px;
-  transform: translateX(-50%);
-}
-.toast-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 24px;
-  border-radius: 16px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-medium);
-  box-shadow: var(--elevation-3);
-  color: var(--text-primary);
-  animation: toast-slide-up 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-  pointer-events: auto;
-}
-.toast-card.success {
-  border-color: var(--severity-success);
-  background: var(--severity-success-bg);
-  color: var(--severity-success-text);
-  padding: 18px 32px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
-  animation: toast-center-appear 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-}
-.toast-card.success .toast-message {
-  font-size: 16px;
-}
-.toast-icon {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.toast-message {
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-}
-@keyframes toast-slide-up {
-  from { transform: translateY(20px); opacity: 0; }
-  to { transform: translateY(0); opacity: 1; }
-}
-@keyframes toast-center-appear {
-  from { transform: scale(0.9); opacity: 0; }
-  to { transform: scale(1); opacity: 1; }
-}
-`;
 
 function App() {
   // Phase 2-A: 개별 셀렉터로 불필요 리렌더 방지
@@ -588,7 +526,6 @@ function App() {
 
       <Toast />
       <PortErrorSynchronizer />
-      <style>{APP_STYLES}</style>
     </div>
   );
 }

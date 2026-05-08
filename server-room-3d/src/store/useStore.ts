@@ -444,11 +444,11 @@ export const useStore = create<AppState>()(
     } = get();
     if (_importDirty) return true;
 
-    // Use empty arrays as fallback if baselines are null/undefined.
-    // This ensures that if the current state has items, it correctly flags as dirty.
-    const baseRacks = baselineRacks || [];
-    const baseModels = baselineModels || [];
-    const baseNodes = baselineNodes || [];
+    // Use current state as fallback if baselines are null/undefined (e.g. legacy state before persistence fix).
+    // This prevents false dirty flags upon page refresh.
+    const baseRacks = baselineRacks || racks;
+    const baseModels = baselineModels || importedModels;
+    const baseNodes = baselineNodes || nodes;
 
     // Robust field-by-field comparison with epsilon tolerance
     return (
@@ -2302,9 +2302,7 @@ export const useStore = create<AppState>()(
           deviceDeleteConfirm,
           deviceRegistrationModalOpen,
           undoStack,
-          baselineRacks,
-          baselineModels,
-          baselineNodes,
+          redoStack,
           showUnsavedDialog,
           pendingAction,
           triggerFitToScene,

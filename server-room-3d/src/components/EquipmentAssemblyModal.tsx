@@ -19,14 +19,14 @@ const STYLES = `
 @keyframes eam-zi{from{transform:scale(.96) translateY(16px);opacity:0}to{transform:scale(1) translateY(0);opacity:1}}
 .eam-header{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;background:var(--bg-tertiary);border-bottom:1px solid var(--border-weak)}
 .eam-header h2{font-size:18px;font-weight:700;color:var(--text-primary);margin:0;display:flex;align-items:center;gap:12px}
-.eam-header .icon-box{width:34px;height:34px;background:linear-gradient(135deg,#6e9fff,#4872d8);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
+.eam-header .icon-box{width:34px;height:34px;background:linear-gradient(135deg,var(--theme-primary),#4872d8);border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
 .eam-close{background:var(--bg-tertiary);border:1px solid var(--border-medium);color:var(--text-secondary);width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:50%;transition:all .2s;font-size:18px;line-height:0}
 .eam-close:hover{background:var(--severity-critical);color:#fff;border-color:var(--severity-critical);transform:rotate(90deg)}
 .eam-body{flex:1;display:flex;overflow:hidden}
 .eam-sidebar{width:240px;background:var(--bg-secondary);border-right:1px solid var(--border-weak);display:flex;flex-direction:column;flex-shrink:0;overflow-y:auto;padding:16px 12px;gap:8px}
 .eam-sidebar-title{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-tertiary);font-weight:700;padding:4px 8px;margin-bottom:4px}
 .eam-card-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;cursor:pointer;border:1px solid var(--border-weak);background:var(--bg-primary);transition:all .15s;position:relative}
-.eam-card-item:hover{border-color:var(--theme-primary);background:rgba(110,159,255,.06);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.15)}
+.eam-card-item:hover{border-color:var(--theme-primary);background:rgba(var(--theme-primary-rgb),.06);transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,.15)}
 .eam-card-item img{height:28px;flex-shrink:0;border-radius:4px;background:var(--bg-tertiary)}
 .eam-card-item .info{flex:1;min-width:0}
 .eam-card-item .name{font-size:12px;font-weight:600;color:var(--text-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -38,7 +38,7 @@ const STYLES = `
 .eam-toolbar select{height:36px;padding:0 32px 0 12px;border:1px solid var(--border-medium);border-radius:8px;font-size:13px;background:var(--bg-tertiary);color:var(--text-primary);cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='M19.5 8.25l-7.5 7.5-7.5-7.5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;background-size:14px}
 .eam-toolbar .btn{height:36px;padding:0 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:1px solid var(--border-medium);background:var(--bg-tertiary);color:var(--text-primary);transition:all .2s;display:flex;align-items:center;gap:6px}
 .eam-toolbar .btn:hover{background:var(--bg-secondary);border-color:var(--text-tertiary)}
-.eam-toolbar .btn.primary{background:linear-gradient(135deg,#6e9fff,#4872d8);color:#fff;border-color:transparent}
+.eam-toolbar .btn.primary{background:linear-gradient(135deg,var(--theme-primary),#4872d8);color:#fff;border-color:transparent}
 .eam-toolbar .btn.primary:hover{filter:brightness(1.1);transform:translateY(-1px)}
 .eam-toolbar .btn.danger{color:var(--severity-critical);border-color:rgba(239,68,68,.3)}
 .eam-toolbar .btn.danger:hover{background:var(--severity-critical);color:#fff}
@@ -48,8 +48,8 @@ const STYLES = `
 .base-svg-container{display:block}
 .base-svg-container svg{display:block;width:auto;height:auto;max-width:none}
 .eam-card-area-overlay{position:absolute;pointer-events:none}
-.eam-slot{position:absolute;border:1px dashed rgba(110,159,255,.35);border-radius:4px;transition:all .2s;pointer-events:all;cursor:pointer;display:flex;align-items:center;justify-content:center}
-.eam-slot:hover{background:rgba(110,159,255,.08);border-color:var(--theme-primary)}
+.eam-slot{position:absolute;border:1px dashed rgba(var(--theme-primary-rgb),.35);border-radius:4px;transition:all .2s;pointer-events:all;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.eam-slot:hover{background:rgba(var(--theme-primary-rgb),.08);border-color:var(--theme-primary)}
 .eam-slot.occupied{border-color:rgba(34,197,94,.4);background:rgba(34,197,94,.04);cursor:default}
 .eam-slot.occupied:hover{background:rgba(239,68,68,.06);border-color:rgba(239,68,68,.4)}
 .eam-slot .remove-btn{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;background:var(--severity-critical);color:#fff;border:none;cursor:pointer;font-size:11px;display:none;align-items:center;justify-content:center;z-index:10;line-height:0}
@@ -57,13 +57,13 @@ const STYLES = `
 .eam-slot .slot-label{font-size:10px;color:var(--text-tertiary);opacity:.6;pointer-events:none}
 .eam-slot .card-svg-inline{width:100%;height:100%;pointer-events:none}
 .eam-slot .card-svg-inline svg{width:100%;height:100%}
-.eam-slot.highlight{border-color:#6e9fff;border-style:solid;background:rgba(110,159,255,.12);box-shadow:inset 0 0 12px rgba(110,159,255,.2),0 0 8px rgba(110,159,255,.25)}
+.eam-slot.highlight{border-color:var(--theme-primary);border-style:solid;background:rgba(var(--theme-primary-rgb),.12);box-shadow:inset 0 0 12px rgba(var(--theme-primary-rgb),.2),0 0 8px rgba(var(--theme-primary-rgb),.25)}
 .eam-slot.dimmed{opacity:.3;cursor:not-allowed;border-color:rgba(255,255,255,.08);background:rgba(0,0,0,.15);pointer-events:none}
 .eam-slot.dimmed:hover{background:rgba(0,0,0,.15);border-color:rgba(255,255,255,.08)}
 .eam-warn{position:fixed;top:80px;left:50%;transform:translateX(-50%);background:var(--severity-critical);color:#fff;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:3000;animation:eam-fi .2s ease-out;box-shadow:0 8px 24px rgba(239,68,68,.4)}
 .eam-model-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;padding:24px;flex:1;overflow-y:auto;align-content:start}
 .eam-model-card{padding:16px;border:1px solid var(--border-weak);border-radius:12px;background:var(--bg-secondary);cursor:pointer;transition:all .2s;text-align:center}
-.eam-model-card:hover{border-color:var(--theme-primary);background:rgba(110,159,255,.06);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.15)}
+.eam-model-card:hover{border-color:var(--theme-primary);background:rgba(var(--theme-primary-rgb),.06);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.15)}
 .eam-model-card .model-name{font-size:14px;font-weight:700;color:var(--text-primary);margin-top:10px}
 .eam-model-card img{width:100%;height:60px;object-fit:contain;border-radius:6px;background:var(--bg-tertiary);padding:4px}
 .eam-card-item .tag.cpiom{background:rgba(168,85,247,.12);color:#a855f7;border:1px solid rgba(168,85,247,.25)}
@@ -698,7 +698,7 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
                         className="eam-card-item"
                         style={{
                           borderColor: selectedCard?.cardFileName === cd.cardFileName ? "var(--theme-primary)" : undefined,
-                          background: selectedCard?.cardFileName === cd.cardFileName ? "rgba(110,159,255,.1)" : undefined,
+                          background: selectedCard?.cardFileName === cd.cardFileName ? "rgba(var(--theme-primary-rgb),.1)" : undefined,
                         }}
                         onClick={() => setSelectedCard(cd)}
                       >
@@ -747,7 +747,7 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
                               className="eam-card-item"
                               style={{
                                 borderColor: selectedCard?.cardFileName === cd.cardFileName ? "var(--theme-primary)" : undefined,
-                                background: selectedCard?.cardFileName === cd.cardFileName ? "rgba(110,159,255,.1)" : undefined,
+                                background: selectedCard?.cardFileName === cd.cardFileName ? "rgba(var(--theme-primary-rgb),.1)" : undefined,
                               }}
                               onClick={() => setSelectedCard(cd)}
                             >
@@ -771,7 +771,7 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
                               className="eam-card-item"
                               style={{
                                 borderColor: selectedCard?.cardFileName === cd.cardFileName ? "var(--theme-primary)" : undefined,
-                                background: selectedCard?.cardFileName === cd.cardFileName ? "rgba(110,159,255,.1)" : undefined,
+                                background: selectedCard?.cardFileName === cd.cardFileName ? "rgba(var(--theme-primary-rgb),.1)" : undefined,
                               }}
                               onClick={() => setSelectedCard(cd)}
                             >
@@ -792,8 +792,8 @@ export const EquipmentAssemblyModal: React.FC<Props> = ({ open, onClose, initial
                 {selectedCard && (
                   <div style={{
                     marginTop: 12, padding: "10px 12px", borderRadius: 8,
-                    background: selectedCard.cardGroup === "cpiom" ? "rgba(168,85,247,.08)" : "rgba(110,159,255,.08)",
-                    border: `1px solid ${selectedCard.cardGroup === "cpiom" ? "rgba(168,85,247,.2)" : "rgba(110,159,255,.2)"}`,
+                    background: selectedCard.cardGroup === "cpiom" ? "rgba(168,85,247,.08)" : "rgba(var(--theme-primary-rgb),.08)",
+                    border: `1px solid ${selectedCard.cardGroup === "cpiom" ? "rgba(168,85,247,.2)" : "rgba(var(--theme-primary-rgb),.2)"}`,
                     fontSize: 11, color: "var(--text-secondary)", lineHeight: 1.5,
                   }}>
                     <strong style={{ color: "var(--text-primary)" }}>선택됨:</strong> {selectedCard.cardType}

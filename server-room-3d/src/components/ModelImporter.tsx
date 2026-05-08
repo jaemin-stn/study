@@ -294,8 +294,6 @@ export const ModelImporter = () => {
               className="grafana-panel"
               style={{
                 padding: "16px",
-                background:
-                  "linear-gradient(145deg, var(--bg-primary), var(--bg-secondary))",
                 boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
               }}
             >
@@ -412,7 +410,6 @@ export const ModelImporter = () => {
               className="grafana-panel"
               style={{
                 padding: "12px 16px",
-                background: "var(--bg-primary)",
                 boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
               }}
             >
@@ -459,7 +456,6 @@ export const ModelImporter = () => {
                 style={{
                   display: "flex",
                   flexDirection: "column",
-                  background: "var(--bg-primary)",
                   boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
                   maxHeight: "260px",
                 }}
@@ -655,7 +651,6 @@ export const ModelImporter = () => {
                 padding: "48px",
                 borderRadius: "24px",
                 border: "2px dashed #4f46e5",
-                background: "var(--bg-primary)",
                 boxShadow: "0 24px 48px rgba(0,0,0,0.15)",
                 textAlign: "center",
                 transform: "scale(1.05)",
@@ -707,7 +702,6 @@ export const ModelImporter = () => {
               width: "420px",
               maxHeight: "80vh",
               padding: "28px",
-              background: "var(--bg-primary)",
               boxShadow: "0 24px 64px rgba(0,0,0,0.3)",
               border: "1px solid var(--border-medium)",
               overflowY: "auto",
@@ -1052,7 +1046,6 @@ const ModelProperties = ({
       className="grafana-panel"
       style={{
         padding: "20px",
-        background: "var(--bg-primary)",
         boxShadow: "0 12px 32px rgba(0,0,0,0.12)",
         border: "1px solid var(--border-weak)",
         overflowY: "auto",

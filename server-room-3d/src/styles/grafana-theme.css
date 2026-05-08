@@ -38,12 +38,13 @@
   --panel-shadow: 0px 3px 12px rgba(28, 43, 70, 0.04);
 
   /* Interactive states */
-  --hover-bg: rgba(101, 118, 255, 0.05);
-  --selected-bg: rgba(101, 118, 255, 0.12);
-  --active-bg: rgba(101, 118, 255, 0.2);
+  --hover-bg: rgba(var(--theme-primary-rgb), 0.05);
+  --selected-bg: rgba(var(--theme-primary-rgb), 0.12);
+  --active-bg: rgba(var(--theme-primary-rgb), 0.2);
 
   /* Grafana theme colors -> DashLite Primary */
   --theme-primary: #6576ff;
+  --theme-primary-rgb: 101, 118, 255;
   --theme-primary-hover: #5868e8;
   --theme-secondary: #8094ae;
 
@@ -160,38 +161,39 @@
 
 [data-theme="dark"] {
   /* Background colors - DashLite Dark */
-  --bg-canvas: #0f192a;
-  --bg-primary: #1c2b46;
-  --bg-secondary: #1f2d48;
-  --bg-tertiary: #253655;
+  --bg-canvas: #020813;
+  --bg-primary: rgba(4, 15, 33, 0.85);
+  --bg-secondary: rgba(0, 229, 255, 0.05);
+  --bg-tertiary: rgba(0, 229, 255, 0.1);
 
   /* Text colors */
-  --text-primary: #e5e9f2;
-  --text-secondary: #b7c2d0;
-  --text-tertiary: #8094ae;
-  --text-disabled: #526484;
-  --text-link: #6576ff;
+  --text-primary: #e0f7fa;
+  --text-secondary: #84ffff;
+  --text-tertiary: #4dd0e1;
+  --text-disabled: #26c6da;
+  --text-link: #00e5ff;
 
   /* Border colors */
-  --border-weak: #2b3a55;
-  --border-medium: #334360;
-  --border-strong: #526484;
+  --border-weak: rgba(0, 229, 255, 0.2);
+  --border-medium: rgba(0, 229, 255, 0.4);
+  --border-strong: rgba(0, 229, 255, 0.6);
 
   /* Panel styles */
-  --panel-bg: #1c2b46;
-  --panel-border: #334360;
-  --panel-header-bg: #1c2b46;
-  --panel-shadow: 0px 3px 12px rgba(0, 0, 0, 0.3);
+  --panel-bg: rgba(4, 15, 33, 0.45);
+  --panel-border: rgba(0, 229, 255, 0.4);
+  --panel-header-bg: rgba(0, 229, 255, 0.05);
+  --panel-shadow: 0 0 15px rgba(0, 229, 255, 0.1), inset 0 0 20px rgba(0, 229, 255, 0.15);
 
   /* Interactive states */
-  --hover-bg: rgba(101, 118, 255, 0.1);
-  --selected-bg: rgba(101, 118, 255, 0.2);
-  --active-bg: rgba(101, 118, 255, 0.3);
+  --hover-bg: rgba(0, 229, 255, 0.15);
+  --selected-bg: rgba(0, 229, 255, 0.25);
+  --active-bg: rgba(0, 229, 255, 0.35);
 
   /* Grafana theme colors -> DashLite */
-  --theme-primary: #6576ff;
-  --theme-primary-hover: #7b8aff;
-  --theme-secondary: #253655;
+  --theme-primary: #00e5ff;
+  --theme-primary-rgb: 0, 229, 255;
+  --theme-primary-hover: #18ffff;
+  --theme-secondary: rgba(0, 229, 255, 0.1);
 
   /* Severity/Status colors (Dark mode) */
   --severity-critical: #ef4444;
@@ -226,30 +228,30 @@
   --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
 
   /* Table styles */
-  --table-header-bg: #1c2b46;
-  --table-header-text: #8094ae;
-  --table-row-hover: #1f2d48;
-  --table-row-alt: #1c2b46;
-  --table-border: #334360;
+  --table-header-bg: rgba(0, 229, 255, 0.05);
+  --table-header-text: #84ffff;
+  --table-row-hover: rgba(0, 229, 255, 0.1);
+  --table-row-alt: rgba(4, 15, 33, 0.5);
+  --table-border: rgba(0, 229, 255, 0.2);
 
   /* Toolbar/Header */
-  --toolbar-bg: #1c2b46;
-  --toolbar-border: #334360;
+  --toolbar-bg: rgba(4, 15, 33, 0.7);
+  --toolbar-border: rgba(0, 229, 255, 0.4);
 
   /* Modal */
-  --modal-bg: #1c2b46;
-  --modal-backdrop: rgba(0, 0, 0, 0.6);
-  --modal-border: #334360;
+  --modal-bg: rgba(4, 15, 33, 0.85);
+  --modal-backdrop: rgba(0, 0, 0, 0.7);
+  --modal-border: rgba(0, 229, 255, 0.4);
 
   /* Shadows */
-  --elevation-1: 0 1px 3px rgba(0, 0, 0, 0.2);
-  --elevation-2: 0px 3px 12px rgba(0, 0, 0, 0.3);
-  --elevation-3: 0 10px 40px rgba(0, 0, 0, 0.5);
+  --elevation-1: 0 0 10px rgba(0, 229, 255, 0.1);
+  --elevation-2: 0 0 15px rgba(0, 229, 255, 0.2);
+  --elevation-3: 0 0 30px rgba(0, 229, 255, 0.3);
 
   /* Toggle switch */
-  --toggle-bg: #334360;
-  --toggle-bg-active: #6576ff;
-  --toggle-knob: #e5e9f2;
+  --toggle-bg: rgba(0, 229, 255, 0.2);
+  --toggle-bg-active: #00e5ff;
+  --toggle-knob: #e0f7fa;
 }
 
 /* Base Styles */
@@ -270,6 +272,44 @@ body {
   box-shadow: var(--panel-shadow);
   overflow: hidden;
   transition: all 0.2s ease;
+  position: relative;
+}
+
+[data-theme="dark"] .grafana-panel,
+[data-theme="dark"] .grafana-toolbar {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+[data-theme="dark"] .grafana-panel {
+  border-radius: 2px;
+}
+
+/* Corner decorations for panels in dark mode */
+[data-theme="dark"] .grafana-panel::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 12px;
+  height: 12px;
+  border-top: 2px solid var(--theme-primary);
+  border-left: 2px solid var(--theme-primary);
+  pointer-events: none;
+  z-index: 10;
+}
+
+[data-theme="dark"] .grafana-panel::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 12px;
+  height: 12px;
+  border-bottom: 2px solid var(--theme-primary);
+  border-right: 2px solid var(--theme-primary);
+  pointer-events: none;
+  z-index: 10;
 }
 
 .grafana-panel:hover {
@@ -284,16 +324,29 @@ body {
   background: var(--panel-header-bg);
   border-bottom: 1px solid var(--panel-border);
   min-height: 40px;
+  position: relative;
+}
+
+[data-theme="dark"] .grafana-panel-header::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 30%;
+  height: 2px;
+  background: var(--theme-primary);
+  box-shadow: 0 0 10px var(--theme-primary);
 }
 
 .grafana-panel-title {
   font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
-  color: var(--text-primary);
+  font-weight: var(--font-weight-bold);
+  color: var(--theme-primary);
   margin: 0;
   display: flex;
   align-items: center;
   gap: var(--spacing-sm);
+  text-shadow: 0 0 5px rgba(0, 229, 255, 0.4);
 }
 
 .grafana-panel-content {
@@ -514,11 +567,11 @@ body {
 .grafana-btn-primary {
   background: var(--theme-primary);
   color: #ffffff;
-  box-shadow: 0 2px 4px rgba(101, 118, 255, 0.15);
+  box-shadow: 0 2px 4px rgba(var(--theme-primary-rgb), 0.15);
 }
 .grafana-btn-primary:hover:not(:disabled) {
   background: var(--theme-primary-hover);
-  box-shadow: 0 4px 8px rgba(101, 118, 255, 0.25);
+  box-shadow: 0 4px 8px rgba(var(--theme-primary-rgb), 0.25);
   transform: translateY(-1px);
 }
 
@@ -573,7 +626,7 @@ body {
 .grafana-input:focus {
   outline: none;
   border-color: var(--theme-primary);
-  box-shadow: 0 0 0 2px rgba(110, 159, 255, 0.25);
+  box-shadow: 0 0 0 2px rgba(var(--theme-primary-rgb), 0.25);
 }
 
 .grafana-input::placeholder {
@@ -595,7 +648,7 @@ body {
 .grafana-select:focus {
   outline: none;
   border-color: var(--theme-primary);
-  box-shadow: 0 0 0 2px rgba(110, 159, 255, 0.25);
+  box-shadow: 0 0 0 2px rgba(var(--theme-primary-rgb), 0.25);
 }
 
 /* Form labels */
@@ -936,14 +989,15 @@ body {
   overflow: hidden;
 }
 
-/* Temperature Gradient: Cool Blue -> Warm Orange */
+/* Temperature Gradient: Cool Cyan to Bright Cyan */
 .weather-temp-gradient {
   position: absolute;
   top: 0;
   left: 0;
   height: 100%;
-  background: linear-gradient(to right, #3b82f6, #6576ff, #f97316, #ef4444);
+  background: linear-gradient(to right, rgba(var(--theme-primary-rgb), 0.3), var(--theme-primary));
   opacity: 0.9;
+  box-shadow: 0 0 8px rgba(var(--theme-primary-rgb), 0.5);
 }
 
 /* Humidity Water Drop Styles */
@@ -954,7 +1008,7 @@ body {
 }
 
 .weather-drop-svg {
-  filter: drop-shadow(0 0 2px rgba(101, 118, 255, 0.2));
+  filter: drop-shadow(0 0 2px rgba(var(--theme-primary-rgb), 0.2));
 }
 
 .weather-humidity-percent {

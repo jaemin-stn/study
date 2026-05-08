@@ -434,7 +434,7 @@ export const ImportExportModal = () => {
               className="grafana-btn grafana-btn-lg grafana-btn-primary"
               style={{
                 flex: 1,
-                boxShadow: "0 4px 12px rgba(110, 159, 255, 0.25)",
+                boxShadow: "0 4px 12px rgba(var(--theme-primary-rgb), 0.25)",
                 cursor: isExporting ? "not-allowed" : "pointer",
                 opacity: isExporting ? 0.7 : 1,
               }}

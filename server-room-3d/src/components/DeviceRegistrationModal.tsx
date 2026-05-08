@@ -669,7 +669,7 @@ export const DeviceRegistrationModal = () => {
                           width: "24px",
                           height: "24px",
                           borderRadius: "6px",
-                          background: "rgba(110, 159, 255, 0.1)",
+                          background: "rgba(var(--theme-primary-rgb), 0.1)",
                           color: "var(--theme-primary)",
                           transform: "translateY(1px)",
                         }}

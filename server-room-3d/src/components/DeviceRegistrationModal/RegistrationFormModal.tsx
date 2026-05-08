@@ -201,7 +201,7 @@ export const RegistrationFormModal = ({
                 ) && (
                   <button
                     style={{
-                      background: "linear-gradient(135deg, #6e9fff, #4872d8)",
+                      background: "linear-gradient(135deg, var(--theme-primary), #4872d8)",
                       color: "#fff",
                       border: "none",
                       padding: "0 16px",

@@ -262,26 +262,26 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
       
       const svgEl = container.querySelector("svg");
       if (svgEl) {
-        const containerWidth = 880;
-        const svgWidth = svgEl.viewBox?.baseVal?.width || 984;
-        const svgHeight = svgEl.viewBox?.baseVal?.height || 200;
-
-        const scale = svgWidth > containerWidth ? containerWidth / svgWidth : 1;
-
-        if (scale < 1) {
-          container.style.transform = `scale(${scale})`;
-          container.style.transformOrigin = "top center";
-        } else {
-          container.style.transform = "none";
+        // viewBox가 없는 SVG에 대해 viewBox 강제 주입
+        if (!svgEl.getAttribute('viewBox')) {
+          const w = svgEl.getAttribute('width') || '984';
+          const h = svgEl.getAttribute('height') || '200';
+          svgEl.setAttribute('viewBox', `0 0 ${parseInt(w, 10)} ${parseInt(h, 10)}`);
         }
 
+        // 컨테이너 초기화 (transform scale 제거)
+        container.style.transform = "none";
+        
         if (container.parentElement) {
-          container.parentElement.style.height = `${svgHeight * scale}px`;
-          container.parentElement.style.overflow = "hidden";
+          // 강제로 설정했던 height 및 overflow 초기화 (Flexbox에 맡김)
+          container.parentElement.style.height = "auto";
+          container.parentElement.style.overflow = "visible";
         }
 
-        svgEl.style.width = "auto";
+        // SVG 자체를 CSS로 자연스럽게 스케일링
+        svgEl.style.width = "100%";
         svgEl.style.height = "auto";
+        svgEl.style.maxWidth = "880px";
         svgEl.style.display = "block";
       }
       container.querySelectorAll("title").forEach(t => t.textContent = "");
@@ -630,7 +630,7 @@ export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: 
             border: "1px solid var(--border-medium)",
             padding: "16px",
             overflow: "hidden", 
-            minHeight: "200px", 
+            minHeight: "auto", 
             display: "flex", 
             alignItems: "flex-start", 
             justifyContent: "center" 

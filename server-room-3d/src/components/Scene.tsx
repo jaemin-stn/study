@@ -78,7 +78,7 @@ export const Scene = () => {
 
   // Theme-based colors
   const isDarkMode = theme === "dark";
-  const backgroundColor = isDarkMode ? "#585d6e" : "#f0f0f0"; // Dark mode background set to #585d6e
+  const backgroundColor = isDarkMode ? "#585d6e" : "#eef2f6"; // Dark mode background set to #585d6e
   const gridCellColor = isDarkMode ? "#6b7080" : "#ccc"; // Neutral/cool gray for dark mode grid cells
   const gridSectionColor = isDarkMode ? "#7d8292" : "#999"; // Neutral/cool gray for dark mode grid sections
   const pointerDownPos = useRef<{ x: number; y: number } | null>(null);

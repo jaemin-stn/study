@@ -13,18 +13,19 @@
 
 :root,
 [data-theme="light"] {
-  /* Background colors - DashLite Light */
-  --bg-canvas: #f5f6fa;
+  /* Background colors - Tech Light */
+  --bg-canvas: #eef2f6;
   --bg-primary: #ffffff;
-  --bg-secondary: #f5f6fa;
-  --bg-tertiary: #ebeef2;
+  --bg-secondary: #f4f6f9;
+  --bg-tertiary: #e3e8ef;
 
   /* Text colors */
-  --text-primary: #364a63;
-  --text-secondary: #526484;
-  --text-tertiary: #8094ae;
-  --text-disabled: #b7c2d0;
-  --text-link: #6576ff;
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+  --text-disabled: #94a3b8;
+  --text-link: var(--theme-primary);
+  --text-glow: 0 1px 3px rgba(255, 255, 255, 0.9), 0 0 8px rgba(255, 255, 255, 1);
 
   /* Border colors */
   --border-weak: #e5e9f2;
@@ -32,48 +33,48 @@
   --border-strong: #8094ae;
 
   /* Panel styles */
-  --panel-bg: #ffffff;
-  --panel-border: #dbdfea;
-  --panel-header-bg: #ffffff;
-  --panel-shadow: 0px 3px 12px rgba(28, 43, 70, 0.04);
+  --panel-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.1) 100%);
+  --panel-border: rgba(255, 255, 255, 0.7);
+  --panel-header-bg: rgba(255, 255, 255, 0.15);
+  --panel-shadow: 0 8px 32px rgba(37, 99, 235, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.9);
 
   /* Interactive states */
   --hover-bg: rgba(var(--theme-primary-rgb), 0.05);
   --selected-bg: rgba(var(--theme-primary-rgb), 0.12);
   --active-bg: rgba(var(--theme-primary-rgb), 0.2);
 
-  /* Grafana theme colors -> DashLite Primary */
-  --theme-primary: #6576ff;
-  --theme-primary-rgb: 101, 118, 255;
-  --theme-primary-hover: #5868e8;
-  --theme-secondary: #8094ae;
+  /* Main Theme Color -> Premium Azure Blue */
+  --theme-primary: #2563eb;
+  --theme-primary-rgb: 37, 99, 235;
+  --theme-primary-hover: #1d4ed8;
+  --theme-secondary: rgba(37, 99, 235, 0.1);
 
   /* Severity/Status colors - Soft bg + bold text style */
   --severity-critical: #ef4444;
-  --severity-critical-bg: #fee2e2;
+  --severity-critical-bg: rgba(239, 68, 68, 0.15);
   --severity-critical-text: #ef4444;
 
   --severity-major: #f97316;
-  --severity-major-bg: #ffedd5;
+  --severity-major-bg: rgba(249, 115, 22, 0.15);
   --severity-major-text: #f97316;
 
   --severity-minor: #eab308;
-  --severity-minor-bg: #fef9c3;
+  --severity-minor-bg: rgba(234, 179, 8, 0.15);
   --severity-minor-text: #eab308;
 
   --severity-warning: #8b5cf6;
-  --severity-warning-bg: #ddd6fe;
+  --severity-warning-bg: rgba(139, 92, 246, 0.15);
   --severity-warning-text: #8b5cf6;
 
   --severity-success: #1ee0ac;
-  --severity-success-bg: #e8fcf5;
+  --severity-success-bg: rgba(30, 224, 172, 0.15);
   --severity-success-text: #1ee0ac;
 
   /* Tag colors */
   --tag-gwacheon: #1ee0ac;
-  --tag-gwacheon-bg: #e8fcf5;
+  --tag-gwacheon-bg: rgba(30, 224, 172, 0.15);
   --tag-daejeon: #8b5cf6;
-  --tag-daejeon-bg: #f3ebff;
+  --tag-daejeon-bg: rgba(139, 92, 246, 0.15);
 
   /* Glassmorphism */
   --glass-bg: rgba(255, 255, 255, 0.6);
@@ -81,18 +82,18 @@
   --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.03);
 
   /* Table styles */
-  --table-header-bg: #ffffff;
-  --table-header-text: #8094ae;
-  --table-row-hover: #f5f6fa;
-  --table-row-alt: #ffffff;
-  --table-border: #dbdfea;
+  --table-header-bg: rgba(255, 255, 255, 0.2);
+  --table-header-text: #526484;
+  --table-row-hover: var(--hover-bg);
+  --table-row-alt: rgba(255, 255, 255, 0.1);
+  --table-border: rgba(219, 223, 234, 0.6);
 
   /* Toolbar/Header */
-  --toolbar-bg: #ffffff;
-  --toolbar-border: #dbdfea;
+  --toolbar-bg: rgba(255, 255, 255, 0.4);
+  --toolbar-border: rgba(255, 255, 255, 0.5);
 
   /* Modal */
-  --modal-bg: #ffffff;
+  --modal-bg: rgba(255, 255, 255, 0.65);
   --modal-backdrop: rgba(31, 43, 58, 0.4);
   --modal-border: #dbdfea;
 
@@ -166,12 +167,13 @@
   --bg-secondary: rgba(0, 229, 255, 0.05);
   --bg-tertiary: rgba(0, 229, 255, 0.1);
 
-  /* Text colors */
-  --text-primary: #e0f7fa;
-  --text-secondary: #84ffff;
-  --text-tertiary: #4dd0e1;
-  --text-disabled: #26c6da;
-  --text-link: #00e5ff;
+  /* Text colors - Crisp and readable */
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+  --text-disabled: #475569;
+  --text-link: var(--theme-primary);
+  --text-glow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 1);
 
   /* Border colors */
   --border-weak: rgba(0, 229, 255, 0.2);
@@ -230,7 +232,7 @@
   /* Table styles */
   --table-header-bg: rgba(0, 229, 255, 0.05);
   --table-header-text: #84ffff;
-  --table-row-hover: rgba(0, 229, 255, 0.1);
+  --table-row-hover: var(--hover-bg);
   --table-row-alt: rgba(4, 15, 33, 0.5);
   --table-border: rgba(0, 229, 255, 0.2);
 
@@ -273,20 +275,22 @@ body {
   overflow: hidden;
   transition: all 0.2s ease;
   position: relative;
-}
-
-[data-theme="dark"] .grafana-panel,
-[data-theme="dark"] .grafana-toolbar {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
 
-[data-theme="dark"] .grafana-panel {
-  border-radius: 2px;
+.grafana-toolbar {
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
-/* Corner decorations for panels in dark mode */
-[data-theme="dark"] .grafana-panel::before {
+.grafana-panel {
+  border-radius: 2px;
+  text-shadow: var(--text-glow);
+}
+
+/* Corner decorations for panels */
+.grafana-panel::before {
   content: '';
   position: absolute;
   top: -1px;
@@ -299,7 +303,7 @@ body {
   z-index: 10;
 }
 
-[data-theme="dark"] .grafana-panel::after {
+.grafana-panel::after {
   content: '';
   position: absolute;
   bottom: -1px;
@@ -327,7 +331,7 @@ body {
   position: relative;
 }
 
-[data-theme="dark"] .grafana-panel-header::after {
+.grafana-panel-header::after {
   content: '';
   position: absolute;
   bottom: -1px;
@@ -575,15 +579,16 @@ body {
   transform: translateY(-1px);
 }
 
-/* Secondary - Light subtle background */
+/* Secondary - Glassmorphic subtle background */
 .grafana-btn-secondary {
-  background: var(--bg-canvas);
+  background: rgba(128, 128, 128, 0.1);
   color: var(--text-primary);
   border-color: var(--border-medium);
 }
 .grafana-btn-secondary:hover:not(:disabled) {
-  background: var(--border-weak);
+  background: var(--hover-bg);
   color: var(--text-primary);
+  border-color: var(--theme-primary);
 }
 
 /* Tertiary / Ghost - Transparent but hoverable */
@@ -615,7 +620,7 @@ body {
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
   font-size: var(--font-size-md);
-  background: var(--bg-primary);
+  background: rgba(128, 128, 128, 0.05);
   color: var(--text-primary);
   transition:
     border-color 0.15s ease,
@@ -639,7 +644,7 @@ body {
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-md);
   font-size: var(--font-size-md);
-  background: var(--bg-primary);
+  background: rgba(128, 128, 128, 0.05);
   color: var(--text-primary);
   cursor: pointer;
   font-family: var(--font-family);
@@ -723,7 +728,7 @@ body {
   align-items: center;
   gap: var(--spacing-md);
   padding: var(--spacing-sm) var(--spacing-md);
-  background: var(--bg-primary);
+  background: var(--toolbar-bg);
   border: 1px solid var(--toolbar-border);
   border-radius: var(--radius-lg);
   box-shadow: var(--elevation-2);
@@ -865,6 +870,8 @@ body {
   display: flex;
   flex-direction: column;
   z-index: 20;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
 }
 
 .grafana-side-panel-header {
@@ -911,11 +918,7 @@ body {
 
 /* Sensor widget - Weather App Style */
 .grafana-sensor-widget {
-  background: linear-gradient(
-    to bottom right,
-    var(--bg-primary),
-    var(--bg-secondary)
-  );
+  background: transparent;
   border-radius: 0 0 var(--radius-lg) var(--radius-lg);
   padding: 0;
   max-height: 200px;

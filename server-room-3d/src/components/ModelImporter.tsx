@@ -317,7 +317,7 @@ export const ModelImporter = () => {
                 {/* Project Persistence (Save / Load Data) */}
                 <div
                   style={{
-                    background: "var(--bg-secondary)",
+                    background: "rgba(128, 128, 128, 0.1)",
                     padding: "12px",
                     borderRadius: "var(--radius-md)",
                     border: "1px solid var(--border-weak)",
@@ -344,7 +344,7 @@ export const ModelImporter = () => {
                         flex: 1,
                         background:
                           importedModels.length > 0
-                            ? "var(--bg-primary)"
+                            ? "rgba(128, 128, 128, 0.2)"
                             : "transparent",
                         color:
                           importedModels.length > 0
@@ -463,7 +463,7 @@ export const ModelImporter = () => {
                 <div
                   style={{
                     padding: "12px 16px",
-                    background: "var(--bg-secondary)",
+                    background: "rgba(128, 128, 128, 0.1)",
                     borderBottom: "1px solid var(--border-weak)",
                     display: "flex",
                     justifyContent: "space-between",
@@ -752,7 +752,7 @@ export const ModelImporter = () => {
                   key={stat.label}
                   style={{
                     padding: "12px",
-                    background: "var(--bg-secondary)",
+                    background: "rgba(128, 128, 128, 0.1)",
                     borderRadius: "var(--radius-md)",
                     textAlign: "center",
                     border: "1px solid var(--border-weak)",
@@ -789,7 +789,7 @@ export const ModelImporter = () => {
                 maxHeight: "200px",
                 overflowY: "auto",
                 padding: "8px 12px",
-                background: "var(--bg-secondary)",
+                background: "rgba(128, 128, 128, 0.1)",
                 borderRadius: "var(--radius-md)",
                 border: "1px solid var(--border-weak)",
               }}
@@ -899,7 +899,7 @@ export const ModelImporter = () => {
                   padding: "0 20px",
                   fontSize: "13px",
                   fontWeight: 600,
-                  background: "var(--bg-secondary)",
+                  background: "rgba(128, 128, 128, 0.1)",
                   border: "1px solid var(--border-medium)",
                   color: "var(--text-primary)",
                   borderRadius: "var(--radius-md)",
@@ -989,7 +989,7 @@ const ModelProperties = ({
           width: "100%",
           padding: "6px 4px",
           fontSize: "11px",
-          background: "var(--bg-secondary)",
+          background: "rgba(128, 128, 128, 0.1)",
           border: "1px solid var(--border-medium)",
           borderRadius: "var(--radius-sm)",
           color: "var(--text-primary)",
@@ -1282,7 +1282,7 @@ const ModelProperties = ({
                       fontWeight: 600,
                       background: isTransparent
                         ? "var(--selected-bg)"
-                        : "var(--bg-secondary)",
+                        : "rgba(128, 128, 128, 0.1)",
                       color: isTransparent
                         ? "var(--theme-primary)"
                         : "var(--text-secondary)",
@@ -1312,7 +1312,7 @@ const ModelProperties = ({
                       fontWeight: 600,
                       background: !isTransparent
                         ? "var(--selected-bg)"
-                        : "var(--bg-secondary)",
+                        : "rgba(128, 128, 128, 0.1)",
                       color: !isTransparent
                         ? "var(--theme-primary)"
                         : "var(--text-secondary)",
@@ -1444,7 +1444,7 @@ const ModelProperties = ({
                       fontWeight: 600,
                       background: lp.castShadow
                         ? "var(--selected-bg)"
-                        : "var(--bg-secondary)",
+                        : "rgba(128, 128, 128, 0.1)",
                       color: lp.castShadow
                         ? "var(--theme-primary)"
                         : "var(--text-secondary)",
@@ -1469,7 +1469,7 @@ const ModelProperties = ({
                       fontWeight: 600,
                       background: !lp.castShadow
                         ? "var(--selected-bg)"
-                        : "var(--bg-secondary)",
+                        : "rgba(128, 128, 128, 0.1)",
                       color: !lp.castShadow
                         ? "var(--theme-primary)"
                         : "var(--text-secondary)",
@@ -1565,7 +1565,7 @@ const ModelProperties = ({
               flex: 1,
               height: "36px",
               fontSize: "12px",
-              background: "var(--bg-secondary)",
+              background: "rgba(128, 128, 128, 0.1)",
               border: "1px solid var(--border-medium)",
               color: "var(--text-primary)",
             }}

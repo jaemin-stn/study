@@ -25,7 +25,7 @@
   --text-tertiary: #64748b;
   --text-disabled: #94a3b8;
   --text-link: var(--theme-primary);
-  --text-glow: 0 1px 3px rgba(255, 255, 255, 0.9), 0 0 8px rgba(255, 255, 255, 1);
+  --text-glow: none;
 
   /* Border colors */
   --border-weak: #e5e9f2;
@@ -33,10 +33,10 @@
   --border-strong: #8094ae;
 
   /* Panel styles */
-  --panel-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.1) 100%);
-  --panel-border: rgba(255, 255, 255, 0.7);
-  --panel-header-bg: rgba(255, 255, 255, 0.15);
-  --panel-shadow: 0 8px 32px rgba(37, 99, 235, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.9);
+  --panel-bg: rgba(255, 255, 255, 0.7);
+  --panel-border: rgba(255, 255, 255, 0.8);
+  --panel-header-bg: rgba(255, 255, 255, 0.5);
+  --panel-shadow: 0 4px 24px rgba(0, 0, 0, 0.06), inset 0 0 0 1px rgba(255, 255, 255, 0.5);
 
   /* Interactive states */
   --hover-bg: rgba(var(--theme-primary-rgb), 0.05);
@@ -51,30 +51,30 @@
 
   /* Severity/Status colors - Soft bg + bold text style */
   --severity-critical: #ef4444;
-  --severity-critical-bg: rgba(239, 68, 68, 0.15);
+  --severity-critical-bg: rgba(239, 68, 68, 0.05);
   --severity-critical-text: #ef4444;
 
   --severity-major: #f97316;
-  --severity-major-bg: rgba(249, 115, 22, 0.15);
+  --severity-major-bg: rgba(249, 115, 22, 0.05);
   --severity-major-text: #f97316;
 
   --severity-minor: #eab308;
-  --severity-minor-bg: rgba(234, 179, 8, 0.15);
+  --severity-minor-bg: rgba(234, 179, 8, 0.05);
   --severity-minor-text: #eab308;
 
   --severity-warning: #8b5cf6;
-  --severity-warning-bg: rgba(139, 92, 246, 0.15);
+  --severity-warning-bg: rgba(139, 92, 246, 0.05);
   --severity-warning-text: #8b5cf6;
 
   --severity-success: #1ee0ac;
-  --severity-success-bg: rgba(30, 224, 172, 0.15);
+  --severity-success-bg: rgba(30, 224, 172, 0.05);
   --severity-success-text: #1ee0ac;
 
   /* Tag colors */
   --tag-gwacheon: #1ee0ac;
-  --tag-gwacheon-bg: rgba(30, 224, 172, 0.15);
+  --tag-gwacheon-bg: rgba(30, 224, 172, 0.05);
   --tag-daejeon: #8b5cf6;
-  --tag-daejeon-bg: rgba(139, 92, 246, 0.15);
+  --tag-daejeon-bg: rgba(139, 92, 246, 0.05);
 
   /* Glassmorphism */
   --glass-bg: rgba(255, 255, 255, 0.6);
@@ -280,17 +280,16 @@ body {
 }
 
 .grafana-toolbar {
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
 
-.grafana-panel {
+[data-theme="dark"] .grafana-panel {
   border-radius: 2px;
-  text-shadow: var(--text-glow);
 }
 
-/* Corner decorations for panels */
-.grafana-panel::before {
+/* Corner decorations for panels in dark mode */
+[data-theme="dark"] .grafana-panel::before {
   content: '';
   position: absolute;
   top: -1px;
@@ -303,7 +302,7 @@ body {
   z-index: 10;
 }
 
-.grafana-panel::after {
+[data-theme="dark"] .grafana-panel::after {
   content: '';
   position: absolute;
   bottom: -1px;
@@ -331,7 +330,7 @@ body {
   position: relative;
 }
 
-.grafana-panel-header::after {
+[data-theme="dark"] .grafana-panel-header::after {
   content: '';
   position: absolute;
   bottom: -1px;
@@ -471,7 +470,8 @@ body {
 
 .grafana-stat-card.selected {
   transform: scale(1.02);
-  border-color: var(--text-primary);
+  border-color: currentColor;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
 .grafana-stat-value {

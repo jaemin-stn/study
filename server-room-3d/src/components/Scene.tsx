@@ -62,6 +62,7 @@ export const Scene = () => {
   const isDragging = useStore((state) => state.isDragging);
   const importedModels = useStore((state) => state.importedModels);
   const draggingModelId = useStore((state) => state.draggingModelId);
+  const selectedRackId = useStore((state) => state.selectedRackId);
   const { theme } = useTheme();
 
   // Phase 2-C: useMemo로 감싸서 importedModels 변경 시에만 재계산
@@ -156,21 +157,23 @@ export const Scene = () => {
         groundColor="#444444"
       />
 
-      <GizmoHelper alignment="top-right" margin={[440, 140]}>
-        <group 
-          scale={1.4}
-          onPointerOver={() => useStore.setState({ isGizmoHovered: true })}
-          onPointerOut={() => useStore.setState({ isGizmoHovered: false })}
-        >
-          <GizmoViewcube
-            opacity={1}
-            color={isDarkMode ? "#2A3342" : "#D8DEE8"}
-            textColor={isDarkMode ? "#ffffff" : "#111827"}
-            strokeColor={isDarkMode ? "#9AA4B2" : "#5B6678"}
-            hoverColor={isDarkMode ? "#3b82f6" : "#2563eb"}
-          />
-        </group>
-      </GizmoHelper>
+      {!selectedRackId && (
+        <GizmoHelper alignment="top-right" margin={[440, 140]}>
+          <group 
+            scale={1.4}
+            onPointerOver={() => useStore.setState({ isGizmoHovered: true })}
+            onPointerOut={() => useStore.setState({ isGizmoHovered: false })}
+          >
+            <GizmoViewcube
+              opacity={1}
+              color={isDarkMode ? "#2A3342" : "#D8DEE8"}
+              textColor={isDarkMode ? "#ffffff" : "#111827"}
+              strokeColor={isDarkMode ? "#9AA4B2" : "#5B6678"}
+              hoverColor={isDarkMode ? "#3b82f6" : "#2563eb"}
+            />
+          </group>
+        </GizmoHelper>
+      )}
 
       <Suspense fallback={null}>
         <Environment preset={isDarkMode ? "night" : "city"} />

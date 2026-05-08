@@ -534,6 +534,9 @@ const FitToModelsButton = () => {
   const { theme } = useTheme();
   const isDarkMode = theme === "dark";
   const fitToScene = useStore((s) => s.fitToScene);
+  const selectedRackId = useStore((s) => s.selectedRackId);
+
+  if (selectedRackId) return null;
 
   return (
     <div

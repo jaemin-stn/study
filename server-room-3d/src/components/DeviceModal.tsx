@@ -242,11 +242,6 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
     return () => { isMounted = false; };
   }, [modelName, cardsKey, equipModel, isModularDevice, cardSvgMap, _cacheKey]);
 
-  // 기존 포트 에러 맵 (비-모듈러 장비용)
-  const errorPortMap = useMemo(() => 
-    new Map(portStates.filter(p => p.status === "error").map(p => [p.portId, p.errorLevel ? ERROR_COLORS[p.errorLevel] : "#ef4444"])),
-    [portStates]
-  );
   const portStateMap = useMemo(() => new Map(portStates.map(p => [p.portId, p])), [portStates]);
 
   // 2단계: SVG 스타일 조정 및 상호작용 바인딩
@@ -323,6 +318,21 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
 
     // 이벤트 위임
     const tooltip = document.querySelector(".port-tooltip") as HTMLElement;
+    let hoveredPortEl: SVGElement | null = null;
+    let hoveredPortOrigFill = "";
+    let hoveredPortOrigStroke = "";
+    let hoveredPortOrigStrokeWidth = "";
+
+    const resetHover = () => {
+      if (hoveredPortEl) {
+        hoveredPortEl.style.fill = hoveredPortOrigFill;
+        hoveredPortEl.style.stroke = hoveredPortOrigStroke;
+        hoveredPortEl.style.strokeWidth = hoveredPortOrigStrokeWidth;
+        hoveredPortEl = null;
+      }
+      if (tooltip) tooltip.style.display = "none";
+    };
+
     const handleMouseOver = (e: MouseEvent) => {
       let target = e.target as unknown as SVGElement;
       const isPort = (id: string) => (id.startsWith("port-") && id !== "ports-layer") || /^p\d+$/.test(id);
@@ -331,7 +341,31 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
       else if (target.classList.contains("port-hitbox")) portEl = target;
       else if (target.parentElement?.id && isPort(target.parentElement.id)) portEl = target.parentElement as unknown as SVGElement;
 
-      if (!portEl || !tooltip) return;
+      // 포트 영역이 아닌 곳으로 이동 시 즉시 hover 해제
+      if (!portEl) {
+        resetHover();
+        return;
+      }
+      if (!tooltip) return;
+
+      // 이전 hover 포트 복구
+      if (hoveredPortEl && hoveredPortEl !== portEl) {
+        hoveredPortEl.style.fill = hoveredPortOrigFill;
+        hoveredPortEl.style.stroke = hoveredPortOrigStroke;
+        hoveredPortEl.style.strokeWidth = hoveredPortOrigStrokeWidth;
+        hoveredPortEl = null;
+      }
+
+      // 현재 포트에 hover 하이라이트 적용
+      if (hoveredPortEl !== portEl) {
+        hoveredPortEl = portEl;
+        hoveredPortOrigFill = portEl.style.fill;
+        hoveredPortOrigStroke = portEl.style.stroke;
+        hoveredPortOrigStrokeWidth = portEl.style.strokeWidth;
+        portEl.style.fill = "rgba(0, 229, 255, 0.25)";
+        portEl.style.stroke = "rgba(0, 229, 255, 0.7)";
+        portEl.style.strokeWidth = "1.5px";
+      }
 
       const realPortNumber = portEl.getAttribute("data-port-number") || portEl.querySelector(".port-hitbox")?.getAttribute("data-port-number");
       const gp = realPortNumber && isModularDevice ? generatedPortMap.get(realPortNumber) : null;
@@ -387,18 +421,24 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
         if (ps) {
           statusStr = ps.status.toUpperCase();
           const isError = ps.status === "error";
-          // 지원하는 경우 에러 레벨 색상 매핑
           if (isError && ps.errorLevel && ERROR_COLORS[ps.errorLevel]) {
             statusColor = ERROR_COLORS[ps.errorLevel];
           } else {
             statusColor = isError ? "#ff4d4d" : "#22c55e";
           }
+        } else {
+          // fallback: 에러 블링킹 시 스탬프된 data-error-level 확인
+          const stampedLevel = portEl.getAttribute("data-error-level") as keyof typeof ERROR_COLORS | null;
+          if (stampedLevel && ERROR_COLORS[stampedLevel]) {
+            statusStr = stampedLevel.toUpperCase();
+            statusColor = ERROR_COLORS[stampedLevel];
+          }
         }
       }
 
       tooltip.innerHTML = `
-        <div style="font-weight:700; font-size:13px; margin-bottom:6px;">${displayType} ${displayId}</div>
-        <div style="font-weight:600; color:${statusColor}; font-size:12px;">${statusStr}</div>
+        <div style="font-weight:700; font-size:13px; margin-bottom:6px; color:#80deea;">${displayType} ${displayId}</div>
+        <div style="font-weight:600; color:${statusColor}; font-size:12px; text-shadow:0 0 4px ${statusColor}40;">${statusStr}</div>
       `;
       tooltip.style.display = "block";
     };
@@ -409,7 +449,7 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
         tooltip.style.transform = "translate(-50%, -100%)";
       }
     };
-    const handleMouseOut = () => { if (tooltip) tooltip.style.display = "none"; };
+    const handleMouseOut = () => resetHover();
 
     // 포트 클릭 이벤트
     const handleClick = (e: MouseEvent) => {
@@ -451,16 +491,19 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
           const animName = `blink-${gp.realPortNumber.replace(/[^a-z0-9]/gi, "-")}`;
           ensureKeyframe(animName, color);
           el.style.animation = `${animName} 1.5s infinite`;
+          el.setAttribute("data-error-level", gp.status);
         }
       });
     } else {
-      // 비-모듈러 장비: 기존 에러 블링킹
-      errorPortMap.forEach((color, portId) => {
-        const el = container.querySelector(`[id='${portId}']`) as SVGElement | null;
+      // 비-모듈러 장비: 기존 에러 블링킹 + data-error-level 스탬프
+      portStates.filter(p => p.status === "error").forEach((ps) => {
+        const color = ps.errorLevel && ERROR_COLORS[ps.errorLevel] ? ERROR_COLORS[ps.errorLevel] : "#ef4444";
+        const el = container.querySelector(`[id='${ps.portId}']`) as SVGElement | null;
         if (el) {
-          const animName = `blink-${portId.replace(/[^a-z0-9]/gi, "-")}`;
+          const animName = `blink-${ps.portId.replace(/[^a-z0-9]/gi, "-")}`;
           ensureKeyframe(animName, color);
           el.style.animation = `${animName} 1.5s infinite`;
+          el.setAttribute("data-error-level", ps.errorLevel || "critical");
         }
       });
     }
@@ -471,7 +514,7 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
       container.removeEventListener("mouseout", handleMouseOut);
       container.removeEventListener("click", handleClick);
     };
-  }, [composedHtml, portStateMap, errorPortMap, isModularDevice, generatedPortMap, generatedPorts]);
+  }, [composedHtml, portStateMap, portStates, isModularDevice, generatedPortMap, generatedPorts]);
 
   // 초기 렌더에서 캐시된 HTML을 dangerouslySetInnerHTML로 즉시 표시
   // → 리마운트 시에도 useEffect 실행 전에 SVG가 바로 보임
@@ -608,12 +651,14 @@ export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: 
             <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
               <span style={{ 
                 backgroundColor: "var(--severity-success-bg)", 
-                color: "var(--severity-success-text)", 
-                padding: "2px 8px", 
+                color: "var(--severity-success-text)",
+                border: "1px solid var(--severity-success-border)",
+                padding: "2px 10px", 
                 borderRadius: "12px", 
                 fontSize: "12px", 
-                fontWeight: "600",
-                textTransform: "capitalize" 
+                fontWeight: "700",
+                textTransform: "capitalize",
+                letterSpacing: "0.03em"
               }}>
                 {device.type || "Router"}
               </span>
@@ -704,8 +749,16 @@ export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: 
         </div>
 
         <div className="port-tooltip" style={{
-          position: "fixed", pointerEvents: "none", display: "none", backgroundColor: "var(--panel-bg)",
-          color: "var(--text-primary)", padding: "8px 12px", borderRadius: "var(--radius-sm)", fontSize: "12px", zIndex: 10001, border: "1px solid var(--border-medium)", boxShadow: "var(--elevation-2)"
+          position: "fixed", pointerEvents: "none", display: "none",
+          backgroundColor: "rgba(4, 15, 33, 0.92)",
+          color: "#e0f7fa",
+          padding: "8px 14px",
+          borderRadius: "4px",
+          fontSize: "12px",
+          zIndex: 10001,
+          border: "1px solid rgba(0, 229, 255, 0.6)",
+          boxShadow: "0 0 12px rgba(0, 229, 255, 0.3), 0 0 4px rgba(0, 229, 255, 0.15), inset 0 0 8px rgba(0, 229, 255, 0.05)",
+          backdropFilter: "blur(8px)",
         }} />
       </div>
     </div>,

@@ -52,23 +52,24 @@
   /* Severity/Status colors - Soft bg + bold text style */
   --severity-critical: #ef4444;
   --severity-critical-bg: rgba(239, 68, 68, 0.05);
-  --severity-critical-text: #ef4444;
+  --severity-critical-text: #dc2626;
 
   --severity-major: #f97316;
   --severity-major-bg: rgba(249, 115, 22, 0.05);
-  --severity-major-text: #f97316;
+  --severity-major-text: #ea580c;
 
   --severity-minor: #eab308;
   --severity-minor-bg: rgba(234, 179, 8, 0.05);
-  --severity-minor-text: #eab308;
+  --severity-minor-text: #ca8a04;
 
   --severity-warning: #8b5cf6;
   --severity-warning-bg: rgba(139, 92, 246, 0.05);
-  --severity-warning-text: #8b5cf6;
+  --severity-warning-text: #7c3aed;
 
   --severity-success: #1ee0ac;
-  --severity-success-bg: rgba(30, 224, 172, 0.05);
-  --severity-success-text: #1ee0ac;
+  --severity-success-bg: rgba(16, 185, 129, 0.12);
+  --severity-success-text: #047857;
+  --severity-success-border: rgba(16, 185, 129, 0.5);
 
   /* Tag colors */
   --tag-gwacheon: #1ee0ac;
@@ -215,8 +216,9 @@
   --severity-warning-text: #c4b5fd;
 
   --severity-success: #1ee0ac;
-  --severity-success-bg: rgba(30, 224, 172, 0.15);
-  --severity-success-text: #59f2ca;
+  --severity-success-bg: rgba(30, 224, 172, 0.18);
+  --severity-success-text: #6ee7b7;
+  --severity-success-border: rgba(30, 224, 172, 0.5);
 
   /* Tag colors */
   --tag-gwacheon: #1ee0ac;
@@ -423,7 +425,7 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  border: none;
+  border: 1px solid transparent;
 }
 
 .grafana-badge-critical {
@@ -449,6 +451,7 @@ body {
 .grafana-badge-success {
   background: var(--severity-success-bg);
   color: var(--severity-success-text);
+  border-color: var(--severity-success-border);
 }
 
 /* Stat Cards (for error summary) */

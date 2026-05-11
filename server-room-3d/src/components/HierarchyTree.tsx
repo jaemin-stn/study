@@ -689,9 +689,8 @@ export const HierarchyTree = () => {
                                     </div>
                                     <span
                                       style={{
-                                        fontSize: "9px",
-                                        opacity: 0.5,
-                                        color: "var(--text-tertiary)",
+                                        fontSize: "10px",
+                                        color: "var(--text-secondary)",
                                         marginTop: "1px",
                                       }}
                                     >

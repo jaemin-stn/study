@@ -113,9 +113,14 @@ export const DeviceRegistrationModal = () => {
   // --- NEW: Infinite scroll state ---
   const [visibleCount, setVisibleCount] = useState(50);
 
-  // Reset visibleCount when filters change
+  const tableContentRef = useRef<HTMLDivElement>(null);
+
+  // Reset visibleCount and scroll position when filters change
   useEffect(() => {
     setVisibleCount(50);
+    if (tableContentRef.current) {
+      tableContentRef.current.scrollTop = 0;
+    }
   }, [search, nodeFilter, directNodeOnly, selectedChildNodeIds]);
 
   const handleTableScroll = useCallback((e: React.UIEvent<HTMLDivElement>) => {
@@ -986,6 +991,7 @@ export const DeviceRegistrationModal = () => {
                     </div>
 
                     <div
+                      ref={tableContentRef}
                       className="drm-table-content"
                       onScroll={handleTableScroll}
                     >

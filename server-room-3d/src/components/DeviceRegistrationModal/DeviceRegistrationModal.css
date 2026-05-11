@@ -728,7 +728,14 @@
   top: 0;
   z-index: 10;
   border-bottom: 1px solid var(--border-weak);
-  /* Removed backdrop-filter to prevent CSS stacking context bugs with fixed modal overlays */
+}
+
+[data-theme="light"] .drm-table th {
+  background: #f1f5f9; /* Solid light color */
+}
+
+[data-theme="dark"] .drm-table th {
+  background: #0b1526; /* Solid dark color matching the modal */
 }
 .drm-table td {
   padding: 4px 12px;

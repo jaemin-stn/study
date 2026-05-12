@@ -144,9 +144,35 @@ export interface InsertedCard {
   cardSizeType?: string;
 }
 
+/** 모듈 유형 (포트에 삽입 가능한 트랜시버/커넥터) */
+export type ModuleType = "ethernet" | "sfp";
+
+/** 포트에 삽입된 모듈 인스턴스 */
+export interface InsertedModule {
+  /** 대상 포트 식별자 (realPortNumber e.g. "1/1/9" 또는 SVG portId e.g. "port-sfp-1") */
+  portId: string;
+  /** 모듈 유형 */
+  moduleType: ModuleType;
+  /** 모듈 SVG 파일명 (e.g. "Ethernet.svg") */
+  moduleSvgFileName: string;
+}
+
+/** 모듈 정의 (라이브러리 표시용) */
+export interface ModuleDefinition {
+  /** 모듈 유형 */
+  moduleType: ModuleType;
+  /** 표시 이름 */
+  displayName: string;
+  /** SVG 파일명 */
+  svgFileName: string;
+  /** SVG URL (img 태그용) */
+  svgUrl: string;
+}
+
 /** 장비 조립 결과 (저장 시) */
 export interface EquipmentAssemblyResult {
   equipmentModel: EquipmentModel;
   insertedCards: InsertedCard[];
+  insertedModules?: InsertedModule[];
   thumbnailDataUrl?: string; // PNG/WebP data URL
 }

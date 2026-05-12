@@ -17,9 +17,12 @@ const assetModules = import.meta.glob<{ default: string }>("../assets/*.png", {
 // Lazy import all SVG files from src/assets/ as raw text
 // Using ?raw avoids fetch() and URL-encoding issues with special char filenames.
 // By NOT specifying eager: true, these huge strings are put in separate chunks and loaded on demand.
-const svgRawModules = import.meta.glob<{ default: string }>("../assets/*.svg", {
-  query: "?raw",
-});
+const svgRawModules = import.meta.glob<{ default: string }>(
+  ["../assets/*.svg", "../assets/card/*.svg"],
+  {
+    query: "?raw",
+  }
+);
 
 // ── PNG: modelName → resolved URL ──────────────────────────────────────────
 const deviceImageMap = new Map<string, string>();

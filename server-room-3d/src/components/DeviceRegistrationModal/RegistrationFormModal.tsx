@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { NodePicker, FormSelect } from "./NodePicker";
 import { EquipmentAssemblyModal } from "../EquipmentAssemblyModal";
+import { DeviceSvgPreview } from "../DeviceSvgPreview";
 import { equipmentModels } from "../../utils/cardAssets";
-import type { InsertedCard, GeneratedPort } from "../../types/equipment";
+import type { InsertedCard, GeneratedPort, InsertedModule } from "../../types/equipment";
 import { useStore } from "../../store/useStore";
 import { DEVICE_TEMPLATES } from "../../utils/deviceTemplates";
+import { hasDeviceSvgAsset } from "../../utils/deviceAssets";
 import type { VendorName, HierarchyNode } from "../../types";
 
 const VENDORS: VendorName[] = [
@@ -62,6 +64,9 @@ export const RegistrationFormModal = ({
     useState<string>("");
   const [isAssemblyOpen, setIsAssemblyOpen] = useState(false);
 
+  // Module State
+  const [insertedModules, setInsertedModules] = useState<InsertedModule[]>([]);
+
   const selectedTemplate = DEVICE_TEMPLATES[selectedModelIdx];
 
   useEffect(() => {
@@ -81,6 +86,7 @@ export const RegistrationFormModal = ({
           setMac(device.macAddr || "");
           if (device.vendor) setVendor(device.vendor);
           setInsertedCards(device.insertedCards || []);
+          setInsertedModules(device.insertedModules || []);
           setDashboardThumbnailUrl(device.dashboardThumbnailUrl || "");
         }
       } else {
@@ -90,6 +96,7 @@ export const RegistrationFormModal = ({
         setMac("");
         setErrors({});
         setInsertedCards([]);
+        setInsertedModules([]);
         setGeneratedPorts([]);
         setDashboardThumbnailUrl("");
       }
@@ -143,6 +150,8 @@ export const RegistrationFormModal = ({
       payload.dashboardThumbnailUrl = "";
       payload.generatedPorts = [];
     }
+    // 모듈 정보 포함
+    payload.insertedModules = insertedModules;
 
     if (editingDeviceId) {
       updateRegisteredDevice(editingDeviceId, payload);
@@ -190,6 +199,7 @@ export const RegistrationFormModal = ({
                   onChange={(val) => {
                     setSelectedModelIdx(val);
                     setInsertedCards([]);
+                    setInsertedModules([]);
                     setDashboardThumbnailUrl("");
                   }}
                   placeholder="장비 모델 선택"
@@ -274,6 +284,48 @@ export const RegistrationFormModal = ({
             )}
           </div>
         </div>
+
+        {/* 장비 프리뷰 + 모듈 설정 */}
+        {selectedTemplate && hasDeviceSvgAsset(selectedTemplate.modelName) && insertedCards.length > 0 && (
+          <div style={{
+            margin: "0 24px 16px",
+            padding: "16px",
+            borderRadius: "12px",
+            backgroundColor: "var(--bg-secondary)",
+            border: "1px solid var(--border-medium)",
+          }}>
+            <div style={{
+              display: "flex", alignItems: "center", justifyContent: "space-between",
+              marginBottom: "12px",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{
+                  fontSize: "13px", fontWeight: 700, color: "var(--text-primary)",
+                }}>장비 프리뷰</span>
+                {insertedModules.length > 0 && (
+                  <span style={{
+                    fontSize: "10px", fontWeight: 600, padding: "2px 8px",
+                    borderRadius: "8px", background: "rgba(0, 229, 255, 0.1)",
+                    color: "#00e5ff", border: "1px solid rgba(0, 229, 255, 0.3)",
+                  }}>모듈 {insertedModules.length}개</span>
+                )}
+              </div>
+              <span style={{ fontSize: "11px", color: "var(--text-tertiary)" }}>
+                포트를 클릭하여 모듈을 설정하세요
+              </span>
+            </div>
+            <div style={{ overflow: "hidden", borderRadius: "8px" }}>
+              <DeviceSvgPreview
+                modelName={selectedTemplate.modelName}
+                insertedCards={insertedCards}
+                insertedModules={insertedModules}
+                onModuleChange={setInsertedModules}
+                editable={true}
+                maxWidth="100%"
+              />
+            </div>
+          </div>
+        )}
 
         <div className="drm-form-actions">
           <button

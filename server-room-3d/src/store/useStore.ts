@@ -860,6 +860,7 @@ export const useStore = create<AppState>()(
                 modelName: updates.modelName ?? device.modelName,
                 size: updates.size ?? device.size,
                 insertedCards: updates.insertedCards !== undefined ? updates.insertedCards : device.insertedCards,
+                insertedModules: updates.insertedModules !== undefined ? updates.insertedModules : device.insertedModules,
                 dashboardThumbnailUrl: updates.dashboardThumbnailUrl !== undefined ? updates.dashboardThumbnailUrl : device.dashboardThumbnailUrl,
                 portStates: updates.generatedPorts 
                   ? updates.generatedPorts.map(gp => {
@@ -1466,6 +1467,7 @@ export const useStore = create<AppState>()(
       itemId: crypto.randomUUID(),
       portStates: deviceData.portStates || [],
       insertedCards: deviceData.insertedCards,
+      insertedModules: deviceData.insertedModules,
       dashboardThumbnailUrl: deviceData.dashboardThumbnailUrl,
     };
 

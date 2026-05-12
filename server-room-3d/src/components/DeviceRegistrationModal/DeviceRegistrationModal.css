@@ -17,7 +17,8 @@
   }
 }
 .drm-modal {
-  background: var(--modal-bg);
+  background: var(--bg-primary);
+  opacity: 1;
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-lg);
   box-shadow: var(--elevation-3);
@@ -28,6 +29,10 @@
   flex-direction: column;
   overflow: hidden;
   animation: drm-zoom-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="dark"] .drm-modal {
+  background: #040f21; /* Fully opaque dark background */
 }
 @keyframes drm-zoom-in {
   from {
@@ -98,7 +103,17 @@
   justify-content: space-between;
   padding: var(--spacing-md) var(--spacing-lg);
   background: var(--bg-tertiary);
-  border-bottom: 1px solid var(--border-weak);
+  border-bottom: 1px solid var(--border-medium);
+  position: relative;
+  z-index: 10;
+}
+
+[data-theme="dark"] .drm-header {
+  background: #0b1526; /* Opaque background for dark mode */
+}
+
+[data-theme="light"] .drm-header {
+  background: #f1f5f9; /* Opaque background for light mode */
 }
 .drm-header h2 {
   font-size: 20px;
@@ -157,10 +172,20 @@
 .drm-sidebar {
   width: 280px;
   background: var(--bg-secondary);
-  border-right: 1px solid var(--border-weak);
+  border-right: 1px solid var(--border-medium);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  position: relative;
+  z-index: 5;
+}
+
+[data-theme="dark"] .drm-sidebar {
+  background: #071022; /* Opaque background for dark mode */
+}
+
+[data-theme="light"] .drm-sidebar {
+  background: #f8fafc; /* Opaque background for light mode */
 }
 .drm-sidebar-header {
   padding: 16px;
@@ -295,9 +320,11 @@
   border: 1px solid var(--border-medium);
   border-radius: 20px;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
-  width: 640px; /* Width increased slightly for better grid breathing space */
+  width: 780px;
   max-width: 90vw;
-  padding: 40px; /* Increased padding */
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 40px;
   animation: drm-zoom-in 0.3s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
@@ -369,16 +396,24 @@
 
 /* Card-like Sections */
 .drm-section-card {
-  background: var(--glass-bg);
+  background: var(--bg-primary); /* Changed from glass-bg to opaque bg-primary */
   border: 1px solid var(--border-weak);
   border-radius: var(--radius-lg);
   padding: var(--spacing-md);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
+}
+
+[data-theme="dark"] .drm-section-card {
+  background: #040f21;
+}
+
+[data-theme="light"] .drm-section-card {
+  background: #ffffff;
 }
 
 /* ... existing form styles preserved for use in the new modal ... */

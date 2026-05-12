@@ -51,6 +51,7 @@ export interface Device {
   macAddr?: string;
   portStates: PortState[];
   insertedCards?: import("./equipment").InsertedCard[];
+  insertedModules?: import("./equipment").InsertedModule[];
   dashboardThumbnailUrl?: string;
 }
 
@@ -173,6 +174,7 @@ export interface RegisteredDevice {
 
   // 장비 조립(SVG 구성) 추가
   insertedCards?: import("./equipment").InsertedCard[];
+  insertedModules?: import("./equipment").InsertedModule[];
   generatedPorts?: import("./equipment").GeneratedPort[];
   dashboardThumbnailUrl?: string;
 }

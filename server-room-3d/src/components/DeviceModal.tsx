@@ -9,8 +9,9 @@ import {
   buildPortStatusMapFromPortStates,
   applyPortStatuses,
 } from '../utils/portUtils';
-import type { GeneratedPort } from '../types/equipment';
+import type { GeneratedPort, InsertedModule } from '../types/equipment';
 import { ERROR_COLORS } from '../utils/errorHelpers';
+import { moduleDefinitions, loadModuleSvgRaw } from '../utils/moduleAssets';
 
 // 외부 타입 임포트 에러 우회를 위해 내부 정의 사용
 export interface PortState {
@@ -34,6 +35,7 @@ export interface Device {
   modelName?: string;
   portStates: PortState[];
   insertedCards?: any[];
+  insertedModules?: InsertedModule[];
   dashboardThumbnailUrl?: string;
 }
 
@@ -65,14 +67,63 @@ const ensureKeyframe = (name: string, color: string) => {
 // 합성된 SVG HTML 모듈 레벨 캐시 (재열기 시 즉시 렌더링)
 const _composedHtmlCache = new Map<string, string>();
 
+/**
+ * SVG 요소(rect, path 등)에서 BBox(x, y, w, h)를 추출하거나 파싱하는 헬퍼
+ */
+function getElementBBox(el: Element): { x: number; y: number; w: number; h: number } {
+  const xAttr = el.getAttribute("x");
+  const yAttr = el.getAttribute("y");
+  const wAttr = el.getAttribute("width");
+  const hAttr = el.getAttribute("height");
+
+  if (xAttr && yAttr && wAttr && hAttr) {
+    return { 
+      x: parseFloat(xAttr), 
+      y: parseFloat(yAttr), 
+      w: parseFloat(wAttr), 
+      h: parseFloat(hAttr) 
+    };
+  }
+
+  const d = el.getAttribute("d");
+  if (d) {
+    const nums = d.match(/-?\d+(\.\d+)?/g)?.map(Number);
+    if (nums && nums.length >= 2) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (let i = 0; i < nums.length; i += 2) {
+        if (!isNaN(nums[i])) {
+          minX = Math.min(minX, nums[i]);
+          maxX = Math.max(maxX, nums[i]);
+        }
+        if (nums[i + 1] !== undefined && !isNaN(nums[i + 1])) {
+          minY = Math.min(minY, nums[i + 1]);
+          maxY = Math.max(maxY, nums[i + 1]);
+        }
+      }
+      if (minX !== Infinity) {
+        return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+      }
+    }
+  }
+
+  const cx = el.getAttribute("cx");
+  const cy = el.getAttribute("cy");
+  const r = el.getAttribute("r");
+  if (cx && cy && r) {
+    const rv = parseFloat(r);
+    return { x: parseFloat(cx) - rv, y: parseFloat(cy) - rv, w: rv * 2, h: rv * 2 };
+  }
+
+  return { x: 0, y: 0, w: 20, h: 20 };
+}
+
 const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: PortState[] }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const { modelName, insertedCards = [] } = device;
-  // Phase 2: JSON.stringify 대신 instanceId 조합으로 경량 캐시 키 생성
   const cardsKey = insertedCards.map(c => c.instanceId).join(',');
-  const _cacheKey = `${modelName}::${cardsKey}`;
+  const modulesKey = (device.insertedModules || []).map(m => `${m.portId}:${m.moduleType}`).join(',');
+  const _cacheKey = `${modelName}::${cardsKey}::${modulesKey}`;
 
-  // 캐시에서 동기 초기화 → 재열기 시 첫 렌더에서 즉시 표시
   const [composedHtml, setComposedHtml] = useState<string>(() =>
     _composedHtmlCache.get(_cacheKey) || ""
   );
@@ -124,52 +175,88 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
     return applyPortStatuses(ports, statusMap);
   }, [isModularDevice, insertedCards, cardSvgMap, portStates]);
 
+  // 모듈 SVG raw text 캐시
+  const [moduleSvgMap, setModuleSvgMap] = useState<Map<string, string>>(new Map());
+
+  // 모듈 SVG 로드
+  useEffect(() => {
+    const modules = device.insertedModules || [];
+    if (modules.length === 0) return;
+
+    let isMounted = true;
+    const uniqueFileNames = [...new Set(modules.map(m => m.moduleSvgFileName))];
+    
+    Promise.all(
+      uniqueFileNames.map(async (fn) => {
+        const raw = await loadModuleSvgRaw(fn);
+        return [fn, raw] as const;
+      })
+    ).then((results) => {
+      if (!isMounted) return;
+      const map = new Map<string, string>();
+      for (const [fn, raw] of results) { if (raw) map.set(fn, raw); }
+      setModuleSvgMap(map);
+    });
+    return () => { isMounted = false; };
+  }, [device.insertedModules]);
+
   // realPortNumber 기반 포트 맵 (모듈러)
   const generatedPortMap = useMemo(() =>
     new Map(generatedPorts.map(p => [p.realPortNumber, p])),
     [generatedPorts]
   );
 
-  // 1단계: SVG 합성 (캐시 히트 시 스킵)
+  // 1단계: SVG 합성
   useEffect(() => {
-    if (_composedHtmlCache.has(_cacheKey)) return; // 이미 캐시에서 초기화됨
+    // 모듈 키를 캐시키에 포함했으므로, 모듈 변경 시에도 캐시 미스가 발생하여 재합성됨
+    if (_composedHtmlCache.has(_cacheKey)) {
+      if (composedHtml !== _composedHtmlCache.get(_cacheKey)) {
+        setComposedHtml(_composedHtmlCache.get(_cacheKey)!);
+      }
+      return;
+    }
     let isMounted = true;
     const compose = async () => {
+      if (isModularDevice && cardSvgMap.size === 0) return;
       try {
-        const baseSvg = await resolveDeviceSvgContent(modelName);
+        const targetModelName = isModularDevice && equipModel?.baseSvgUrl
+          ? equipModel.baseSvgUrl.replace(/\.svg$/i, "").replace(/^\[\d+U\]\s*/, "")
+          : modelName;
+        
+        const baseSvg = await resolveDeviceSvgContent(targetModelName);
         if (!isMounted || !baseSvg) return;
-
-        if (!equipModel || !insertedCards || insertedCards.length === 0) {
-          setComposedHtml(baseSvg);
-          return;
-        }
-
-        // 모듈러 장비: 카드 SVG 미로드 시 base만 표시 (waterfall 방지)
-        if (isModularDevice && cardSvgMap.size === 0) {
-          setComposedHtml(baseSvg);
-          return;
-        }
 
         const parser = new DOMParser();
         const baseDoc = parser.parseFromString(baseSvg, "image/svg+xml");
         const baseSvgEl = baseDoc.querySelector("svg");
         if (!baseSvgEl) { setComposedHtml(baseSvg); return; }
 
-        // cardSvgMap에서 동기적으로 조회 (중복 비동기 로드 제거)
+        if (!baseSvgEl.getAttribute('viewBox')) {
+          const w = baseSvgEl.getAttribute('width') || '984';
+          const h = baseSvgEl.getAttribute('height') || '200';
+          baseSvgEl.setAttribute('viewBox', `0 0 ${parseInt(w, 10)} ${parseInt(h, 10)}`);
+        }
+        baseSvgEl.setAttribute("width", "100%");
+        baseSvgEl.setAttribute("height", "auto");
+        baseSvgEl.style.maxWidth = "880px";
+        baseSvgEl.style.display = "block";
+
+        // 카드 합성
         const cardResults = insertedCards.map((card) => ({
           card,
           raw: cardSvgMap.get(card.cardFileName),
         }));
 
+        const insertedModules = device.insertedModules || [];
+
         for (const { card, raw } of cardResults) {
-          if (!raw) continue;
+          if (!raw || !equipModel) continue;
           const cardDoc = parser.parseFromString(raw, "image/svg+xml");
           const cardSvgEl = cardDoc.querySelector("svg");
           if (!cardSvgEl) continue;
 
           let x: number, y: number, cardW: number, cardH: number;
 
-          // slots 모델: slotId로 좌표 결정
           if (equipModel.slots && card.slotId) {
             const slotDef = equipModel.slots.find(s => s.slotId === card.slotId);
             if (!slotDef || !equipModel.cardArea) continue;
@@ -178,7 +265,6 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
             cardW = slotDef.width;
             cardH = slotDef.height;
           } else if (equipModel.rows && card.rowId && card.slotId) {
-            // row-based 모델: rowId와 slotId로 결정
             const rowDef = equipModel.rows.find(r => r.rowId === card.rowId);
             if (!rowDef) continue;
             const subDef = rowDef.subSlots.find(s => s.slotId === card.slotId);
@@ -188,7 +274,6 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
             cardW = subDef.width;
             cardH = subDef.height;
           } else if (equipModel.cardArea) {
-            // uniform grid 모델
             const row = Math.floor(card.positionIndex / equipModel.cardArea.columns);
             const col = card.positionIndex % equipModel.cardArea.columns;
             x = equipModel.cardArea.x + col * equipModel.cardArea.columnWidth;
@@ -196,7 +281,7 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
             cardW = card.widthType === "full" ? equipModel.cardArea.columnWidth * 2 : equipModel.cardArea.columnWidth;
             cardH = CARD_ROW_HEIGHT;
           } else {
-            continue; // fallback
+            continue;
           }
 
           const vb = cardSvgEl.getAttribute("viewBox");
@@ -204,31 +289,59 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
           const origW = parts[2] || 100;
           const origH = parts[3] || 20;
 
-          // SVG id 충돌 방지: 카드 내부 id를 instanceId 기반으로 프리픽싱
           const instancePrefix = card.instanceId || `card-${card.positionIndex}`;
           prefixSvgIds(cardSvgEl, instancePrefix);
 
-          // port-hitbox 요소에 data-port-number (realPortNumber) 주입
+          const cardGroup = baseDoc.createElementNS("http://www.w3.org/2000/svg", "g");
+          const scaleX = cardW / origW;
+          const scaleY = cardH / origH;
+          cardGroup.setAttribute("transform", `translate(${x}, ${y}) scale(${scaleX}, ${scaleY})`);
+          cardGroup.setAttribute("data-card-instance", instancePrefix);
+
+          // 포트 히트박스 처리 및 해당 위치에 모듈 삽입
           const hitboxes = cardSvgEl.querySelectorAll(".port-hitbox");
           hitboxes.forEach((hb) => {
             const localPort = hb.getAttribute("data-local-port");
-            if (localPort) {
-              const realPortNumber = `${card.shelfNo}/${card.slotNo}/${localPort}`;
-              hb.setAttribute("data-port-number", realPortNumber);
-              hb.setAttribute("data-card-instance", instancePrefix);
+            if (!localPort) return;
+            const realPortNumber = `${card.shelfNo}/${card.slotNo}/${localPort}`;
+            hb.setAttribute("data-port-number", realPortNumber);
+            hb.setAttribute("data-card-instance", instancePrefix);
+
+            // 해당 포트에 모듈이 있는지 확인
+            const module = insertedModules.find(m => m.portId === realPortNumber);
+            if (module) {
+              const moduleDef = moduleDefinitions.find(m => m.svgFileName === module.moduleSvgFileName);
+              if (moduleDef) {
+                const bbox = getElementBBox(hb);
+                
+                // 내부 여백 상쇄를 위해 영역을 약간 더 크게 설정 (1.2배 확대)
+                const scaleFactor = 1.2;
+                const finalW = bbox.w * scaleFactor;
+                const finalH = bbox.h * scaleFactor;
+                const finalX = bbox.x - (finalW - bbox.w) / 2;
+                const finalY = bbox.y - (finalH - bbox.h) / 2;
+
+                // <image> 태그 생성
+                const img = baseDoc.createElementNS("http://www.w3.org/2000/svg", "image");
+                img.setAttribute("href", moduleDef.svgUrl);
+                img.setAttribute("x", finalX.toString());
+                img.setAttribute("y", finalY.toString());
+                img.setAttribute("width", finalW.toString());
+                img.setAttribute("height", finalH.toString());
+                img.setAttribute("preserveAspectRatio", "none"); 
+                img.setAttribute("class", "inserted-module");
+                img.style.pointerEvents = "none";
+                
+                // 포트 히트박스 바로 다음에 삽입
+                hb.parentNode?.insertBefore(img, hb.nextSibling);
+              }
             }
           });
 
-          const g = baseDoc.createElementNS("http://www.w3.org/2000/svg", "g");
-          const scaleX = cardW / origW;
-          const scaleY = cardH / origH;
-          g.setAttribute("transform", `translate(${x}, ${y}) scale(${scaleX}, ${scaleY})`);
-          g.setAttribute("data-card-instance", instancePrefix);
-
           while (cardSvgEl.firstChild) {
-            g.appendChild(cardSvgEl.firstChild);
+            cardGroup.appendChild(cardSvgEl.firstChild);
           }
-          baseSvgEl.appendChild(g);
+          baseSvgEl.appendChild(cardGroup);
         }
 
         const finalHtml = new XMLSerializer().serializeToString(baseDoc);
@@ -240,7 +353,8 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
     };
     compose();
     return () => { isMounted = false; };
-  }, [modelName, cardsKey, equipModel, isModularDevice, cardSvgMap, _cacheKey]);
+  }, [modelName, cardsKey, equipModel, isModularDevice, cardSvgMap, moduleSvgMap, device.insertedModules, _cacheKey]);
+
 
   const portStateMap = useMemo(() => new Map(portStates.map(p => [p.portId, p])), [portStates]);
 
@@ -250,37 +364,31 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
     const container = containerRef.current;
     if (!container || !composedHtml) return;
 
-    // 스타일 조정: 최초 1회만 실행 (해시 비교)
-    const currentHash = _cacheKey + '::' + composedHtml.length;
-    if (container.dataset.renderedHash !== currentHash) {
-      container.dataset.renderedHash = currentHash;
-      
-      const svgEl = container.querySelector("svg");
-      if (svgEl) {
-        // viewBox가 없는 SVG에 대해 viewBox 강제 주입
-        if (!svgEl.getAttribute('viewBox')) {
-          const w = svgEl.getAttribute('width') || '984';
-          const h = svgEl.getAttribute('height') || '200';
-          svgEl.setAttribute('viewBox', `0 0 ${parseInt(w, 10)} ${parseInt(h, 10)}`);
-        }
-
-        // 컨테이너 초기화 (transform scale 제거)
-        container.style.transform = "none";
-        
-        if (container.parentElement) {
-          // 강제로 설정했던 height 및 overflow 초기화 (Flexbox에 맡김)
-          container.parentElement.style.height = "auto";
-          container.parentElement.style.overflow = "visible";
-        }
-
-        // SVG 자체를 CSS로 자연스럽게 스케일링
-        svgEl.style.width = "100%";
-        svgEl.style.height = "auto";
-        svgEl.style.maxWidth = "880px";
-        svgEl.style.display = "block";
+    const svgEl = container.querySelector("svg");
+    if (svgEl) {
+      // viewBox가 없는 SVG에 대해 viewBox 강제 주입
+      if (!svgEl.getAttribute('viewBox')) {
+        const w = svgEl.getAttribute('width') || '984';
+        const h = svgEl.getAttribute('height') || '200';
+        svgEl.setAttribute('viewBox', `0 0 ${parseInt(w, 10)} ${parseInt(h, 10)}`);
       }
-      container.querySelectorAll("title").forEach(t => t.textContent = "");
+
+      // 컨테이너 초기화 (transform scale 제거)
+      container.style.transform = "none";
+      
+      if (container.parentElement) {
+        // 강제로 설정했던 height 및 overflow 초기화 (Flexbox에 맡김)
+        container.parentElement.style.height = "auto";
+        container.parentElement.style.overflow = "visible";
+      }
+
+      // SVG 자체를 CSS로 자연스럽게 스케일링
+      svgEl.style.width = "100%";
+      svgEl.style.height = "auto";
+      svgEl.style.maxWidth = "880px";
+      svgEl.style.display = "block";
     }
+    container.querySelectorAll("title").forEach(t => t.textContent = "");
 
     // 포트 요소 수집 (모듈러 + 기존 방식 모두)
     const allPortEls = Array.from(container.querySelectorAll("[id^='port-'], [id^='p'], .port-hitbox")).filter(el => {
@@ -451,29 +559,37 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
     };
     const handleMouseOut = () => resetHover();
 
-    // 포트 클릭 이벤트
+    // 포트 클릭 이벤트 → 모듈 삽입 팝오버 표시
     const handleClick = (e: MouseEvent) => {
       let target = e.target as unknown as SVGElement;
+      const isPort = (id: string) => (id.startsWith("port-") && id !== "ports-layer") || /^p\d+$/.test(id);
       let portEl: SVGElement | null = null;
       if (target.classList.contains("port-hitbox")) portEl = target;
       else if (target.parentElement?.classList.contains("port-hitbox")) portEl = target.parentElement as unknown as SVGElement;
+      else if (target.id && isPort(target.id)) portEl = target;
+      else if (target.parentElement?.id && isPort(target.parentElement.id)) portEl = target.parentElement as unknown as SVGElement;
       if (!portEl) return;
 
       const realPortNumber = portEl.getAttribute("data-port-number");
       const localPort = portEl.getAttribute("data-local-port");
       const portType = portEl.getAttribute("data-port-type");
-      const cardInstance = portEl.getAttribute("data-card-instance");
 
-      if (realPortNumber && isModularDevice) {
-        const gp = generatedPortMap.get(realPortNumber);
-        console.info("[DeviceModal] Port clicked:", {
-          realPortNumber,
-          localPort: gp?.localPort || localPort,
-          cardInstanceId: gp?.cardInstanceId || cardInstance,
-          portType: gp?.portType || portType,
-          status: gp?.status || "normal",
-        });
-      }
+      // 포트 식별자 결정
+      const portId = realPortNumber || portEl.id || localPort || "";
+      if (!portId) return;
+
+      // 포트 위치 계산 (SVG 컨테이너 기준)
+      const rect = portEl.getBoundingClientRect();
+      const popoverEvent = new CustomEvent("port-module-popover", {
+        bubbles: true, // 이벤트가 상위로 전달되도록 설정
+        detail: {
+          portId,
+          portType: portType || "port",
+          x: rect.left + rect.width / 2,
+          y: rect.top,
+        },
+      });
+      container.dispatchEvent(popoverEvent);
     };
 
     container.addEventListener("mouseover", handleMouseOver);
@@ -518,14 +634,12 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
 
   // 초기 렌더에서 캐시된 HTML을 dangerouslySetInnerHTML로 즉시 표시
   // → 리마운트 시에도 useEffect 실행 전에 SVG가 바로 보임
-  return <div ref={containerRef} style={{ position: "relative" }} dangerouslySetInnerHTML={composedHtml ? { __html: composedHtml } : undefined} />;
+  return <div ref={containerRef} style={{ position: "relative", width: "100%", minWidth: 0 }} dangerouslySetInnerHTML={composedHtml ? { __html: composedHtml } : undefined} />;
 }, (prevProps, nextProps) => {
-  // Custom areEqual: 핵심 필드만 비교하여 불필요한 리렌더 방지
   if (prevProps.device === nextProps.device && prevProps.portStates === nextProps.portStates) return true;
   const pd = prevProps.device;
   const nd = nextProps.device;
   if (pd.itemId !== nd.itemId || pd.modelName !== nd.modelName) return false;
-  // Phase 2: insertedCards 배열 길이 + 경계값 instanceId 비교 (O(1))
   if (pd.insertedCards?.length !== nd.insertedCards?.length) return false;
   if (pd.insertedCards?.length) {
     if (pd.insertedCards[0]?.instanceId !== nd.insertedCards![0]?.instanceId) return false;
@@ -533,8 +647,15 @@ const SvgPortView = memo(({ device, portStates }: { device: Device; portStates: 
     const nLast = nd.insertedCards![nd.insertedCards!.length - 1];
     if (pLast?.instanceId !== nLast?.instanceId) return false;
   }
+  // insertedModules 비교
+  if ((pd.insertedModules?.length ?? 0) !== (nd.insertedModules?.length ?? 0)) return false;
+  if (pd.insertedModules?.length) {
+    for (let i = 0; i < pd.insertedModules.length; i++) {
+      if (pd.insertedModules[i].portId !== nd.insertedModules![i]?.portId ||
+          pd.insertedModules[i].moduleType !== nd.insertedModules![i]?.moduleType) return false;
+    }
+  }
   if (pd.dashboardThumbnailUrl !== nd.dashboardThumbnailUrl) return false;
-  // portStates: 에러 상태만 비교 (길이 + 에러포트 내용)
   const prevErr = prevProps.portStates.filter(p => p.status === 'error');
   const nextErr = nextProps.portStates.filter(p => p.status === 'error');
   if (prevErr.length !== nextErr.length) return false;
@@ -611,6 +732,8 @@ export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: 
     return { rawDevice: null, rackName: "" };
   }, [deviceId])));
 
+  const updateRegisteredDevice = useStore((s) => s.updateRegisteredDevice);
+
   // Phase 1: device 참조 안정화 — 실제 데이터가 변하지 않으면 이전 참조 재사용
   const prevDeviceRef = useRef<{ device: Device | null; key: string }>({ device: null, key: "" });
   const device = useMemo(() => {
@@ -620,7 +743,7 @@ export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: 
     }
     // 핵심 필드만 비교하여 불필요한 SvgPortView 리렌더 방지
     // Phase 2: JSON.stringify 대신 경량 필드 조합으로 키 생성
-    const newKey = `${rawDevice.itemId}::${rawDevice.modelName}::${rawDevice.insertedCards?.length ?? 0}::${rawDevice.insertedCards?.[0]?.instanceId ?? ""}::${rawDevice.portStates.length}::${rawDevice.portStates.filter(p => p.status === 'error').length}::${rawDevice.dashboardThumbnailUrl?.length ?? 0}`;
+    const newKey = `${rawDevice.itemId}::${rawDevice.modelName}::${rawDevice.insertedCards?.length ?? 0}::${rawDevice.insertedCards?.[0]?.instanceId ?? ""}::${rawDevice.portStates.length}::${rawDevice.portStates.filter(p => p.status === 'error').length}::${rawDevice.dashboardThumbnailUrl?.length ?? 0}::${rawDevice.insertedModules?.length ?? 0}`;
     if (prevDeviceRef.current.key === newKey && prevDeviceRef.current.device) {
       return prevDeviceRef.current.device;
     }
@@ -631,7 +754,112 @@ export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: 
 
   const devicePortStates = useMemo(() => device?.portStates || [], [device]);
 
-  if (!device) return null;
+  // 모듈 팝오버 상태
+  const [modulePopover, setModulePopover] = useState<{
+    portId: string;
+    portType: string;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  // 삽입된 모듈 상태 (로컬 → store 동기화)
+  const [localModules, setLocalModules] = useState<InsertedModule[]>([]);
+
+  // 초기화: device의 insertedModules를 로컬 상태로 복사
+  useEffect(() => {
+    if (device?.insertedModules) {
+      setLocalModules(device.insertedModules);
+    } else {
+      setLocalModules([]);
+    }
+  }, [device?.itemId]);
+
+  // device + localModules 합성: localModules 변경 시 즉시 SvgPortView에 반영
+  const deviceWithModules = useMemo(() => {
+    if (!device) return null;
+    return { ...device, insertedModules: localModules };
+  }, [device, localModules]);
+
+  // SVG 컨테이너에서 port-module-popover 이벤트 수신
+  const svgContainerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const container = svgContainerRef.current;
+    if (!container) return;
+
+    const handlePopover = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      setModulePopover(detail);
+    };
+
+    // SvgPortView의 containerRef가 이 div 안에 있으므로 이벤트 버블링으로 받음
+    container.addEventListener("port-module-popover", handlePopover);
+    return () => container.removeEventListener("port-module-popover", handlePopover);
+  }, []);
+
+  // 팝오버 외부 클릭 시 닫기
+  useEffect(() => {
+    if (!modulePopover) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest(".module-popover")) return;
+      setModulePopover(null);
+    };
+    // 약간의 딜레이를 주어 클릭 이벤트가 전파된 후에 리스너 등록
+    const timer = setTimeout(() => {
+      window.addEventListener("click", handleClickOutside, { capture: true });
+    }, 50);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("click", handleClickOutside, { capture: true });
+    };
+  }, [modulePopover]);
+
+  // 모듈 삽입
+  const handleInsertModule = useCallback((portId: string, moduleType: InsertedModule["moduleType"]) => {
+    const moduleDef = moduleDefinitions.find(m => m.moduleType === moduleType);
+    if (!moduleDef) return;
+
+    const newModule: InsertedModule = {
+      portId,
+      moduleType,
+      moduleSvgFileName: moduleDef.svgFileName,
+    };
+
+    setLocalModules(prev => {
+      const filtered = prev.filter(m => m.portId !== portId);
+      return [...filtered, newModule];
+    });
+    setModulePopover(null);
+
+    // Store에 저장
+    if (device?.deviceId) {
+      const currentModules = device.insertedModules || [];
+      const updated = [...currentModules.filter(m => m.portId !== portId), newModule];
+      updateRegisteredDevice(device.deviceId, { insertedModules: updated });
+    }
+  }, [device, updateRegisteredDevice]);
+
+  // 모듈 제거
+  const handleRemoveModule = useCallback((portId: string) => {
+    setLocalModules(prev => prev.filter(m => m.portId !== portId));
+    setModulePopover(null);
+
+    // Store에서 제거
+    if (device?.deviceId) {
+      const currentModules = device.insertedModules || [];
+      const updated = currentModules.filter(m => m.portId !== portId);
+      updateRegisteredDevice(device.deviceId, { insertedModules: updated });
+    }
+  }, [device, updateRegisteredDevice]);
+
+  // 해당 포트에 삽입된 모듈 조회
+  const getModuleForPort = useCallback((portId: string) => {
+    return localModules.find(m => m.portId === portId);
+  }, [localModules]);
+
+  if (!device || !deviceWithModules) return null;
+
+  const existingModule = modulePopover ? getModuleForPort(modulePopover.portId) : null;
 
   return createPortal(
     <div className="modal-overlay" onClick={onClose} style={{
@@ -663,24 +891,43 @@ export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: 
                 {device.type || "Router"}
               </span>
               <span style={{ color: "var(--text-secondary)", fontSize: "14px" }}>Rack: {rackName || device.rackId || "Unknown"}</span>
+              {localModules.length > 0 && (
+                <span style={{
+                  backgroundColor: "rgba(0, 229, 255, 0.1)",
+                  color: "#00e5ff",
+                  border: "1px solid rgba(0, 229, 255, 0.3)",
+                  padding: "2px 10px",
+                  borderRadius: "12px",
+                  fontSize: "11px",
+                  fontWeight: "600",
+                }}>
+                  모듈 {localModules.length}개
+                </span>
+              )}
             </div>
           </div>
           <div style={{ margin: "0 -24px", borderBottom: "1px solid var(--border-medium)" }} />
         </div>
 
-        <div style={{ padding: "20px 24px 24px 24px", overflowY: "auto", flex: 1 }}>
+        <div style={{ padding: "20px 24px 24px 24px", overflowY: "auto", flex: 1, minWidth: 0 }}>
           <div style={{ 
             backgroundColor: "var(--bg-secondary)", 
             borderRadius: "var(--radius-md)", 
             border: "1px solid var(--border-medium)",
             padding: "16px",
-            overflow: "hidden", 
+            overflow: "visible", 
             minHeight: "auto", 
             display: "flex", 
             alignItems: "flex-start", 
-            justifyContent: "center" 
+            justifyContent: "center",
+            width: "100%",
+            maxWidth: "100%",
+            boxSizing: "border-box",
+            minWidth: 0
           }}>
-            <SvgPortView device={device} portStates={devicePortStates} />
+            <div ref={svgContainerRef} style={{ width: "100%", maxWidth: "880px", display: "flex", justifyContent: "center", minWidth: 0 }}>
+              <SvgPortView device={deviceWithModules} portStates={devicePortStates} />
+            </div>
           </div>
         
         {/* Active Faults */}
@@ -761,7 +1008,130 @@ export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: 
           backdropFilter: "blur(8px)",
         }} />
       </div>
+
+      {/* 모듈 선택 팝오버 */}
+      {modulePopover && (
+        <div
+          className="module-popover"
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "fixed",
+            left: modulePopover.x,
+            top: modulePopover.y - 8,
+            transform: "translate(-50%, -100%)",
+            backgroundColor: "rgba(10, 20, 40, 0.95)",
+            border: "1px solid rgba(0, 229, 255, 0.4)",
+            borderRadius: "12px",
+            padding: "12px",
+            zIndex: 10002,
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+            minWidth: "180px",
+            boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5), 0 0 16px rgba(0, 229, 255, 0.15)",
+            backdropFilter: "blur(12px)",
+            animation: "eam-fi .15s ease-out",
+          }}
+        >
+          <div style={{
+            fontSize: "11px",
+            fontWeight: "700",
+            color: "#80deea",
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+            marginBottom: "2px",
+          }}>
+            {modulePopover.portType.toUpperCase()} — 모듈 선택
+          </div>
+
+          {existingModule && (
+            <div style={{
+              fontSize: "11px",
+              color: "#a5d6a7",
+              padding: "4px 8px",
+              borderRadius: "6px",
+              backgroundColor: "rgba(76, 175, 80, 0.12)",
+              border: "1px solid rgba(76, 175, 80, 0.25)",
+              marginBottom: "2px",
+            }}>
+              현재: {existingModule.moduleType === "ethernet" ? "Ethernet" : "SFP"}
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: "6px" }}>
+            {moduleDefinitions.map((md) => (
+              <button
+                key={md.moduleType}
+                onClick={() => handleInsertModule(modulePopover.portId, md.moduleType)}
+                style={{
+                  flex: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "8px 6px",
+                  borderRadius: "8px",
+                  border: existingModule?.moduleType === md.moduleType
+                    ? "1px solid #00e5ff"
+                    : "1px solid rgba(255,255,255,0.1)",
+                  background: existingModule?.moduleType === md.moduleType
+                    ? "rgba(0, 229, 255, 0.1)"
+                    : "rgba(255,255,255,0.04)",
+                  cursor: "pointer",
+                  color: "#e0f7fa",
+                  fontSize: "11px",
+                  fontWeight: "600",
+                  transition: "all 0.15s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "rgba(0, 229, 255, 0.12)";
+                  e.currentTarget.style.borderColor = "rgba(0, 229, 255, 0.5)";
+                }}
+                onMouseLeave={(e) => {
+                  if (existingModule?.moduleType !== md.moduleType) {
+                    e.currentTarget.style.background = "rgba(255,255,255,0.04)";
+                    e.currentTarget.style.borderColor = "rgba(255,255,255,0.1)";
+                  }
+                }}
+              >
+                <img
+                  src={md.svgUrl}
+                  alt={md.displayName}
+                  style={{ width: 28, height: 22, objectFit: "contain" }}
+                />
+                {md.displayName}
+              </button>
+            ))}
+          </div>
+
+          {existingModule && (
+            <button
+              onClick={() => handleRemoveModule(modulePopover.portId)}
+              style={{
+                padding: "6px 12px",
+                borderRadius: "6px",
+                border: "1px solid rgba(239, 68, 68, 0.4)",
+                background: "rgba(239, 68, 68, 0.08)",
+                color: "#ef4444",
+                cursor: "pointer",
+                fontSize: "11px",
+                fontWeight: "600",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "rgba(239, 68, 68, 0.2)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "rgba(239, 68, 68, 0.08)";
+              }}
+            >
+              모듈 제거
+            </button>
+          )}
+        </div>
+      )}
     </div>,
     document.body
   );
 };
+

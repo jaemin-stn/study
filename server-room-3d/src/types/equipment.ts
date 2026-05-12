@@ -155,6 +155,7 @@ export interface InsertedModule {
   moduleType: ModuleType;
   /** 모듈 SVG 파일명 (e.g. "Ethernet.svg") */
   moduleSvgFileName: string;
+  hitboxId?: string;
 }
 
 /** 모듈 정의 (라이브러리 표시용) */

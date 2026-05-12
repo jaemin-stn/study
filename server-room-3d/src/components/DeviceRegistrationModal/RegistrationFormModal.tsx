@@ -286,7 +286,7 @@ export const RegistrationFormModal = ({
         </div>
 
         {/* 장비 프리뷰 + 모듈 설정 */}
-        {selectedTemplate && hasDeviceSvgAsset(selectedTemplate.modelName) && insertedCards.length > 0 && (
+        {selectedTemplate && hasDeviceSvgAsset(selectedTemplate.modelName) && (
           <div style={{
             margin: "0 24px 16px",
             padding: "16px",

@@ -7,9 +7,8 @@
 import { useEffect, useState, useMemo, useRef, useCallback, memo } from 'react';
 import { equipmentModels, loadCardSvgRaw, loadCardSvgRawSync } from '../utils/cardAssets';
 import { resolveDeviceSvgContent } from '../utils/deviceAssets';
-import { generatePortMap } from '../utils/portUtils';
-import type { GeneratedPort, InsertedCard, InsertedModule } from '../types/equipment';
-import { moduleDefinitions, loadModuleSvgRaw } from '../utils/moduleAssets';
+import type { InsertedCard, InsertedModule } from '../types/equipment';
+import { moduleDefinitions } from '../utils/moduleAssets';
 
 const CARD_ROW_HEIGHT = 46;
 
@@ -95,7 +94,13 @@ export const DeviceSvgPreview = memo(({
 }: DeviceSvgPreviewProps) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const cardsKey = insertedCards.map(c => c.instanceId).join(',');
-  const modulesKey = insertedModules.map(m => `${m.portId}:${m.moduleType}`).join(',');
+  const modulesKey = useMemo(() => 
+    insertedModules
+      .map(m => `${m.portId}:${m.moduleType}:${m.hitboxId || ""}`)
+      .sort()
+      .join(","),
+    [insertedModules]
+  );
   const cacheKey = `${modelName}::${cardsKey}::${modulesKey}`;
 
   const [composedHtml, setComposedHtml] = useState<string>(() => _previewCache.get(cacheKey) || "");
@@ -195,37 +200,106 @@ export const DeviceSvgPreview = memo(({
           cardGroup.setAttribute("transform", `translate(${x}, ${y}) scale(${cardW / origW}, ${cardH / origH})`);
           cardGroup.setAttribute("data-card-instance", instancePrefix);
 
-          // 포트 히트박스 + 모듈
+          // 포트 히트박스 속성 처리
           cardSvgEl.querySelectorAll(".port-hitbox").forEach(hb => {
             const localPort = hb.getAttribute("data-local-port");
             if (!localPort) return;
-            const realPortNumber = `${card.shelfNo}/${card.slotNo}/${localPort}`;
+
+            // 사용자의 제안대로 type + port 조합으로 고유 식별자 생성
+            const portType = hb.getAttribute("data-port-type") || hb.getAttribute("data-porttype") || "";
+            const uniquePortKey = portType ? `${portType}-${localPort}` : localPort;
+
+            const realPortNumber = `${card.shelfNo}/${card.slotNo}/${uniquePortKey}`;
             hb.setAttribute("data-port-number", realPortNumber);
             hb.setAttribute("data-card-instance", instancePrefix);
-
-            const mod = insertedModules.find(m => m.portId === realPortNumber);
-            if (mod) {
-              const moduleDef = moduleDefinitions.find(m => m.svgFileName === mod.moduleSvgFileName);
-              if (moduleDef) {
-                const bbox = getElementBBox(hb);
-                const sf = 1.2;
-                const fw = bbox.w * sf, fh = bbox.h * sf;
-                const fx = bbox.x - (fw - bbox.w) / 2, fy = bbox.y - (fh - bbox.h) / 2;
-                const img = baseDoc.createElementNS("http://www.w3.org/2000/svg", "image");
-                img.setAttribute("href", moduleDef.svgUrl);
-                img.setAttribute("x", fx.toString()); img.setAttribute("y", fy.toString());
-                img.setAttribute("width", fw.toString()); img.setAttribute("height", fh.toString());
-                img.setAttribute("preserveAspectRatio", "none");
-                img.setAttribute("class", "inserted-module");
-                img.style.pointerEvents = "none";
-                hb.parentNode?.insertBefore(img, hb.nextSibling);
-              }
-            }
           });
 
           while (cardSvgEl.firstChild) cardGroup.appendChild(cardSvgEl.firstChild);
           baseSvgEl.appendChild(cardGroup);
         }
+
+        // 전체 포트에 대해 모듈 합성
+        const allPortEls = Array.from(baseSvgEl.querySelectorAll("[id*='port-'], [id^='p'], .port-hitbox")).filter(el => {
+          const id = el.id;
+          if (el.classList.contains("port-hitbox")) return true;
+          if (!id || id === "ports-layer" || id === "port-layer") return false;
+          return id.includes("port-") || /^p\d+$/.test(id);
+        }) as SVGElement[];
+
+        const hitboxesByPortId = new Map<string, SVGElement[]>();
+        allPortEls.forEach(hb => {
+          // 모든 포트 엘리먼트에 기본적으로 pointer-events="all" 부여 (상호작용 보장)
+          hb.setAttribute("pointer-events", "all");
+          hb.style.pointerEvents = "all";
+
+          const portId = hb.getAttribute("data-port-number") || hb.id || hb.getAttribute("data-local-port");
+          if (!portId) return;
+          if (!hitboxesByPortId.has(portId)) hitboxesByPortId.set(portId, []);
+          hitboxesByPortId.get(portId)!.push(hb);
+        });
+
+        // 삽입된 모든 모듈 렌더링
+        insertedModules.forEach((mod) => {
+          const hbs = hitboxesByPortId.get(mod.portId);
+          if (!hbs || hbs.length === 0) return;
+
+          const moduleDef = moduleDefinitions.find(m => m.svgFileName === mod.moduleSvgFileName);
+          if (moduleDef) {
+            const modType = mod.moduleType.toLowerCase();
+            let targetHb = hbs[0];
+            
+            if (hbs.length > 1) {
+              // 1순위: 클릭했던 정확한 hitboxId 우선 매칭
+              if (mod.hitboxId) {
+                const exactHb = hbs.find(hb => hb.id === mod.hitboxId);
+                if (exactHb) {
+                  targetHb = exactHb;
+                } else {
+                  // hitboxId 매칭 실패 시 fallback (모듈 타입 기반)
+                  const exactMatch = hbs.find(hb => {
+                    const hbType = (hb.getAttribute("data-port-name") || hb.getAttribute("data-port-type") || "").toLowerCase();
+                    if (modType === "sfp" && (hbType === "sfp" || hbType === "qsfp" || hbType === "qsfp28")) return true;
+                    if (modType === "ethernet" && (hbType === "port" || hbType === "ethernet")) return true;
+                    return false;
+                  });
+                  if (exactMatch) targetHb = exactMatch;
+                }
+              } else {
+                // 이전 방식 fallback (명시적 hitboxId가 없을 때)
+                const exactMatch = hbs.find(hb => {
+                  const hbType = (hb.getAttribute("data-port-name") || hb.getAttribute("data-port-type") || "").toLowerCase();
+                  if (modType === "sfp" && (hbType === "sfp" || hbType === "qsfp" || hbType === "qsfp28")) return true;
+                  if (modType === "ethernet" && (hbType === "port" || hbType === "ethernet")) return true;
+                  return false;
+                });
+                if (exactMatch) targetHb = exactMatch;
+              }
+            }
+
+            const bbox = getElementBBox(targetHb);
+            const sf = 1.2;
+            const fw = bbox.w * sf, fh = bbox.h * sf;
+            const fx = bbox.x - (fw - bbox.w) / 2, fy = bbox.y - (fh - bbox.h) / 2;
+            
+            const img = baseDoc.createElementNS("http://www.w3.org/2000/svg", "image");
+            img.setAttribute("href", moduleDef.svgUrl);
+            img.setAttribute("x", fx.toString()); img.setAttribute("y", fy.toString());
+            img.setAttribute("width", fw.toString()); img.setAttribute("height", fh.toString());
+            img.setAttribute("preserveAspectRatio", "none");
+            img.setAttribute("class", "inserted-module");
+            // 스타일과 속성 모두에 pointer-events: none 설정하여 이벤트를 절대 방해하지 않게 함
+            img.setAttribute("pointer-events", "none");
+            img.style.pointerEvents = "none";
+            
+            // 이미지 삽입 후, 히트박스를 이미지 뒤(DOM 순서상 나중)로 다시 옮겨서 렌더링상 최상단 보장
+            const parent = targetHb.parentNode;
+            if (parent) {
+              parent.insertBefore(img, targetHb);
+              // targetHb를 다시 appendChild 하여 이미지보다 뒤에 오게 함 (렌더링은 위에 됨)
+              parent.appendChild(targetHb);
+            }
+          }
+        });
 
         const finalHtml = new XMLSerializer().serializeToString(baseDoc);
         if (insertedModules.length === 0) _previewCache.set(cacheKey, finalHtml);
@@ -237,7 +311,7 @@ export const DeviceSvgPreview = memo(({
   }, [modelName, cardsKey, modulesKey, equipModel, cardSvgMap, cacheKey]);
 
   // 모듈 팝오버 상태
-  const [popover, setPopover] = useState<{ portId: string; portType: string; x: number; y: number } | null>(null);
+  const [popover, setPopover] = useState<{ portId: string; portType: string; hitboxId?: string; x: number; y: number } | null>(null);
 
   // SVG 스타일 + 포트 인터랙션
   useEffect(() => {
@@ -260,11 +334,11 @@ export const DeviceSvgPreview = memo(({
     container.querySelectorAll("title").forEach(t => t.textContent = "");
 
     // 포트 요소 수집
-    const allPortEls = Array.from(container.querySelectorAll("[id^='port-'], [id^='p'], .port-hitbox")).filter(el => {
+    const allPortEls = Array.from(container.querySelectorAll("[id*='port-'], [id^='p'], .port-hitbox")).filter(el => {
       const id = (el as HTMLElement).id;
       if (el.classList.contains("port-hitbox")) return true;
       if (!id || id === "ports-layer" || id === "port-layer") return false;
-      return id.startsWith("port-") || /^p\d+$/.test(id);
+      return id.includes("port-") || /^p\d+$/.test(id);
     }) as SVGElement[];
 
     allPortEls.forEach(el => {
@@ -272,7 +346,6 @@ export const DeviceSvgPreview = memo(({
       el.style.stroke = "none";
       el.style.pointerEvents = "all";
       el.style.cursor = editable ? "pointer" : "default";
-      el.querySelectorAll("path, rect, circle, polyline, polygon").forEach(p => ((p as unknown) as SVGElement).style.pointerEvents = "none");
     });
 
     if (!editable) return;
@@ -281,21 +354,32 @@ export const DeviceSvgPreview = memo(({
     let hoveredEl: SVGElement | null = null;
     let origFill = "", origStroke = "", origStrokeWidth = "";
 
+    const getTooltip = () => {
+      // 1. 컨테이너 내부 툴팁 시도
+      let tt = container.querySelector(".port-tooltip") as HTMLElement | null;
+      if (tt) return tt;
+      // 2. 부모 형제 요소에서 찾기 (현재 구조)
+      tt = container.parentElement?.querySelector(".port-tooltip") as HTMLElement | null;
+      if (tt) return tt;
+      // 3. 더 상위 모달 컨텐츠에서 찾기 (안전책)
+      return container.closest(".modal-content, .device-registration-modal")?.querySelector(".port-tooltip") as HTMLElement | null;
+    };
+
     const resetHover = () => {
+      const tooltip = getTooltip();
       if (hoveredEl) {
         hoveredEl.style.fill = origFill; hoveredEl.style.stroke = origStroke; hoveredEl.style.strokeWidth = origStrokeWidth;
         hoveredEl = null;
       }
+      if (tooltip) tooltip.style.display = "none";
     };
 
     const findPortEl = (e: MouseEvent): SVGElement | null => {
-      let target = e.target as unknown as SVGElement;
-      if (target.classList.contains("port-hitbox")) return target;
-      if (target.parentElement?.classList.contains("port-hitbox")) return target.parentElement as unknown as SVGElement;
-      const isPort = (id: string) => (id.startsWith("port-") && id !== "ports-layer") || /^p\d+$/.test(id);
-      if (target.id && isPort(target.id)) return target;
-      if (target.parentElement?.id && isPort(target.parentElement.id)) return target.parentElement as unknown as SVGElement;
-      return null;
+      const target = e.target as SVGElement;
+      const isPortId = (id: string) => (id.includes("port-") && id !== "ports-layer" && id !== "port-layer") || /^p\d+$/.test(id);
+      const portEl = target.closest<SVGElement>("[id*='port-'], [id^='p'], .port-hitbox");
+      if (portEl && portEl.id && !isPortId(portEl.id) && !portEl.classList.contains("port-hitbox")) return null;
+      return portEl;
     };
 
     const handleMouseOver = (e: MouseEvent) => {
@@ -309,25 +393,56 @@ export const DeviceSvgPreview = memo(({
         portEl.style.stroke = "rgba(0, 229, 255, 0.7)";
         portEl.style.strokeWidth = "1.5px";
       }
+
+      const tooltip = getTooltip();
+      if (tooltip) {
+        const realPortNumber = portEl.getAttribute("data-port-number");
+        const localPort = portEl.getAttribute("data-local-port");
+        const portType = portEl.getAttribute("data-port-type") || "PORT";
+        const portId = realPortNumber || portEl.id || localPort || "";
+        const displayId = portId.replace(/^.*port-/, "").replace(/^p/, "");
+
+        tooltip.innerHTML = `
+          <div style="font-weight:700; font-size:13px; margin-bottom:4px; color:#80deea;">${portType.toUpperCase()} ${displayId}</div>
+          <div style="font-size:11px; color:#e0f7fa; opacity:0.8;">Click to manage module</div>
+        `;
+        tooltip.style.display = "block";
+      }
     };
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const tooltip = getTooltip();
+      if (tooltip) {
+        tooltip.style.left = `${e.clientX}px`;
+        tooltip.style.top = `${e.clientY - 10}px`;
+        tooltip.style.transform = "translate(-50%, -100%)";
+      }
+    };
+
     const handleMouseOut = () => resetHover();
 
     const handleClick = (e: MouseEvent) => {
+      e.stopPropagation();
       const portEl = findPortEl(e);
       if (!portEl) return;
       const portId = portEl.getAttribute("data-port-number") || portEl.id || "";
       if (!portId) return;
       const portType = portEl.getAttribute("data-port-type") || "port";
       const rect = portEl.getBoundingClientRect();
-      setPopover({ portId, portType, x: rect.left + rect.width / 2, y: rect.top });
+      const parentRect = container.parentElement?.getBoundingClientRect() || container.getBoundingClientRect();
+      const relativeX = rect.left - parentRect.left + rect.width / 2;
+      const relativeY = rect.top - parentRect.top;
+      setPopover({ portId, portType, hitboxId: portEl.id, x: relativeX, y: relativeY });
     };
 
     container.addEventListener("mouseover", handleMouseOver);
+    container.addEventListener("mousemove", handleMouseMove);
     container.addEventListener("mouseout", handleMouseOut);
     container.addEventListener("click", handleClick);
 
     return () => {
       container.removeEventListener("mouseover", handleMouseOver);
+      container.removeEventListener("mousemove", handleMouseMove);
       container.removeEventListener("mouseout", handleMouseOut);
       container.removeEventListener("click", handleClick);
     };
@@ -337,24 +452,25 @@ export const DeviceSvgPreview = memo(({
   useEffect(() => {
     if (!popover) return;
     const handle = (e: MouseEvent) => {
-      if ((e.target as HTMLElement).closest(".module-popover")) return;
+      const target = e.target as HTMLElement;
+      if (target.closest(".module-popover, .port-hitbox, [id*='port-'], [id^='p']")) return;
       setPopover(null);
     };
     const timer = setTimeout(() => window.addEventListener("click", handle, { capture: true }), 50);
     return () => { clearTimeout(timer); window.removeEventListener("click", handle, { capture: true }); };
   }, [popover]);
 
-  const handleInsertModule = useCallback((portId: string, moduleType: InsertedModule["moduleType"]) => {
+  const handleInsertModule = useCallback((portId: string, moduleType: InsertedModule["moduleType"], hitboxId?: string) => {
     const moduleDef = moduleDefinitions.find(m => m.moduleType === moduleType);
     if (!moduleDef) return;
-    const newModule: InsertedModule = { portId, moduleType, moduleSvgFileName: moduleDef.svgFileName };
+    const newModule: InsertedModule = { portId, moduleType, moduleSvgFileName: moduleDef.svgFileName, hitboxId };
     const updated = [...insertedModules.filter(m => m.portId !== portId), newModule];
     onModuleChange?.(updated);
     setPopover(null);
   }, [insertedModules, onModuleChange]);
 
-  const handleRemoveModule = useCallback((portId: string) => {
-    onModuleChange?.(insertedModules.filter(m => m.portId !== portId));
+  const handleRemoveModule = useCallback((portId: string, hitboxId?: string) => {
+    onModuleChange?.(insertedModules.filter(m => hitboxId ? m.hitboxId !== hitboxId : m.portId !== portId));
     setPopover(null);
   }, [insertedModules, onModuleChange]);
 
@@ -363,8 +479,21 @@ export const DeviceSvgPreview = memo(({
   if (!modelName) return null;
 
   return (
-    <>
+    <div style={{ position: "relative", width: "100%" }}>
       <div ref={containerRef} style={{ position: "relative", width: "100%", minWidth: 0 }} dangerouslySetInnerHTML={composedHtml ? { __html: composedHtml } : undefined} />
+
+      <div className="port-tooltip" style={{
+        position: "fixed", pointerEvents: "none", display: "none",
+        backgroundColor: "rgba(4, 15, 33, 0.95)",
+        color: "#e0f7fa",
+        padding: "6px 12px",
+        borderRadius: "4px",
+        fontSize: "12px",
+        zIndex: 10001,
+        border: "1px solid rgba(0, 229, 255, 0.5)",
+        boxShadow: "0 0 10px rgba(0, 229, 255, 0.2)",
+        backdropFilter: "blur(4px)",
+      }} />
 
       {/* 모듈 팝오버 */}
       {popover && editable && (
@@ -372,8 +501,10 @@ export const DeviceSvgPreview = memo(({
           className="module-popover"
           onClick={e => e.stopPropagation()}
           style={{
-            position: "fixed", left: popover.x, top: popover.y - 8,
-            transform: "translate(-50%, -100%)",
+            position: "absolute", 
+            left: popover.x, 
+            top: popover.y < 120 ? popover.y + 24 : popover.y - 8,
+            transform: popover.y < 120 ? "translate(-50%, 0)" : "translate(-50%, -100%)",
             backgroundColor: "rgba(10, 20, 40, 0.95)",
             border: "1px solid rgba(0, 229, 255, 0.4)",
             borderRadius: "12px", padding: "12px", zIndex: 10002,
@@ -415,7 +546,7 @@ export const DeviceSvgPreview = memo(({
             ))}
           </div>
           {existingModule && (
-            <button onClick={() => handleRemoveModule(popover.portId)}
+            <button onClick={() => handleRemoveModule(popover.portId, popover.hitboxId)}
               style={{
                 padding: "6px 12px", borderRadius: "6px",
                 border: "1px solid rgba(239, 68, 68, 0.4)", background: "rgba(239, 68, 68, 0.08)",
@@ -429,6 +560,6 @@ export const DeviceSvgPreview = memo(({
           )}
         </div>
       )}
-    </>
+    </div>
   );
 });

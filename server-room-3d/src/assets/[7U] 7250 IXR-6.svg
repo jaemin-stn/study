@@ -1006,9 +1006,9 @@
       stroke="none"
     />
     <path 
-      id="port-ethernet-3" 
+      id="port-ethernet-4" 
       data-port-name="ethernet"
-      data-port-number="3"
+      data-port-number="4"
       data-status="normal"
       d="M 853.8038075742065 200.32047976011995 H 899.8312384851583 V 227.22062968515738 H 853.8038075742065 Z" 
       fill="none" 
@@ -1105,9 +1105,9 @@
       stroke="none"
     />
     <path 
-      id="port-port-1/2/6" 
+      id="port-port-1/2/5" 
       data-port-name="port"
-      data-port-number="1/2/6"
+      data-port-number="1/2/5"
       data-status="normal"
       d="M 298.16106448311155 278.9152623688156 H 340.1598362333674 V 300.7779310344828 H 298.16106448311155 Z" 
       fill="none" 

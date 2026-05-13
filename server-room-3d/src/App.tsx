@@ -481,7 +481,7 @@ function App() {
       </div>
 
       {/* Dashboard Widgets (shown when no rack is selected and no modal is open) */}
-      {!selectedRackId && !isModalOpen && <DashboardWidgets />}
+      {!selectedRackId && !isModalOpen && !isEditMode && <DashboardWidgets />}
 
       {/* Side Panel */}
       {selectedRackId && <DevicePanel />}
@@ -543,7 +543,7 @@ const FitToModelsButton = () => {
       style={{
         position: "absolute",
         top: "240px",
-        right: "380px",
+        right: "40px",
         zIndex: 1000,
         display: "flex",
         flexDirection: "column",

@@ -158,7 +158,7 @@ export const Scene = () => {
       />
 
       {!selectedRackId && (
-        <GizmoHelper alignment="top-right" margin={[440, 140]}>
+        <GizmoHelper alignment="top-right" margin={[100, 140]}>
           <group 
             scale={1.4}
             onPointerOver={() => useStore.setState({ isGizmoHovered: true })}

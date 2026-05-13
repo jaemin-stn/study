@@ -77,6 +77,7 @@ export const Rack = memo(({
   const isSelected = useStore((state: AppState) => state.selectedRackId === rackId);
   const isHovered = useStore((state: AppState) => state.hoveredRackId === rackId);
   const isFocused = useStore((state: AppState) => state.focusedRackId === rackId);
+  const isEditMode = useStore((state: AppState) => state.isEditMode);
   const { theme } = useTheme();
 
   const isInternalFocused = isSelected || isFocused;
@@ -481,8 +482,8 @@ export const Rack = memo(({
           />
         ))}
       </group>
-      {/* Only mount ErrorMarker when rack has error devices */}
-      {devices.some((d) => d.portStates?.some((p) => p.status === "error")) && (
+      {/* Only mount ErrorMarker when rack has error devices and NOT in edit mode */}
+      {!isEditMode && devices.some((d) => d.portStates?.some((p) => p.status === "error")) && (
         <ErrorMarker
           rack={{
             rackId,

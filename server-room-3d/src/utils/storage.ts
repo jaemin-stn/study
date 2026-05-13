@@ -13,6 +13,30 @@ import {
 } from "./nodeUtils";
 import * as XLSX from "xlsx";
 
+/** Safe JSON Parsing Helper */
+const safeParseJson = (val: any) => {
+  if (typeof val !== "string" || !val.trim()) {
+    return Array.isArray(val) ? val : undefined;
+  }
+  try {
+    return JSON.parse(val);
+  } catch (e) {
+    console.warn("[Storage] JSON parse failed for value:", val, e);
+    return undefined;
+  }
+};
+
+/** Shared Helper to get value from row with multiple synonym support */
+const getValue = (row: any, ...syns: string[]) => {
+  if (!row) return undefined;
+  for (const s of syns) {
+    if (row[s] !== undefined) return row[s];
+    const key = Object.keys(row).find(k => k.toLowerCase() === s.toLowerCase());
+    if (key) return row[key];
+  }
+  return undefined;
+};
+
 /** Data Flattening Helpers (Unified) */
 
 const flattenRacks = (racks: Rack[], nodes?: HierarchyNode[]) =>
@@ -57,6 +81,9 @@ const flattenDevices = (racks: Rack[], nodes?: HierarchyNode[], registeredDevice
         IPAddr: d.IPAddr || "",
         macAddr: d.macAddr || "",
         vendor: d.vendor || "",
+        // [MODULAR] 카드 및 모듈 정보 추가 (JSON 직렬화)
+        insertedCards: d.insertedCards ? JSON.stringify(d.insertedCards) : "",
+        insertedModules: d.insertedModules ? JSON.stringify(d.insertedModules) : "",
       });
     }
   }
@@ -272,6 +299,9 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
                   errorMessage: (p.errorMessage as any) || undefined,
                 }));
 
+              const cardVal = d.insertedCards || (d as any).cards;
+              const moduleVal = d.insertedModules || (d as any).modules;
+
               return {
                 itemId: d.deviceId,
                 title: d.title,
@@ -280,6 +310,9 @@ export const loadFromExcel = (file: File): Promise<Rack[]> => {
                 position: Number(d.position),
                 imageUrl: d.imageUrl || undefined,
                 portStates: devicePorts,
+                // [MODULAR] 안전하게 복구
+                insertedCards: safeParseJson(cardVal),
+                insertedModules: safeParseJson(moduleVal),
               };
             });
 
@@ -374,6 +407,9 @@ export const loadRackFromExcel = (file: File): Promise<Partial<Rack>> => {
               errorMessage: p.errorMessage || undefined,
             }));
 
+          const cardVal = getValue(d, "insertedCards", "cards");
+          const moduleVal = getValue(d, "insertedModules", "modules");
+
           return {
             id: d.deviceId || generateUUID(),
             name: d.title,
@@ -382,6 +418,9 @@ export const loadRackFromExcel = (file: File): Promise<Partial<Rack>> => {
             position: Number(d.position),
             imageUrl: d.imageUrl || undefined,
             portStates: devicePorts,
+            // [MODULAR] 안전하게 복구
+            insertedCards: safeParseJson(cardVal),
+            insertedModules: safeParseJson(moduleVal),
           };
         });
 
@@ -432,6 +471,9 @@ const flattenRegisteredDevices = (
     IPAddr: d.IPAddr,
     macAddr: d.macAddr,
     vendor: d.vendor,
+    // [MODULAR] 마스터 장착 정보도 포함
+    insertedCards: d.insertedCards ? JSON.stringify(d.insertedCards) : "",
+    insertedModules: d.insertedModules ? JSON.stringify(d.insertedModules) : "",
   }));
 
 // ─── Master Sheet Builders ──────────────────────────────────────────────────
@@ -703,6 +745,9 @@ export const parseRegisteredDevicesFromExcel = (
               "network") as RegisteredDevice["type"];
             const size = Number(r.size) || template?.uSize || 1;
 
+            const cardVal = getValue(r, "insertedCards", "cards");
+            const moduleVal = getValue(r, "insertedModules", "modules");
+
             return {
               deviceGroupId: nid,
               modelName,
@@ -712,6 +757,9 @@ export const parseRegisteredDevicesFromExcel = (
               vendor,
               type,
               size,
+              // [MODULAR] 안전하게 복구
+              insertedCards: safeParseJson(cardVal),
+              insertedModules: safeParseJson(moduleVal),
             };
           })
           .filter((d): d is Omit<RegisteredDevice, "deviceId"> => d !== null);
@@ -796,15 +844,6 @@ export const importGroupPackage = (
             order: Number(r.sortOrder || r.order || 0)
           }));
         }
-
-        const getValue = (row: any, ...syns: string[]) => {
-          for (const s of syns) {
-            if (row[s] !== undefined) return row[s];
-            const key = Object.keys(row).find(k => k.toLowerCase() === s.toLowerCase());
-            if (key) return row[key];
-          }
-          return undefined;
-        };
 
         const getRowInfo = (row: any) => {
           const path = getValue(row, "groupPath") || getValue(row, "nodePath");
@@ -923,6 +962,9 @@ export const importGroupPackage = (
                   errorMessage: getValue(p, "errorMessage")
                 }));
               
+              const cardVal = getValue(d, "insertedCards", "cards");
+              const moduleVal = getValue(d, "insertedModules", "modules");
+              
               return {
                 itemId: dItemId,
                 title: String(getValue(d, "title", "deviceName", "name") || ""),
@@ -934,7 +976,10 @@ export const importGroupPackage = (
                 macAddr: getValue(d, "macAddr", "mac"),
                 vendor: getValue(d, "vendor"),
                 deviceId: dDeviceId,
-                portStates: dPorts
+                portStates: dPorts,
+                // [MODULAR] 안전하게 복구
+                insertedCards: safeParseJson(cardVal),
+                insertedModules: safeParseJson(moduleVal),
               };
             });
 
@@ -962,6 +1007,9 @@ export const importGroupPackage = (
           const nodeTarget = resolveRowToNodeId(info);
           ensureNode(nodeTarget);
 
+          const cardVal = getValue(d, "insertedCards", "cards");
+          const moduleVal = getValue(d, "insertedModules", "modules");
+
           dataByNode[nodeTarget].registeredDevices.push({
             deviceId: String(getValue(d, "deviceId", "id", "registeredDeviceId") || generateUUID()),
             deviceGroupId: nodeTarget,
@@ -971,7 +1019,10 @@ export const importGroupPackage = (
             size: Number(getValue(d, "size") || 1),
             IPAddr: String(getValue(d, "IPAddr", "ip") || ""),
             macAddr: String(getValue(d, "macAddr", "mac") || ""),
-            vendor: getValue(d, "vendor")
+            vendor: getValue(d, "vendor"),
+            // [MODULAR] 안전하게 복구
+            insertedCards: safeParseJson(cardVal),
+            insertedModules: safeParseJson(moduleVal),
           });
         });
 

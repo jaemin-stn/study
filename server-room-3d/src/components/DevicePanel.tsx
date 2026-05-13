@@ -237,6 +237,7 @@ export const DevicePanel = () => {
               status: "normal",
             })) || [],
       insertedCards: regDevice.insertedCards,
+      insertedModules: regDevice.insertedModules,
       dashboardThumbnailUrl: regDevice.dashboardThumbnailUrl,
     } as any; // Type assertion since itemId needs to be generated in useStore
 

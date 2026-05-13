@@ -909,7 +909,14 @@ export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: 
     if (device?.deviceId) {
       const currentModules = device.insertedModules || [];
       const updated = [...currentModules.filter(m => hitboxId ? m.hitboxId !== hitboxId : m.portId !== portId), newModule];
-      updateRegisteredDevice(device.deviceId, { insertedModules: updated });
+      
+      // 썸네일 업데이트 후 저장
+      generateThumbnail().then(thumbUrl => {
+        updateRegisteredDevice(device.deviceId!, { 
+          insertedModules: updated,
+          dashboardThumbnailUrl: thumbUrl || device.dashboardThumbnailUrl 
+        });
+      });
     }
   }, [device, updateRegisteredDevice]);
 
@@ -922,7 +929,14 @@ export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: 
     if (device?.deviceId) {
       const currentModules = device.insertedModules || [];
       const updated = currentModules.filter(m => hitboxId ? m.hitboxId !== hitboxId : m.portId !== portId);
-      updateRegisteredDevice(device.deviceId, { insertedModules: updated });
+      
+      // 썸네일 업데이트 후 저장
+      generateThumbnail().then(thumbUrl => {
+        updateRegisteredDevice(device.deviceId!, { 
+          insertedModules: updated,
+          dashboardThumbnailUrl: thumbUrl || device.dashboardThumbnailUrl 
+        });
+      });
     }
   }, [device, updateRegisteredDevice]);
 
@@ -930,6 +944,55 @@ export const DeviceModal = ({ deviceId, onClose }: { deviceId: string; onClose: 
   const getModuleForPort = useCallback((portId: string, hitboxId?: string) => {
     return localModules.find(m => hitboxId ? m.hitboxId === hitboxId : m.portId === portId);
   }, [localModules]);
+
+  // ─── 실시간 썸네일 생성 로직 ───
+  const generateThumbnail = async (): Promise<string> => {
+    if (!svgContainerRef.current) return "";
+    
+    try {
+      const svgEl = svgContainerRef.current.querySelector("svg");
+      if (!svgEl) return "";
+
+      // SVG 클론 생성 (원본 훼손 방지)
+      const clonedSvg = svgEl.cloneNode(true) as SVGElement;
+      
+      // 인라인 스타일 및 크기 고정 (캡처용)
+      const vb = clonedSvg.getAttribute("viewBox") || "0 0 984 200";
+      const parts = vb.split(/\s+/).map(Number);
+      const w = parts[2] || 984;
+      const h = parts[3] || 200;
+      
+      clonedSvg.setAttribute("width", w.toString());
+      clonedSvg.setAttribute("height", h.toString());
+
+      const serializer = new XMLSerializer();
+      const svgStr = serializer.serializeToString(clonedSvg);
+      const blob = new Blob([svgStr], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+
+      const img = new Image();
+      await new Promise<void>((resolve, reject) => {
+        img.onload = () => resolve();
+        img.onerror = reject;
+        img.src = url;
+      });
+
+      // 캔버스에 그리기 (WebP 변환으로 용량 최적화)
+      const SCALE = 2;
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth * SCALE;
+      canvas.height = img.naturalHeight * SCALE;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      
+      const dataUrl = canvas.toDataURL("image/webp", 0.8);
+      URL.revokeObjectURL(url);
+      return dataUrl;
+    } catch (e) {
+      console.error("[DeviceModal] Failed to generate thumbnail:", e);
+      return "";
+    }
+  };
 
   if (!device || !deviceWithModules) return null;
 
